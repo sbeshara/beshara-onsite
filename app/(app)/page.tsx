@@ -8,9 +8,9 @@ import { signUrls } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 import { isAdminRole, isTeamRole, type FileRow, type Profile } from "@/lib/types";
 
-const TEAM_COPY = "Every project conversation, drawing and site photo in one place, shared between the Beshara team and our clients.";
+const TEAM_COPY = "Every client conversation in one place: weekly updates, questions, selections and the schedule, plus the documents we share.";
 const CLIENT_COPY =
-  "All your project communication in one app. Updates from your Beshara team, selections, schedules, drawings and site photos, all in one place.";
+  "Stay in touch with your Beshara team throughout your buildout. Weekly updates, questions, selections and the schedule, all in one conversation, plus key documents like your plans.";
 
 type ProjectRow = { id: string; name: string; town: string; scope: string | null; phase: number; project_members: { user_id: string }[] };
 type Latest = { chat_id: string; project_id: string; chat_name: string; is_internal: boolean; author_id: string | null; body: string; created_at: string };
@@ -253,7 +253,7 @@ async function ClientDashboard({ me }: { me: Profile }) {
             <div className="box">
               {photos.length > 0 && <Photos files={photos} urls={urls} />}
               {docs.length > 0 && <FileList files={docs} urls={urls} />}
-              {!files.length && <div className="empty">Drawings and photos will show up here.</div>}
+              {!files.length && <div className="empty">Documents your team shares will show up here.</div>}
             </div>
           </section>
           <section>

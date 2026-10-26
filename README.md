@@ -1,6 +1,6 @@
 # Beshara OnSite
 
-The client portal for Beshara Builders: project chats, drawings and site photos, and live project progress, shared between the Beshara team and our clients.
+The client portal for Beshara Builders: project communication, the documents we share, and live project progress, shared between the Beshara team and our clients.
 
 ## What it does
 

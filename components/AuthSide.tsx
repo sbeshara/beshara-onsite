@@ -6,8 +6,7 @@ export default function AuthSide() {
         <div className="hero-eyebrow">Beshara OnSite</div>
         <h2>Your buildout, always in view.</h2>
         <p>
-          All your project communication in one app: weekly updates, selections, schedules, drawings and site photos,
-          shared with your Beshara team.
+          Stay in touch with your Beshara team throughout your buildout: weekly updates, questions, selections and the schedule, all in one conversation, plus key documents like your plans.
         </p>
       </div>
       <p className="tag">Building the spaces where care happens.</p>

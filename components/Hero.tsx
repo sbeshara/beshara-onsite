@@ -12,7 +12,7 @@ export default function Hero({ name, eyebrow, copy }: { name: string; eyebrow: s
         <p>{copy}</p>
         <div className="feats">
           <span className="feat"><ChatIcon />Chats by topic</span>
-          <span className="feat"><DocIcon />Drawings &amp; site photos</span>
+          <span className="feat"><DocIcon />Shared plans &amp; documents</span>
           <span className="feat"><GridIcon />Live project progress</span>
         </div>
       </div>

@@ -568,13 +568,13 @@ const visibleFiles=p=>p.files.filter(f=>!isClient()||!f.internal);
 const fileThumb=(p,name)=>{const f=p.files.find(x=>x.name===name);return f&&f.thumb};
 const members=p=>[...p.clients,"sam",...p.team];
 
-const TEAM_COPY="Every project conversation, drawing and site photo in one place, shared between the Beshara team and our clients.";
-const CLIENT_COPY="All your project communication in one app. Updates from your Beshara team, selections, schedules, drawings and site photos, all in one place.";
+const TEAM_COPY="Every client conversation in one place: weekly updates, questions, selections and the schedule, plus the documents we share.";
+const CLIENT_COPY="Stay in touch with your Beshara team throughout your buildout. Weekly updates, questions, selections and the schedule, all in one conversation, plus key documents like your plans.";
 function hero(name,copy,eyebrow){return `<section class="hero"><div class="hero-copy">
   <div class="hero-eyebrow">${esc(eyebrow)}</div>
   <h1>${greeting()}, <em>${esc(name)}</em></h1>
   <p>${copy}</p>
-  <div class="feats"><span class="feat">${ICON.chat}Chats by topic</span><span class="feat">${ICON.doc}Drawings &amp; site photos</span><span class="feat">${ICON.grid}Live project progress</span></div>
+  <div class="feats"><span class="feat">${ICON.chat}Chats by topic</span><span class="feat">${ICON.doc}Shared plans &amp; documents</span><span class="feat">${ICON.grid}Live project progress</span></div>
   </div><div class="hero-photo" aria-hidden="true"></div></section>`}
 
 let auth=null;
@@ -582,7 +582,7 @@ function showAuth(step,uid){auth={step,uid};closeModals();renderAuth()}
 function closeAuth(){auth=null;$("#auth").hidden=true;$("#auth").innerHTML=""}
 const authSide=()=>`<aside class="auth-side"><span class="logo-lg" aria-label="Beshara Builders"></span>
   <div class="auth-pitch"><div class="hero-eyebrow">Beshara OnSite</div><h2>Your buildout, always in view.</h2>
-  <p>All your project communication in one app: weekly updates, selections, schedules, drawings and site photos, shared with your Beshara team.</p></div>
+  <p>Stay in touch with your Beshara team throughout your buildout: weekly updates, questions, selections and the schedule, all in one conversation, plus key documents like your plans.</p></div>
   <p class="tag">Building the spaces where care happens.</p></aside>`;
 function renderAuth(){
   const el=$("#auth"), u=auth.uid&&PEOPLE[auth.uid];
@@ -598,7 +598,7 @@ function renderAuth(){
         <div class="mail-body">
           <h2>Welcome to Beshara OnSite</h2>
           <p>Hi ${esc(u.name)},</p>
-          <p>Samuel Beshara invited you to follow the <b>${esc(p.name)}</b> buildout on Beshara OnSite. It's where you'll get weekly updates, approve selections, see the schedule, and find every drawing and site photo, all in one place.</p>
+          <p>Samuel Beshara invited you to follow the <b>${esc(p.name)}</b> buildout on Beshara OnSite. You and our team will stay in touch here throughout your buildout: weekly progress updates, questions, selections and the schedule, all in one conversation, plus key documents like your plans.</p>
           <button class="btn" id="accept-invite">Set up my account</button>
           <p class="fine">This link is just for you and expires in 7 days. Once you've set a password, sign in with this email address on the website or in the Beshara OnSite app for iPhone and Android.</p>
         </div>
