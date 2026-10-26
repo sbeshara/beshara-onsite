@@ -2,7 +2,8 @@ import Link from "next/link";
 import Avatar from "@/components/Avatar";
 import Hero from "@/components/Hero";
 import { getMe } from "@/lib/auth";
-import { PHASES } from "@/lib/constants";
+import { getPreview } from "@/lib/preview";
+import { PHASES, ROLE_LABEL } from "@/lib/constants";
 import { dayLabel, fileExt, isImage, plural, shortDate, todayLabel } from "@/lib/format";
 import { signUrls } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
@@ -61,7 +62,9 @@ function Photos({ files, urls }: { files: FileRow[]; urls: Record<string, string
 
 export default async function Dashboard() {
   const me = await getMe();
-  return me.role === "client" ? <ClientDashboard me={me} /> : <TeamDashboard me={me} />;
+  const preview = await getPreview();
+  if (preview) return <ClientDashboard viewerName="" projectId={preview} />;
+  return me.role === "client" ? <ClientDashboard viewerName={me.full_name} /> : <TeamDashboard me={me} />;
 }
 
 async function TeamDashboard({ me }: { me: Profile }) {
@@ -172,25 +175,28 @@ async function TeamDashboard({ me }: { me: Profile }) {
   );
 }
 
-async function ClientDashboard({ me }: { me: Profile }) {
+// projectId is set when the team is previewing a project as its client.
+async function ClientDashboard({ viewerName, projectId }: { viewerName: string; projectId?: string }) {
   const supabase = await createClient();
-  const { data: projectData } = await supabase.from("projects").select("id, name, town, scope, phase").order("created_at").limit(1);
+  const base = supabase.from("projects").select("id, name, town, scope, phase, primary_client_id");
+  const { data: projectData } = projectId ? await base.eq("id", projectId) : await base.order("created_at").limit(1);
   const project = projectData?.[0];
   if (!project) {
     return (
       <div className="dash">
-        <Hero name={me.full_name || "there"} eyebrow="Beshara OnSite" copy={CLIENT_COPY} />
+        <Hero name={viewerName || "there"} eyebrow="Beshara OnSite" copy={CLIENT_COPY} />
         <div className="box empty">Your project will appear here as soon as Beshara Builders adds you to it.</div>
       </div>
     );
   }
   const [{ data: msgData }, { data: peopleData }, { data: membersData }, { data: filesData }] = await Promise.all([
-    supabase.from("messages").select("id, body, created_at, author_id, chat_id, chats(name), files(name)").eq("project_id", project.id).order("created_at", { ascending: false }).limit(40),
+    supabase.from("messages").select("id, body, created_at, author_id, chat_id, chats!inner(name, is_internal), files(name)").eq("project_id", project.id).eq("chats.is_internal", false).order("created_at", { ascending: false }).limit(40),
     supabase.from("profiles").select("id, full_name, email, role, title"),
     supabase.from("project_members").select("user_id").eq("project_id", project.id),
-    supabase.from("files").select("*").eq("project_id", project.id).order("created_at", { ascending: false }).limit(20),
+    supabase.from("files").select("*").eq("project_id", project.id).eq("is_internal", false).order("created_at", { ascending: false }).limit(20),
   ]);
   const people = Object.fromEntries(((peopleData ?? []) as Profile[]).map((p) => [p.id, p]));
+  const name = projectId ? (project.primary_client_id && people[project.primary_client_id]?.full_name) || "" : viewerName;
   type Msg = { id: string; body: string; created_at: string; author_id: string | null; chat_id: string; chats: { name: string } | null; files: { name: string }[] };
   const updates = ((msgData ?? []) as unknown as Msg[]).filter((m) => m.author_id && people[m.author_id] && isTeamRole(people[m.author_id].role)).slice(0, 4);
   const team = [
@@ -204,7 +210,7 @@ async function ClientDashboard({ me }: { me: Profile }) {
 
   return (
     <div className="dash">
-      <Hero name={me.full_name || "there"} eyebrow={`Beshara OnSite · ${project.name}`} copy={CLIENT_COPY} />
+      <Hero name={name || "there"} eyebrow={`Beshara OnSite · ${project.name}`} copy={CLIENT_COPY} />
       <section className="hello">
         <p className="summary">
           Your project is in <b>{PHASES[project.phase]}</b>, step {project.phase + 1} of 5. Everything your Beshara team shares with you is here.
@@ -262,7 +268,7 @@ async function ClientDashboard({ me }: { me: Profile }) {
               {team.map((p) => (
                 <div key={p.id} className="member">
                   <Avatar id={p.id} name={p.full_name || p.email} />
-                  <div><b>{p.full_name || p.email}</b><small>{p.role === "owner" ? "Principal" : "Construction Management"}</small></div>
+                  <div><b>{p.full_name || p.email}</b><small>{ROLE_LABEL[p.role]}</small></div>
                 </div>
               ))}
             </div>

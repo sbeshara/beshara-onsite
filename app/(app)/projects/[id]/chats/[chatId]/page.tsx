@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { LockIcon, PeopleIcon } from "@/components/Icons";
 import NewChatButton from "@/components/NewChatButton";
 import Thread from "@/components/Thread";
 import { getMe } from "@/lib/auth";
+import { getPreview } from "@/lib/preview";
 import { signUrls } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 import type { Chat, Message, Profile } from "@/lib/types";
@@ -11,6 +12,7 @@ import type { Chat, Message, Profile } from "@/lib/types";
 export default async function ChatPage({ params }: { params: Promise<{ id: string; chatId: string }> }) {
   const { id, chatId } = await params;
   const me = await getMe();
+  const previewing = (await getPreview()) === id;
   const supabase = await createClient();
   const [{ data: chatsData }, { data: msgData }, { data: peopleData }, { data: memberData }] = await Promise.all([
     supabase.from("chats").select("*").eq("project_id", id).order("position").order("created_at"),
@@ -18,9 +20,12 @@ export default async function ChatPage({ params }: { params: Promise<{ id: strin
     supabase.from("profiles").select("id, full_name, email, role, title"),
     supabase.from("project_members").select("user_id").eq("project_id", id),
   ]);
-  const chats = (chatsData ?? []) as Chat[];
+  const chats = ((chatsData ?? []) as Chat[]).filter((c) => !previewing || !c.is_internal);
   const chat = chats.find((c) => c.id === chatId);
-  if (!chat) notFound();
+  if (!chat) {
+    if (previewing && chats.length) redirect(`/projects/${id}/chats/${chats[0].id}`);
+    notFound();
+  }
   const messages = ((msgData ?? []) as Message[]).reverse();
   const people = Object.fromEntries(((peopleData ?? []) as Profile[]).map((p) => [p.id, p]));
   const clientNames = (memberData ?? []).map((m) => people[m.user_id]).filter((p) => p?.role === "client").map((p) => p.full_name || p.email);
@@ -38,7 +43,7 @@ export default async function ChatPage({ params }: { params: Promise<{ id: strin
   return (
     <div className="chat">
       <div className="chans" aria-label="Chats">
-        <NewChatButton projectId={id} myId={me.id} />
+        {!previewing && <NewChatButton projectId={id} myId={me.id} />}
         <h3>With client</h3>
         {shared.map(chatLink)}
         {internal.length > 0 && (
@@ -54,8 +59,9 @@ export default async function ChatPage({ params }: { params: Promise<{ id: strin
         initialMessages={messages}
         initialUrls={urls}
         people={people}
-        me={{ id: me.id, role: me.role }}
+        me={{ id: me.id, role: previewing ? "client" : me.role }}
         clientNames={clientNames}
+        readOnly={previewing}
       />
     </div>
   );

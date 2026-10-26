@@ -14,12 +14,13 @@ type Props = {
   projectId: string;
   files: Item[];
   chats: { id: string; name: string }[];
+  readOnly?: boolean;
   urls: Record<string, string>;
   names: Record<string, string>;
   me: { id: string; role: Role };
 };
 
-export default function FilesView({ projectId, files: initial, chats, urls, names, me }: Props) {
+export default function FilesView({ projectId, files: initial, chats, urls, names, me, readOnly = false }: Props) {
   const router = useRouter();
   const team = isTeamRole(me.role);
   const [files, setFiles] = useState(initial);
@@ -93,6 +94,7 @@ export default function FilesView({ projectId, files: initial, chats, urls, name
             <input type="checkbox" checked={share} onChange={(e) => setShare(e.target.checked)} /> Share uploads with client
           </label>
         )}
+        {!readOnly && (
         <label className="btn" style={{ cursor: "pointer" }}>
           <UploadIcon />
           {busy || "Upload"}
@@ -108,6 +110,7 @@ export default function FilesView({ projectId, files: initial, chats, urls, name
             }}
           />
         </label>
+        )}
       </div>
       {error && <p className="err" style={{ padding: "8px 16px 0" }}>{error}</p>}
       <div className="ftable-wrap">

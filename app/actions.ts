@@ -15,7 +15,7 @@ const isEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 
 async function requireAdmin() {
   const me = await getMe();
-  if (!isAdminRole(me.role)) throw new Error("Only the Owner or Admin can do that.");
+  if (!isAdminRole(me.role)) throw new Error("Only the Principal Contractor or Admin can do that.");
   return me;
 }
 
@@ -166,7 +166,7 @@ export async function inviteTeamMember(_prev: Result, form: FormData): Promise<R
     if (!name) return { error: "Enter their name." };
     if (!isEmail(email)) return { error: "Enter a valid email address." };
     if (role !== "construction" && role !== "admin") return { error: "Choose a role." };
-    if (role === "admin" && me.role !== "owner") return { error: "Only the Owner can add another Admin." };
+    if (role === "admin" && me.role !== "owner") return { error: "Only the Principal Contractor can add another Admin." };
     const person = await inviteOrFind(email, name, role, null);
     if (!person.invited) {
       if (person.role === "client") return { error: `${email} is a client account. Use a different email for team members.` };
@@ -182,7 +182,7 @@ export async function inviteTeamMember(_prev: Result, form: FormData): Promise<R
 export async function setRole(userId: string, role: Role): Promise<Result> {
   try {
     const me = await getMe();
-    if (me.role !== "owner") return { error: "Only the Owner can change roles." };
+    if (me.role !== "owner") return { error: "Only the Principal Contractor can change roles." };
     if (userId === me.id) return { error: "You can't change your own role." };
     if (role !== "admin" && role !== "construction") return { error: "Choose Admin or Construction Management." };
     const admin = createAdminClient();
@@ -204,7 +204,7 @@ export async function removeTeamMember(userId: string): Promise<Result> {
     const admin = createAdminClient();
     const { data: target } = await admin.from("profiles").select("role").eq("id", userId).single();
     if (!target || target.role === "owner" || target.role === "client") return { error: "That person can't be removed here." };
-    if (target.role === "admin" && me.role !== "owner") return { error: "Only the Owner can remove an Admin." };
+    if (target.role === "admin" && me.role !== "owner") return { error: "Only the Principal Contractor can remove an Admin." };
     const { error } = await admin.auth.admin.deleteUser(userId);
     if (error) return { error: "Couldn't remove them. Try again." };
   } catch (e) {

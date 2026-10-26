@@ -20,7 +20,7 @@ export default async function TeamPage() {
     <div className="page">
       <div className="page-h">
         <h1>Team</h1>
-        <p>Owner and Admin see every project and can create projects, add clients and assign the team. Construction Management sees only the jobs they&apos;re assigned to.</p>
+        <p>The Principal Contractor and Admin see every project and can create projects, add clients and assign the team. Construction Management sees only the jobs they&apos;re assigned to.</p>
       </div>
       <TeamManager me={{ id: me.id, role: me.role }} people={(people ?? []) as Profile[]} counts={counts} />
     </div>

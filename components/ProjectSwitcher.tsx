@@ -10,7 +10,7 @@ export default function ProjectSwitcher({ projects, isClient, isAdmin }: { proje
   const path = usePathname();
   const current =
     projects.find((p) => path.startsWith(`/projects/${p.id}`))?.id ??
-    (path === "/team" ? "/team" : path === "/projects/new" ? "/projects/new" : "/");
+    (["/team", "/projects/new", "/account"].includes(path) ? path : "/");
 
   function go(value: string) {
     if (value === "signout") {
@@ -32,6 +32,7 @@ export default function ProjectSwitcher({ projects, isClient, isAdmin }: { proje
       ))}
       {isAdmin && <option value="/projects/new">+ New project</option>}
       {isAdmin && <option value="/team">Team</option>}
+      <option value="/account">Your account</option>
       <option value="signout">Sign out</option>
     </select>
   );

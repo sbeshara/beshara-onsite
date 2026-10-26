@@ -20,7 +20,7 @@ export default function PeopleManager({ projectId, primaryClientId, staff, assig
     <>
       <section>
         <div className="sec-h"><h2>Beshara team</h2></div>
-        <p className="fine" style={{ marginBottom: 10 }}>The Owner and Admin see every project. Check who on Construction Management works on this job.</p>
+        <p className="fine" style={{ marginBottom: 10 }}>The Principal Contractor and Admin see every project. Check who on Construction Management works on this job.</p>
         <div className="opts" style={{ maxWidth: 560 }}>
           {staff.map((p) => (
             <label key={p.id} className="opt">

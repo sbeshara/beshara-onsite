@@ -392,3 +392,6 @@ a.btn,a.linkbtn{display:inline-flex;align-items:center;justify-content:center}
 .thumb img,.phbtn img,.mini{background:var(--sunk)}
 @media (max-width:820px){.userchip{margin-left:auto}}
 @media (max-width:820px){.pb-label span{display:none}}
+.previewbar{order:4;width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:var(--hero-gold);color:#2B2410;border-radius:10px;padding:8px 12px;font-size:13.5px}
+.previewbar .linkbtn{background:#fff;color:#2B2410;border-color:transparent}
+a.userchip:hover b{text-decoration:underline}

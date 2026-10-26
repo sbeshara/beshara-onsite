@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { FILES_BUCKET } from "@/lib/constants";
+import { FILES_BUCKET, roleLabel } from "@/lib/constants";
 import { dayLabel, guessFolder, isImage, storagePath, timeLabel } from "@/lib/format";
 import { createClient } from "@/lib/supabase/client";
 import { isTeamRole, type Chat, type FileRow, type Message, type Profile, type Role } from "@/lib/types";
@@ -16,11 +16,12 @@ type Props = {
   people: Record<string, Profile>;
   me: { id: string; role: Role };
   clientNames: string[];
+  readOnly?: boolean;
 };
 
 const SELECT = "id, chat_id, author_id, body, created_at, files(*)";
 
-export default function Thread({ chat, initialMessages, initialUrls, people, me, clientNames }: Props) {
+export default function Thread({ chat, initialMessages, initialUrls, people, me, clientNames, readOnly = false }: Props) {
   const router = useRouter();
   const supabase = useRef(createClient()).current;
   const [messages, setMessages] = useState(initialMessages);
@@ -72,7 +73,7 @@ export default function Thread({ chat, initialMessages, initialUrls, people, me,
   }, [messages.length]);
 
   async function send(body: string, files: File[]) {
-    if (!body.trim() && !files.length) return;
+    if (readOnly || (!body.trim() && !files.length)) return;
     setSending(true);
     setError("");
     const { data: msg, error: msgErr } = await supabase
@@ -163,7 +164,7 @@ export default function Thread({ chat, initialMessages, initialUrls, people, me,
                 <div style={{ minWidth: 0 }}>
                   <div className="who">
                     <b>{name}</b>
-                    {who && <span className="role">{who.role === "client" ? who.title || "Client" : who.role === "construction" ? "Construction Management" : who.role === "owner" ? "Owner" : "Admin"}</span>}
+                    {who && <span className="role">{roleLabel(who)}</span>}
                     {who && !isTeamRole(who.role) && <span className="tagc">Client</span>}
                     <time>{timeLabel(m.created_at)}</time>
                   </div>
@@ -189,6 +190,9 @@ export default function Thread({ chat, initialMessages, initialUrls, people, me,
           );
         })}
       </div>
+      {readOnly ? (
+        <div className="compose"><div className="hint">Client view: this is what the client sees. Exit client view to post.</div></div>
+      ) : (
       <div className={`compose ${chat.is_internal ? "int" : ""}`}>
         <form
           onSubmit={(e) => {
@@ -239,6 +243,7 @@ export default function Thread({ chat, initialMessages, initialUrls, people, me,
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }
