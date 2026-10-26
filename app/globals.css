@@ -395,3 +395,8 @@ a.btn,a.linkbtn{display:inline-flex;align-items:center;justify-content:center}
 .previewbar{order:4;width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:var(--hero-gold);color:#2B2410;border-radius:10px;padding:8px 12px;font-size:13.5px}
 .previewbar .linkbtn{background:#fff;color:#2B2410;border-color:transparent}
 a.userchip:hover b{text-decoration:underline}
+
+/* Team side: the open chat is green when the client can read it, amber when it's internal. */
+.chan.int[aria-current="page"]{background:var(--internal-soft);border-left-color:var(--internal-line);color:var(--internal)}
+.thread.team-cli{border-top:3px solid var(--brand)}
+.thread.team-int{border-top:3px solid var(--internal-line)}

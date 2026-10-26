@@ -30,6 +30,7 @@ export default async function ChatPage({ params }: { params: Promise<{ id: strin
   const people = Object.fromEntries(((peopleData ?? []) as Profile[]).map((p) => [p.id, p]));
   const clientNames = (memberData ?? []).map((m) => people[m.user_id]).filter((p) => p?.role === "client").map((p) => p.full_name || p.email);
   const urls = await signUrls(supabase, messages.flatMap((m) => (m.files ?? []).map((f) => f.storage_path)));
+  const teamView = me.role !== "client" && !previewing;
   const shared = chats.filter((c) => !c.is_internal);
   const internal = chats.filter((c) => c.is_internal);
 
@@ -43,8 +44,8 @@ export default async function ChatPage({ params }: { params: Promise<{ id: strin
   return (
     <div className="chat">
       <div className="chans" aria-label="Chats">
-        {!previewing && <NewChatButton projectId={id} myId={me.id} />}
-        <h3>With client</h3>
+        {!previewing && <NewChatButton projectId={id} myId={me.id} isClient={me.role === "client"} />}
+        {teamView && <h3>With client</h3>}
         {shared.map(chatLink)}
         {internal.length > 0 && (
           <>

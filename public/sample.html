@@ -439,7 +439,7 @@ img{max-width:100%}
     <h2 id="newchat-h">New chat</h2>
     <p class="sub">Give one topic its own conversation, like millwork or weekly progress reports.</p>
     <label class="field">Chat name<input id="chat-name" maxlength="60" placeholder="e.g. Millwork" autocomplete="off" required></label>
-    <p class="sub" style="margin:0">Everyone on this project, including the client, will see this chat. Team-only conversations go in <b>Internal Only</b>.</p>
+    <p class="sub" style="margin:0">Everyone on this project, including your Beshara team, will see this chat.</p>
     <div class="actions"><button type="button" class="btn ghost" id="cancel-chat">Cancel</button><button class="btn" type="submit">Create chat</button></div>
   </form>
 </div>
@@ -815,11 +815,11 @@ function chatView(p){
   return `<div class="chat">
     <div class="chans" aria-label="Chats">
       <button class="chan newc" id="new-chat">+ New chat</button>
-      <h3>With client</h3>${shared.map(chanBtn).join("")}
+      ${isClient()?"":"<h3>With client</h3>"}${shared.map(chanBtn).join("")}
       ${internal.length?`<h3>Internal</h3>${internal.map(chanBtn).join("")}`:""}
     </div>
     <div class="thread" id="thread">
-      <div class="msgs" aria-live="polite">${c.internal
+      <div class="msgs" aria-live="polite">${isClient()?"":c.internal
         ?`<div class="banner int">${ICON.lock}<span><b>Internal only.</b> ${esc(clientNames)} can't see this chat.</span></div>`
         :`<div class="banner cli">${ICON.people}<span><b>Client-visible.</b> ${esc(clientNames)} see${p.clients.length>1?"":"s"} everything posted here.</span></div>`}${rows||`<div class="empty">${c.by?esc(PEOPLE[c.by].name)+" started this chat. ":""}No messages yet. Post the first one below.</div>`}</div>
       <div class="compose ${c.internal?"int":""}">

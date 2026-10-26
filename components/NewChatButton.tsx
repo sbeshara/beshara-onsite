@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
-export default function NewChatButton({ projectId, myId }: { projectId: string; myId: string }) {
+export default function NewChatButton({ projectId, myId, isClient }: { projectId: string; myId: string; isClient: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -46,7 +46,11 @@ export default function NewChatButton({ projectId, myId }: { projectId: string; 
               <input id="chat-name" autoFocus maxLength={60} required placeholder="e.g. Millwork" autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} />
             </label>
             <p className="sub" style={{ margin: 0 }}>
-              Everyone on this project, including the client, will see this chat. Team-only conversations go in <b>Internal Only</b>.
+              {isClient ? (
+                "Everyone on this project, including your Beshara team, will see this chat."
+              ) : (
+                <>Everyone on this project, including the client, will see this chat. Team-only conversations go in <b>Internal Only</b>.</>
+              )}
             </p>
             {error && <p className="err" role="alert">{error}</p>}
             <div className="actions">

@@ -122,12 +122,13 @@ export default function Thread({ chat, initialMessages, initialUrls, people, me,
     }
   }
 
+  const team = isTeamRole(me.role);
   const names = clientNames.join(" and ") || "The client";
   let lastDay = "";
 
   return (
     <div
-      className={`thread ${dragging ? "drop" : ""}`}
+      className={`thread ${team ? (chat.is_internal ? "team-int" : "team-cli") : ""} ${dragging ? "drop" : ""}`}
       onDragOver={(e) => {
         if (e.dataTransfer.types.includes("Files")) {
           e.preventDefault();
@@ -144,11 +145,13 @@ export default function Thread({ chat, initialMessages, initialUrls, people, me,
       }}
     >
       <div className="msgs" ref={listRef} aria-live="polite">
-        {chat.is_internal ? (
-          <div className="banner int"><LockIcon /><span><b>Internal only.</b> {names} can&apos;t see this chat.</span></div>
-        ) : (
-          <div className="banner cli"><PeopleIcon /><span><b>Client-visible.</b> {names} {clientNames.length > 1 ? "see" : "sees"} everything posted here.</span></div>
-        )}
+        {/* Only the team sees which chats the client can read; clients never hear about Internal Only. */}
+        {team &&
+          (chat.is_internal ? (
+            <div className="banner int"><LockIcon /><span><b>Internal only.</b> {names} can&apos;t see this chat.</span></div>
+          ) : (
+            <div className="banner cli"><PeopleIcon /><span><b>Client-visible.</b> {names} {clientNames.length > 1 ? "see" : "sees"} everything posted here.</span></div>
+          ))}
         {messages.length === 0 && <div className="empty">No messages yet. Post the first one below.</div>}
         {messages.map((m) => {
           const day = dayLabel(m.created_at);
