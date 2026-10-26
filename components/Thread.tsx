@@ -142,12 +142,12 @@ export default function Thread({ chat, initialMessages, initialUrls, people, me,
         send(text, [...e.dataTransfer.files]);
       }}
     >
-      {chat.is_internal ? (
-        <div className="banner int"><LockIcon /><span><b>Internal only.</b> {names} can&apos;t see this chat.</span></div>
-      ) : (
-        <div className="banner cli"><PeopleIcon /><span><b>Client-visible.</b> {names} {clientNames.length > 1 ? "see" : "sees"} everything posted here.</span></div>
-      )}
       <div className="msgs" ref={listRef} aria-live="polite">
+        {chat.is_internal ? (
+          <div className="banner int"><LockIcon /><span><b>Internal only.</b> {names} can&apos;t see this chat.</span></div>
+        ) : (
+          <div className="banner cli"><PeopleIcon /><span><b>Client-visible.</b> {names} {clientNames.length > 1 ? "see" : "sees"} everything posted here.</span></div>
+        )}
         {messages.length === 0 && <div className="empty">No messages yet. Post the first one below.</div>}
         {messages.map((m) => {
           const day = dayLabel(m.created_at);
@@ -212,7 +212,7 @@ export default function Thread({ chat, initialMessages, initialUrls, people, me,
           <textarea
             ref={inputRef}
             rows={1}
-            placeholder={`Message ${chat.name}`}
+            placeholder="Write a message…"
             aria-label="Message"
             value={text}
             onChange={(e) => {

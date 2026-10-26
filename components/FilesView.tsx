@@ -2,31 +2,40 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { FILES_BUCKET, FOLDERS } from "@/lib/constants";
+import { FILES_BUCKET } from "@/lib/constants";
 import { fileExt, fileSize, guessFolder, isImage, shortDate, storagePath } from "@/lib/format";
 import { createClient } from "@/lib/supabase/client";
 import { isTeamRole, type FileRow, type Role } from "@/lib/types";
 import { LockIcon, PeopleIcon, UploadIcon } from "./Icons";
 
+type Item = FileRow & { chat_id: string | null };
+
 type Props = {
   projectId: string;
-  files: FileRow[];
+  files: Item[];
+  chats: { id: string; name: string }[];
   urls: Record<string, string>;
   names: Record<string, string>;
   me: { id: string; role: Role };
 };
 
-export default function FilesView({ projectId, files: initial, urls, names, me }: Props) {
+export default function FilesView({ projectId, files: initial, chats, urls, names, me }: Props) {
   const router = useRouter();
   const team = isTeamRole(me.role);
   const [files, setFiles] = useState(initial);
-  const [folder, setFolder] = useState<string>("All");
+  // Files are grouped by the chat they were posted in; "direct" = uploaded on this tab.
+  const [filter, setFilter] = useState<string>("all");
   const [share, setShare] = useState(true);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
 
-  const folders = ["All", ...FOLDERS.filter((f) => files.some((x) => x.folder === f))];
-  const list = folder === "All" ? files : files.filter((f) => f.folder === folder);
+  const chatName = Object.fromEntries(chats.map((c) => [c.id, c.name]));
+  const groups = [
+    { id: "all", label: "All" },
+    ...chats.filter((c) => files.some((f) => f.chat_id === c.id)).map((c) => ({ id: c.id, label: c.name })),
+    ...(files.some((f) => !f.chat_id) ? [{ id: "direct", label: "Uploaded here" }] : []),
+  ];
+  const list = filter === "all" ? files : files.filter((f) => (filter === "direct" ? !f.chat_id : f.chat_id === filter));
 
   async function upload(chosen: File[]) {
     if (!chosen.length) return;
@@ -55,11 +64,11 @@ export default function FilesView({ projectId, files: initial, urls, names, me }
     }
     setBusy("");
     if (failed) setError(`${failed} file${failed > 1 ? "s" : ""} didn't upload. Try again.`);
-    setFolder("All");
+    setFilter("all");
     router.refresh();
   }
 
-  async function toggle(f: FileRow) {
+  async function toggle(f: Item) {
     const next = !f.is_internal;
     setFiles((all) => all.map((x) => (x.id === f.id ? { ...x, is_internal: next } : x)));
     const { error } = await createClient().from("files").update({ is_internal: next }).eq("id", f.id);
@@ -69,18 +78,13 @@ export default function FilesView({ projectId, files: initial, urls, names, me }
     }
   }
 
-  async function move(f: FileRow, to: string) {
-    setFiles((all) => all.map((x) => (x.id === f.id ? { ...x, folder: to } : x)));
-    await createClient().from("files").update({ folder: to }).eq("id", f.id);
-  }
-
   return (
     <div className="files">
       <div className="fbar">
         <div className="chips">
-          {folders.map((f) => (
-            <button key={f} type="button" className="chip" aria-pressed={f === folder} onClick={() => setFolder(f)}>
-              {f}
+          {groups.map((g) => (
+            <button key={g.id} type="button" className="chip" aria-pressed={g.id === filter} onClick={() => setFilter(g.id)}>
+              {g.label}
             </button>
           ))}
         </div>
@@ -112,9 +116,9 @@ export default function FilesView({ projectId, files: initial, urls, names, me }
             <thead>
               <tr>
                 <th>Name</th>
-                <th className="col-folder">Folder</th>
+                <th>From</th>
                 <th className="col-by">Added by</th>
-                <th>Date</th>
+                <th className="col-date">Date</th>
                 <th className="col-size">Size</th>
                 {team && <th>Who sees it</th>}
               </tr>
@@ -135,17 +139,9 @@ export default function FilesView({ projectId, files: initial, urls, names, me }
                         <span>{f.name}</span>
                       </a>
                     </td>
-                    <td className="col-folder">
-                      {team ? (
-                        <select aria-label="Folder" value={f.folder} onChange={(e) => move(f, e.target.value)} style={{ border: 0, background: "none", color: "inherit", font: "inherit" }}>
-                          {FOLDERS.map((x) => <option key={x}>{x}</option>)}
-                        </select>
-                      ) : (
-                        f.folder
-                      )}
-                    </td>
+                    <td>{f.chat_id ? chatName[f.chat_id] ?? "Chat" : "Files tab"}</td>
                     <td className="col-by">{(f.uploaded_by && names[f.uploaded_by]) || ""}</td>
-                    <td className="num">{shortDate(f.created_at)}</td>
+                    <td className="num col-date">{shortDate(f.created_at)}</td>
                     <td className="num col-size">{fileSize(f.size_bytes)}</td>
                     {team && (
                       <td>
@@ -160,7 +156,7 @@ export default function FilesView({ projectId, files: initial, urls, names, me }
             </tbody>
           </table>
         ) : (
-          <div className="empty">No files {folder === "All" ? "yet" : "in this folder yet"}. Use Upload to add drawings, photos or submittals.</div>
+          <div className="empty">No files yet. Attachments posted in any chat show up here automatically, or use Upload.</div>
         )}
       </div>
     </div>

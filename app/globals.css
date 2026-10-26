@@ -172,15 +172,15 @@ button.pstep:hover{color:var(--ink)}
 .chat{display:grid;grid-template-columns:220px minmax(0,1fr);min-height:0}
 .chans{border-right:1px solid var(--line);overflow:auto;padding:10px 8px;display:flex;flex-direction:column;gap:2px}
 .chans h3{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:10px 8px 4px}
-.chan{display:flex;align-items:center;gap:8px;border:0;background:none;text-align:left;padding:7px 8px;border-radius:7px}
+.chan{display:flex;align-items:center;gap:8px;border:0;border-left:3px solid transparent;background:none;text-align:left;padding:8px 8px;border-radius:7px}
 .chan:hover{background:var(--sunk)}
-.chan[aria-current="page"]{background:var(--sunk);font-weight:600}
+.chan[aria-current="page"]{background:var(--brand-soft);border-left-color:var(--brand);font-weight:700}
 .chan .ic{color:var(--client);display:flex}
 .chan.int .ic{color:var(--internal)}
 .chan.newc{color:var(--brand);font-weight:700;margin-bottom:4px}
-.thread{display:grid;grid-template-rows:auto minmax(0,1fr) auto;min-height:0;position:relative;grid-template-columns:minmax(0,1fr)}
+.thread{display:grid;grid-template-rows:minmax(0,1fr) auto;min-height:0;position:relative;grid-template-columns:minmax(0,1fr)}
 .thread.drop::after{content:"Drop to attach";position:absolute;inset:8px;border:2px dashed var(--brand);border-radius:12px;background:var(--brand-soft);color:var(--brand);display:grid;place-items:center;font-weight:700;font-size:16px;opacity:.95}
-.banner{display:flex;align-items:center;gap:8px;padding:9px 16px;font-size:13px;border-bottom:1px solid var(--line)}
+.banner{display:flex;align-items:center;gap:8px;padding:8px 12px;font-size:12.5px;line-height:1.35;border-radius:9px}
 .banner.int{background:var(--internal-soft);color:var(--internal)}
 .banner.cli{background:var(--client-soft);color:var(--client)}
 .msgs{overflow:auto;padding:16px;display:flex;flex-direction:column;gap:16px}
@@ -198,7 +198,7 @@ button.pstep:hover{color:var(--ink)}
 .phbtn{margin-top:6px;display:block;border:1px solid var(--line);padding:0;border-radius:10px;overflow:hidden;background:var(--sunk);width:min(240px,100%)}
 .phbtn img{display:block;width:100%;max-height:220px;object-fit:cover}
 .phbtn span{display:block;font-size:12px;color:var(--muted);padding:6px 9px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.compose{border-top:1px solid var(--line);padding:10px 12px 12px;display:grid;gap:6px}
+.compose{border-top:1px solid var(--line);padding:10px 12px 12px;display:grid;grid-template-columns:minmax(0,1fr);gap:6px}
 .compose form{display:flex;gap:8px;align-items:flex-end}
 .compose textarea{flex:1;min-width:0;resize:none;border:1px solid var(--line);background:var(--sunk);border-radius:10px;padding:10px 12px;min-height:44px;max-height:140px}
 .compose.int textarea{border-color:var(--internal-line);background:var(--internal-soft)}
@@ -327,15 +327,32 @@ button.vis:hover{border-color:currentColor}
   .viewas select{max-width:200px}
   .proj-select{display:block;width:100%;order:3;border:0;background:var(--hdr-soft);color:var(--hdr-ink);border-radius:10px;padding:9px 10px;font-weight:600}
   .proj-select option{color:#151B18;background:#fff}
-  .chat{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
-  .chans{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--line);padding:8px;gap:6px}
-  .chans h3{display:none}
-  .chan{white-space:nowrap;border:1px solid var(--line);border-radius:999px;padding:5px 11px}
-  .chan.newc{margin-bottom:0}
-  .chan[aria-current="page"]{border-color:var(--ink)}
+  .shell{padding-left:max(8px,env(safe-area-inset-left,0px));padding-right:max(8px,env(safe-area-inset-right,0px));padding-block:8px}
+  .chat{grid-template-columns:112px minmax(0,1fr)}
+  .chans{padding:8px 5px;gap:2px}
+  .chans h3{font-size:10px;margin:10px 6px 2px}
+  .chan{align-items:flex-start;gap:6px;padding:9px 6px;font-size:13px;line-height:1.25;overflow-wrap:anywhere}
+  .chan .ic{margin-top:1px}
+  .chan.newc{font-size:12.5px;padding:8px 6px}
+  .msgs{padding:10px;gap:12px}
+  .msg{grid-template-columns:28px minmax(0,1fr);gap:8px}
+  .msg .av{width:28px;height:28px;font-size:11px}
+  .who .role{display:none}
+  .compose{padding:8px}
+  .compose form{gap:6px}
+  .compose .btn{padding:10px 12px}
+  .compose .btn span{display:none}
+  .iconbtn{width:40px;height:40px}
+  .compose .hint{display:none}
+  .phead{padding:12px 14px 10px;gap:8px}
+  .phead h1{font-size:19px}
+  .phead .sub{font-size:12px}
   .people{margin-left:0;width:100%}
-  .phead h1{font-size:22px}
-  .col-by,.col-size,.col-folder{display:none}
+  .people .stack,.people>.sub{display:none}
+  .pb-label{display:none}
+  .tab{padding:9px 8px}
+  input,textarea,select{font-size:16px!important}
+  .col-by,.col-size,.col-date{display:none}
   .row2,.addc{grid-template-columns:minmax(0,1fr)}
   td,th{padding-left:12px;padding-right:12px}
   .prow{grid-template-columns:minmax(0,1fr);gap:8px}
