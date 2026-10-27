@@ -70,7 +70,10 @@ create table public.weekly_reports (
   status         text not null default 'draft'
                  check (status in ('draft', 'approved', 'skipped', 'no_logs')),
   completed      jsonb not null default '[]',    -- [{ trade, text }]
-  looking_ahead  jsonb not null default '[]',    -- [{ trade, text, date }]
+  looking_ahead  jsonb not null default '[]',    -- [{ trade, text }], only from Friday's log
+  layout         text not null default 'standard'
+                 check (layout in ('standard', 'combined')), -- combined = one page, no photos
+  skip_completed boolean not null default false,  -- leave the COMPLETED page out of the PDF
   photos         jsonb not null default '[]',    -- [{ id, name, log_date, selected }] (JobTread file ids)
   source_logs    jsonb not null default '[]',    -- the daily logs the draft was written from
   pm_notes       text not null default '',
@@ -89,7 +92,7 @@ alter table public.weekly_reports enable row level security;
 revoke all on public.weekly_reports from anon;
 revoke insert, delete on public.weekly_reports from authenticated;
 revoke update on public.weekly_reports from authenticated;
-grant update (completed, looking_ahead, photos, pm_notes, updated_at, updated_by) on public.weekly_reports to authenticated;
+grant update (completed, looking_ahead, layout, skip_completed, photos, pm_notes, updated_at, updated_by) on public.weekly_reports to authenticated;
 
 create policy "reports: team reads" on public.weekly_reports for select to authenticated
   using (public.is_team() and public.can_access_project(project_id));

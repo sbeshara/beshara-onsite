@@ -9,11 +9,18 @@ import { createClient } from "@/lib/supabase/server";
 import { isAdminRole, isTeamRole } from "@/lib/types";
 
 export type Result = { ok?: string; error?: string };
-type Edits = { completed: ReportLine[]; looking_ahead: ReportLine[]; photos: ReportPhoto[]; pm_notes: string };
+type Edits = {
+  completed: ReportLine[];
+  looking_ahead: ReportLine[];
+  layout: WeeklyReport["layout"];
+  skip_completed: boolean;
+  photos: ReportPhoto[];
+  pm_notes: string;
+};
 
 const clean = (lines: ReportLine[]) =>
   lines
-    .map((l) => ({ trade: l.trade.trim(), text: l.text.trim(), ...(l.date !== undefined ? { date: l.date.trim() } : {}) }))
+    .map((l) => ({ trade: l.trade.trim(), text: l.text.trim() }))
     .filter((l) => l.trade || l.text);
 
 async function requireApprover() {
@@ -30,7 +37,16 @@ export async function saveReport(id: string, edits: Edits): Promise<Result> {
   const { error, count } = await supabase
     .from("weekly_reports")
     .update(
-      { completed: clean(edits.completed), looking_ahead: clean(edits.looking_ahead), photos: edits.photos, pm_notes: edits.pm_notes, updated_at: new Date().toISOString(), updated_by: me.id },
+      {
+        completed: clean(edits.completed),
+        looking_ahead: clean(edits.looking_ahead),
+        layout: edits.layout === "combined" ? "combined" : "standard",
+        skip_completed: !!edits.skip_completed,
+        photos: edits.photos,
+        pm_notes: edits.pm_notes,
+        updated_at: new Date().toISOString(),
+        updated_by: me.id,
+      },
       { count: "exact" },
     )
     .eq("id", id);
@@ -47,7 +63,8 @@ export async function approveReport(id: string, edits: Edits): Promise<Result> {
     const admin = createAdminClient();
     const { data: report } = await admin.from("weekly_reports").select("*").eq("id", id).single();
     if (!report || report.status !== "draft") return { error: "This report isn't a draft anymore." };
-    if (!(report.completed as ReportLine[]).length) return { error: "Add at least one Completed item before approving." };
+    if (!(report.looking_ahead as ReportLine[]).length) return { error: "Looking Ahead is still pending. The PM needs to add it from Friday's log." };
+    if (!(report.completed as ReportLine[]).length && !report.skip_completed) return { error: "Add at least one Completed item, or turn on \"Leave out the Completed page\"." };
     await postReport(admin, report as WeeklyReport, me.id);
   } catch (e) {
     return { error: (e as Error).message };

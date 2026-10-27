@@ -7,7 +7,7 @@ import GenerateButton from "./GenerateButton";
 
 export const maxDuration = 300;
 
-const STATUS: Record<string, string> = { draft: "Needs review", approved: "Posted", no_logs: "No daily logs", skipped: "Skipped", unlinked: "Not linked", missing: "Not drafted yet" };
+const STATUS: Record<string, string> = { draft: "Needs review", pending: "Needs Looking Ahead from PM", approved: "Posted", no_logs: "No daily logs", skipped: "Skipped", unlinked: "Not linked", missing: "Not drafted yet" };
 
 export default async function ReportsHome({ searchParams }: { searchParams: Promise<{ week?: string }> }) {
   const me = await getMe();
@@ -26,10 +26,18 @@ export default async function ReportsHome({ searchParams }: { searchParams: Prom
 
   const rows = projects.map((p) => {
     const r = reports[p.id];
-    const status = r ? (r.error && !r.completed.length ? "error" : r.status) : p.jobtread_job_id ? "missing" : "unlinked";
+    const status = r
+      ? r.error && !r.completed.length
+        ? "error"
+        : r.status === "draft" && !r.looking_ahead.length
+          ? "pending"
+          : r.status
+      : p.jobtread_job_id
+        ? "missing"
+        : "unlinked";
     return { p, r, status };
   });
-  const order = ["draft", "error", "missing", "no_logs", "approved", "skipped", "unlinked"];
+  const order = ["draft", "pending", "error", "missing", "no_logs", "approved", "skipped", "unlinked"];
   rows.sort((a, b) => order.indexOf(a.status) - order.indexOf(b.status));
   const count = (s: string) => rows.filter((r) => r.status === s).length;
 
@@ -54,6 +62,7 @@ export default async function ReportsHome({ searchParams }: { searchParams: Prom
       </div>
       <div className="st-sum">
         <span>{count("draft")} need review</span>
+        {count("pending") > 0 && <span>{count("pending")} waiting on the PM</span>}
         <span>{count("approved")} posted</span>
         {count("no_logs") > 0 && <span>{count("no_logs")} with no daily logs</span>}
         {count("error") > 0 && <span>{count("error")} couldn&apos;t be drafted</span>}
@@ -75,7 +84,7 @@ export default async function ReportsHome({ searchParams }: { searchParams: Prom
                 </div>
                 <span className={`st-status ${status}`}>{status === "error" ? "Couldn't draft" : STATUS[status]}</span>
                 {r && status !== "no_logs" && r.completed.length > 0 && (
-                  <div className="peek">{r.completed.map((c) => `${c.trade}: ${c.text}`).join(" · ")}</div>
+                  <div className="peek">{r.completed.map((c) => (c.trade ? `${c.trade}: ${c.text}` : c.text)).join(" · ")}</div>
                 )}
                 {r?.pm_notes ? <div className="peek">PM notes: {r.pm_notes}</div> : null}
                 {status === "no_logs" && <div className="peek">No daily logs in JobTread for {weekLabel(week)}. Nothing will be posted unless you write one.</div>}

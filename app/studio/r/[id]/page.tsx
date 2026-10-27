@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getMe } from "@/lib/auth";
 import { fileUrls } from "@/lib/jobtread";
-import { weekLabel, type WeeklyReport } from "@/lib/reports";
+import { reportFileName } from "@/lib/report-pdf";
+import { shortDate, weekLabel, type WeeklyReport } from "@/lib/reports";
 import { createClient } from "@/lib/supabase/server";
 import { isAdminRole } from "@/lib/types";
 import ReportEditor from "./ReportEditor";
@@ -35,7 +36,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
         </div>
         <a className="btn ghost" href={`/studio/r/${id}/pdf`} target="_blank" rel="noreferrer">Preview PDF</a>
       </div>
-      <ReportEditor report={report} thumbs={thumbs} canApprove={isAdminRole(me.role)} />
+      <ReportEditor report={report} thumbs={thumbs} canApprove={isAdminRole(me.role)} draftName={reportFileName(report.projects.name, shortDate(report.week_start), true)} />
     </>
   );
 }

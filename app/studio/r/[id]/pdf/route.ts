@@ -15,11 +15,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const supabase = await createClient();
   const { data } = await supabase.from("weekly_reports").select("*").eq("id", id).maybeSingle();
   if (!data) return new NextResponse("Not found", { status: 404 });
-  const { pdf, projectName } = await reportPdf(createAdminClient(), data as WeeklyReport);
+  const { pdf, fileName } = await reportPdf(createAdminClient(), data as WeeklyReport);
   return new NextResponse(Buffer.from(pdf), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="${projectName.replace(/[^\w .-]/g, "")} Progress Report.pdf"`,
+      "Content-Disposition": `inline; filename="${fileName.replace(/[^\w .-]/g, "")}"`,
       "Cache-Control": "no-store",
     },
   });

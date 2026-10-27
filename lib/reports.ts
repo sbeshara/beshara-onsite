@@ -1,8 +1,9 @@
 import "server-only";
 import { FILES_BUCKET } from "./constants";
 import { storagePath, TZ } from "./format";
-import { dailyLogs, fileUrls, scheduleBetween } from "./jobtread";
-import { buildReportPdf, type ReportLine } from "./report-pdf";
+import { dailyLogs, fileUrls } from "./jobtread";
+import { sendEmail } from "./notify";
+import { buildReportPdf, lineText, reportFileName, type ReportLine } from "./report-pdf";
 import { draftReport } from "./report-ai";
 import { createAdminClient } from "./supabase/admin";
 
@@ -16,6 +17,8 @@ export type WeeklyReport = {
   status: "draft" | "approved" | "skipped" | "no_logs";
   completed: ReportLine[];
   looking_ahead: ReportLine[];
+  layout: "standard" | "combined";
+  skip_completed: boolean;
   photos: ReportPhoto[];
   source_logs: { date: string; author: string; notes: string; trades: string[] }[];
   pm_notes: string;
@@ -50,7 +53,7 @@ export function mondayOf(iso: string) {
   return addDays(iso, -((d.getUTCDay() + 6) % 7));
 }
 
-// The week a report covers: the most recent full Monday-Sunday week.
+// The week a report covers: the most recent full week. Logs are read Monday through Saturday.
 export function lastFullWeek(now = new Date()) {
   return addDays(mondayOf(nj(now).date), -7);
 }
@@ -64,7 +67,7 @@ export const shortDate = (iso: string) => {
   const [y, m, d] = iso.split("-");
   return `${Number(m)}/${Number(d)}/${y.slice(2)}`;
 };
-export const weekLabel = (weekStart: string) => `${shortDate(weekStart)} - ${shortDate(addDays(weekStart, 6))}`;
+export const weekLabel = (weekStart: string) => `${shortDate(weekStart)} - ${shortDate(addDays(weekStart, 5))}`;
 
 // ---- Drafting ----------------------------------------------------------------
 
@@ -75,32 +78,59 @@ export async function generateReport(admin: Admin, project: ProjectForReport, we
   const { data: existing } = await admin.from("weekly_reports").select("id, status").eq("project_id", project.id).eq("week_start", weekStart).maybeSingle();
   if (existing && (!opts.force || existing.status === "approved")) return { project: project.name, result: "exists" };
 
-  const weekEnd = addDays(weekStart, 6);
-  const nextMonday = addDays(weekStart, 7);
+  const saturday = addDays(weekStart, 5);
+  const friday = addDays(weekStart, 4);
   const base = { project_id: project.id, week_start: weekStart, generated_at: new Date().toISOString(), updated_at: new Date().toISOString() };
   try {
-    const logs = await dailyLogs(project.jobtread_job_id, weekStart, weekEnd);
+    const logs = await dailyLogs(project.jobtread_job_id, weekStart, saturday);
     const source = logs.map((l) => ({ date: l.date, author: l.author, notes: l.notes, trades: l.trades }));
     if (!logs.length || logs.every((l) => !l.notes.trim())) {
       await admin.from("weekly_reports").upsert({ ...base, status: "no_logs", completed: [], looking_ahead: [], photos: [], source_logs: source, error: null }, { onConflict: "project_id,week_start" });
       return { project: project.name, result: "no logs" };
     }
-    const schedule = await scheduleBetween(project.jobtread_job_id, nextMonday, addDays(nextMonday, 13)).catch(() => []);
-    const draft = await draftReport({ project: project.name, weekOf: weekLabel(weekStart), logs, schedule });
-    // Suggest up to four photos: the first from each day, then fill in.
+    const draft = await draftReport({ project: project.name, weekOf: shortDate(weekStart), fridayDate: friday, logs });
+    // The PDF has two photo spots; suggest the first photo from the latest days.
     const all = logs.flatMap((l) => l.photos.map((p) => ({ ...p, log_date: l.date })));
-    const firsts = new Set(logs.map((l) => l.photos[0]?.id).filter(Boolean).slice(0, 4));
-    for (const p of all) if (firsts.size < 4) firsts.add(p.id);
-    const photos: ReportPhoto[] = all.map((p) => ({ id: p.id, name: p.name, log_date: p.log_date, selected: firsts.has(p.id) }));
-    await admin.from("weekly_reports").upsert(
-      { ...base, status: "draft", completed: draft.completed, looking_ahead: draft.looking_ahead, photos, source_logs: source, error: null, approved_at: null, approved_by: null },
-      { onConflict: "project_id,week_start" },
-    );
+    const picks = new Set([...logs].reverse().map((l) => l.photos[0]?.id).filter(Boolean).slice(0, 2));
+    for (const p of all) if (picks.size < 2) picks.add(p.id);
+    const photos: ReportPhoto[] = all.map((p) => ({ id: p.id, name: p.name, log_date: p.log_date, selected: picks.has(p.id) }));
+    const { data: saved } = await admin
+      .from("weekly_reports")
+      .upsert(
+        { ...base, status: "draft", completed: draft.completed, looking_ahead: draft.looking_ahead, photos, source_logs: source, error: null, approved_at: null, approved_by: null },
+        { onConflict: "project_id,week_start" },
+      )
+      .select("id")
+      .single();
+    if (!draft.looking_ahead.length && saved) await askPmsForLookingAhead(admin, project, weekStart, saved.id, logs.some((l) => l.date === friday));
     return { project: project.name, result: "drafted" };
   } catch (e) {
     const message = (e as Error).message.slice(0, 500);
     await admin.from("weekly_reports").upsert({ ...base, status: "draft", error: message }, { onConflict: "project_id,week_start", ignoreDuplicates: !!existing });
     return { project: project.name, result: `error: ${message}` };
+  }
+}
+
+const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+
+// Looking Ahead only comes from Friday's log. When it's missing, the
+// project's Construction Management team is asked to add it.
+async function askPmsForLookingAhead(admin: Admin, project: ProjectForReport, weekStart: string, reportId: string, hadFriday: boolean) {
+  const { data: members } = await admin.from("project_members").select("profiles(email, full_name, role)").eq("project_id", project.id);
+  const pms = (members ?? [])
+    .map((m) => m.profiles as unknown as { email: string; full_name: string; role: string } | null)
+    .filter((p): p is { email: string; full_name: string; role: string } => !!p && p.role === "construction");
+  const link = `${process.env.NEXT_PUBLIC_REPORTS_URL ?? "https://reports.besharabuilders.com"}/r/${reportId}`;
+  const why = hadFriday ? "Friday's daily log has no work-to-be-conducted section" : "there's no Friday daily log";
+  for (const pm of pms) {
+    await sendEmail(
+      pm.email,
+      `Looking Ahead needed: ${project.name}, week of ${shortDate(weekStart)}`,
+      `<p>Hi ${esc(pm.full_name.split(" ")[0] || "there")},</p>
+<p>The weekly progress report for <b>${esc(project.name)}</b> (week of ${shortDate(weekStart)}) is drafted, but ${why}, so the Looking Ahead section is empty.</p>
+<p>Please add next week's work so Julia can approve it: <a href="${link}">${link}</a></p>
+<p>Beshara Reports</p>`,
+    ).catch(() => null);
   }
 }
 
@@ -116,15 +146,13 @@ export async function generateAll(admin: Admin, weekStart: string, opts: { force
 // ---- Posting ------------------------------------------------------------------
 
 export function reportText(r: Pick<WeeklyReport, "week_start" | "completed" | "looking_ahead">) {
-  const line = (l: ReportLine) => `• ${l.trade}: ${l.text}${l.date ? ` (${l.date})` : ""}`;
+  const line = (l: ReportLine) => `• ${lineText(l)}`;
   return [
-    `Weekly Progress Report · Week of ${weekLabel(r.week_start)}`,
+    `Weekly Progress Report · Week of ${shortDate(r.week_start)}`,
     "",
-    "COMPLETED",
-    ...(r.completed.length ? r.completed.map(line) : ["No work to report this week."]),
-    "",
+    ...(r.completed.length ? ["COMPLETED", ...r.completed.map(line), ""] : []),
     `LOOKING AHEAD · Week of ${shortDate(addDays(r.week_start, 7))}`,
-    ...(r.looking_ahead.length ? r.looking_ahead.map(line) : ["Upcoming work will be shared in next week's report."]),
+    ...r.looking_ahead.map(line),
   ].join("\n");
 }
 
@@ -136,20 +164,23 @@ async function download(url: string) {
 
 export async function reportPdf(admin: Admin, report: WeeklyReport) {
   const { data: project } = await admin.from("projects").select("name, town, jobtread_label").eq("id", report.project_id).single();
-  const chosen = report.photos.filter((p) => p.selected);
+  const chosen = report.layout === "combined" || report.skip_completed ? [] : report.photos.filter((p) => p.selected).slice(0, 2);
   const urls = await fileUrls(chosen.map((p) => p.id), 1600).catch(() => ({}) as Record<string, string>);
   const photos = [];
-  for (const p of chosen) if (urls[p.id]) photos.push({ ...(await download(urls[p.id])), caption: shortDate(p.log_date) });
+  for (const p of chosen) if (urls[p.id]) photos.push(await download(urls[p.id]));
+  const week = shortDate(report.week_start);
   const pdf = await buildReportPdf({
-    practice: project?.name ?? "Project",
-    address: project?.town ? `${project.town}, NJ` : null,
-    weekLabel: weekLabel(report.week_start),
-    nextWeekLabel: shortDate(addDays(report.week_start, 7)),
-    completed: report.completed,
-    lookingAhead: report.looking_ahead,
+    name: project?.name ?? "Project",
+    week,
+    nextWeek: shortDate(addDays(report.week_start, 7)),
+    completed: report.completed.map(lineText),
+    ahead: report.looking_ahead.map(lineText),
     photos,
+    combined: report.layout === "combined",
+    skipCompleted: report.skip_completed,
   });
-  return { pdf, photos, chosen, projectName: project?.name ?? "Project" };
+  const fileName = reportFileName(project?.name ?? "Project", week, !report.looking_ahead.length);
+  return { pdf, photos, chosen, fileName };
 }
 
 // Posts an approved report to the project's Weekly Progress Report chat as Beshara Builders.
@@ -159,7 +190,7 @@ export async function postReport(admin: Admin, report: WeeklyReport, approverId:
     chats?.find((c) => !c.is_internal && /weekly (progress|update)/i.test(c.name)) ?? chats?.find((c) => !c.is_internal);
   if (!chat) throw new Error("This project has no client chat to post in.");
 
-  const { pdf, photos, chosen, projectName } = await reportPdf(admin, report);
+  const { pdf, photos, chosen, fileName } = await reportPdf(admin, report);
   const { data: msg, error } = await admin
     .from("messages")
     .insert({ chat_id: chat.id, author_id: approverId, body: reportText(report), posted_as: "company" })
@@ -167,9 +198,8 @@ export async function postReport(admin: Admin, report: WeeklyReport, approverId:
     .single();
   if (error || !msg) throw new Error(`Couldn't post the report: ${error?.message}`);
 
-  const [y, m, d] = report.week_start.split("-");
   const uploads: { name: string; bytes: Uint8Array; type: string; folder: string }[] = [
-    { name: `${projectName} ${m}${d}${y.slice(2)} Beshara Builders Progress Report.pdf`, bytes: pdf, type: "application/pdf", folder: "Submittals" },
+    { name: fileName, bytes: pdf, type: "application/pdf", folder: "Submittals" },
     ...photos.map((p, i) => ({ name: chosen[i]?.name ?? `Photo ${i + 1}.jpg`, bytes: p.bytes, type: p.type, folder: "Photos" })),
   ];
   for (const u of uploads) {
