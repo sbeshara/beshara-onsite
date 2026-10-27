@@ -90,6 +90,26 @@ export async function setProjectTeam(projectId: string, staffIds: string[]): Pro
   return { ok: "Saved. Assigned people can now see this project." };
 }
 
+// Assigns (or unassigns) one Construction Management teammate to one job.
+export async function setAssignment(userId: string, projectId: string, assigned: boolean): Promise<Result> {
+  try {
+    await requireAdmin();
+    const supabase = await createClient();
+    const { data: person } = await supabase.from("profiles").select("full_name, role").eq("id", userId).maybeSingle();
+    if (person?.role !== "construction") return { error: "Admins and the Principal Contractor already see every job." };
+    const { data: project } = await supabase.from("projects").select("name").eq("id", projectId).maybeSingle();
+    if (!project) return { error: "That project no longer exists." };
+    const { error } = assigned
+      ? await supabase.from("project_members").upsert({ project_id: projectId, user_id: userId }, { onConflict: "project_id,user_id", ignoreDuplicates: true })
+      : await supabase.from("project_members").delete().eq("project_id", projectId).eq("user_id", userId);
+    if (error) return { error: "Couldn't save that. Try again." };
+    revalidatePath("/", "layout");
+    return { ok: assigned ? `${person.full_name} now sees ${project.name}.` : `${person.full_name} no longer sees ${project.name}.` };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}
+
 export async function addClientContact(projectId: string, _prev: Result, form: FormData): Promise<Result> {
   try {
     await requireAdmin();

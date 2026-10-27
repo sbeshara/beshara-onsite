@@ -1,15 +1,33 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
-import { inviteTeamMember, removeTeamMember, resendInvite, setRole, type Result } from "@/app/actions";
+import { inviteTeamMember, removeTeamMember, resendInvite, setAssignment, setRole, type Result } from "@/app/actions";
 import Avatar from "@/components/Avatar";
 import { ROLE_LABEL } from "@/lib/constants";
 import { plural } from "@/lib/format";
 import type { Profile, Role } from "@/lib/types";
 
-type Props = { me: { id: string; role: Role }; people: Profile[]; counts: Record<string, number> };
+type Props = {
+  me: { id: string; role: Role };
+  people: Profile[];
+  projects: { id: string; name: string; town: string }[];
+  assigned: Record<string, string[]>;
+  lastSignIn: Record<string, string | null>;
+};
 
-export default function TeamManager({ me, people, counts }: Props) {
+const since = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+
+export default function TeamManager({ me, people, projects, assigned: initial, lastSignIn }: Props) {
+  // Ticks update right away; the server saves each one.
+  const [assigned, setAssigned] = useState(initial);
+  const toggle = (userId: string, projectId: string, on: boolean) => {
+    setAssigned((a) => ({ ...a, [userId]: on ? [...(a[userId] ?? []), projectId] : (a[userId] ?? []).filter((x) => x !== projectId) }));
+    start(async () => {
+      const r = await setAssignment(userId, projectId, on);
+      setMsg(r);
+      if (r.error) setAssigned((a) => ({ ...a, [userId]: on ? (a[userId] ?? []).filter((x) => x !== projectId) : [...(a[userId] ?? []), projectId] }));
+    });
+  };
   const [msg, setMsg] = useState<Result>({});
   const [confirming, setConfirming] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -25,13 +43,16 @@ export default function TeamManager({ me, people, counts }: Props) {
             const editable = owner && p.id !== me.id && p.role !== "owner";
             const removable = p.id !== me.id && p.role !== "owner" && (p.role !== "admin" || owner);
             return (
-              <div key={p.id} className="rowitem">
+              <div key={p.id} className="rowitem team-row">
                 <Avatar id={p.id} name={p.full_name || p.email} />
                 <div style={{ minWidth: 0 }}>
                   <b>{p.full_name || p.email}</b>
                   <small>
                     {p.email}
-                    {p.role === "construction" ? ` · ${plural(counts[p.id] ?? 0, "project")}` : ""}
+                    {p.role === "construction" ? ` · ${plural(assigned[p.id]?.length ?? 0, "job")}` : " · sees every job"}
+                  </small>
+                  <small className={`signin ${lastSignIn[p.id] ? "in" : ""}`}>
+                    {lastSignIn[p.id] ? `Signed in · last on ${since(lastSignIn[p.id]!)}` : "Invite pending · hasn't signed in yet"}
                   </small>
                 </div>
                 <span className="cbtns">
@@ -49,7 +70,7 @@ export default function TeamManager({ me, people, counts }: Props) {
                   ) : (
                     <span className="pill">{ROLE_LABEL[p.role]}</span>
                   )}
-                  {p.id !== me.id && (
+                  {p.id !== me.id && !lastSignIn[p.id] && (
                     <button type="button" className="linkbtn" disabled={pending} onClick={() => run(() => resendInvite(p.id))}>Resend invite</button>
                   )}
                   {removable &&
@@ -61,6 +82,21 @@ export default function TeamManager({ me, people, counts }: Props) {
                       <button type="button" className="linkbtn" onClick={() => setConfirming(p.id)}>Remove</button>
                     ))}
                 </span>
+                {p.role === "construction" && (
+                  <fieldset className="jobpick">
+                    <legend>Jobs {p.full_name.split(" ")[0] || "they"} can see</legend>
+                    {projects.map((j) => {
+                      const on = assigned[p.id]?.includes(j.id) ?? false;
+                      return (
+                        <label key={j.id} className={on ? "on" : ""}>
+                          <input type="checkbox" checked={on} onChange={(e) => toggle(p.id, j.id, e.target.checked)} />
+                          <span>{j.name}</span>
+                        </label>
+                      );
+                    })}
+                    {!projects.length && <span className="upl">No jobs yet.</span>}
+                  </fieldset>
+                )}
               </div>
             );
           })}

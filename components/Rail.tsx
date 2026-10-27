@@ -43,7 +43,7 @@ export default function Rail({ projects, isClient, isAdmin, unread }: { projects
       {isAdmin && (
         <>
           <Link className="navi newp" href="/projects/new">+ New project</Link>
-          <Link className="navi" href="/team" aria-current={path === "/team" ? "page" : undefined}>Team</Link>
+          <Link className="navi" href="/team" aria-current={path === "/team" ? "page" : undefined}>Team &amp; access</Link>
         </>
       )}
     </nav>
