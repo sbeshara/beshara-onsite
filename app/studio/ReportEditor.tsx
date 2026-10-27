@@ -116,7 +116,7 @@ export default function ReportEditor({ report, project, thumbs, editedBy, approv
       {report.status === "approved" && <div className="st-banner ok">This report was approved and posted to the client.</div>}
       {report.status === "skipped" && <div className="st-banner note">Skipped. Nothing was posted for this week.</div>}
       {report.status === "no_logs" && <div className="st-banner note">There were no daily logs in JobTread for this week, so no draft was written.</div>}
-      {editable && !report.looking_ahead.length && (
+      {editable && !report.looking_ahead.length && !(report.error && !report.completed.length) && (
         <div className="st-banner err">
           Looking Ahead is pending:{" "}
           {report.source_logs.some((l) => isLookAheadDay(l.date))

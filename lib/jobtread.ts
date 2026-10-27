@@ -98,14 +98,16 @@ export async function dailyLogs(jobId: string, from: string, to: string): Promis
     job: {
       $: { id: jobId },
       dailyLogs: {
-        $: { where: { and: [["date", ">=", from], ["date", "<=", to]] }, size: 100, sortBy: [{ field: "date", order: "asc" }] },
+        // JobTread refuses queries whose page sizes multiply out too large
+          // (100 logs x 50 files is rejected even for an empty week).
+          $: { where: { and: [["date", ">=", from], ["date", "<=", to]] }, size: 20, sortBy: [{ field: "date", order: "asc" }] },
         nodes: {
           id: {},
           date: {},
           notes: {},
           user: { name: {} },
-          customFieldValues: { nodes: { value: {}, customField: { name: {} } } },
-          files: { $: { size: 50 }, nodes: { id: {}, name: {}, type: {} } },
+          customFieldValues: { $: { size: 10 }, nodes: { value: {}, customField: { name: {} } } },
+          files: { $: { size: 25 }, nodes: { id: {}, name: {}, type: {} } },
         },
       },
     },
