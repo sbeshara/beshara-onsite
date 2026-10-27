@@ -44,7 +44,8 @@ async function organizationId() {
 
 export type JobOption = { id: string; label: string };
 
-// Open jobs, newest first, labelled the way the office knows them.
+// Open jobs whose "Status" custom field is Construction, newest first,
+// labelled the way the office knows them.
 export async function listOpenJobs(): Promise<JobOption[]> {
   const org = await organizationId();
   const r = await pave<{
@@ -53,7 +54,18 @@ export async function listOpenJobs(): Promise<JobOption[]> {
     organization: {
       $: { id: org },
       jobs: {
-        $: { where: ["closedOn", null], size: 100, sortBy: [{ field: "createdAt", order: "desc" }] },
+        $: {
+          with: {
+            status: {
+              _: "customFieldValues",
+              $: { where: { and: [[["customField", "name"], "Status"], ["value", "Construction"]] } },
+              count: {},
+            },
+          },
+          where: { and: [["closedOn", null], [["status", "count"], ">", 0]] },
+          size: 100,
+          sortBy: [{ field: "createdAt", order: "desc" }],
+        },
         nodes: { id: {}, name: {}, number: {}, location: { name: {}, address: {}, account: { name: {} } } },
       },
     },

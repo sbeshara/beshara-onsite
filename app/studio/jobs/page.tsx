@@ -26,7 +26,7 @@ export default async function JobsPage() {
       <div className="st-h">
         <div>
           <h1>JobTread jobs</h1>
-          <p>Link each OnSite project to its JobTread job. Weekly drafts are written from that job&apos;s daily logs.</p>
+          <p>Link each OnSite project to its JobTread job. Only jobs with Status set to Construction in JobTread are listed. Weekly drafts are written from that job&apos;s daily logs.</p>
         </div>
       </div>
       {problem && <div className="st-banner err">{problem}</div>}
