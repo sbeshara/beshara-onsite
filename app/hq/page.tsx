@@ -17,6 +17,8 @@ const ICONS: Record<TeamApp["icon"], React.ReactNode> = {
   report: <path d="M6 3h9l4 4v14H6V3zm9 0v4h4M9 12h7M9 16h7M9 8h3" />,
   hammer: <path d="M14 4l6 6-3 3-6-6 3-3zm-3 3L3 15l3 3 8-8" />,
   people: <path d="M9 11a3 3 0 100-6 3 3 0 000 6zm-6 9c0-3.3 2.7-6 6-6s6 2.7 6 6M16 11a3 3 0 100-6M18 20c0-2.4-1.3-4.5-3.2-5.4" />,
+  sheet: <path d="M4 4h16v16H4zM4 9.5h16M4 15h16M10 9.5V20" />,
+  folder: <path d="M3 6.5h6l2 2h10V19H3z" />,
 };
 
 // Beshara HQ: the team's home screen, one tile per app.
