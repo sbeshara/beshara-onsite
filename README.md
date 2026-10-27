@@ -87,6 +87,15 @@ Beshara Reports is the team's internal site at `reports.besharabuilders.com`. Ev
 
 To draft without waiting for Monday, use **Draft missing reports now** on the reports list.
 
+### 7. Beshara HQ (the team's app launcher)
+
+`hq.besharabuilders.com` shows the team a tile for each app (OnSite, Reports, JobTread, Team & access). Sign-in is shared across every `*.besharabuilders.com` address, so signing in once covers them all.
+
+1. In Vercel → Settings → Domains, add `hq.besharabuilders.com`.
+2. In Wix DNS, add a CNAME: host `hq`, value as shown by Vercel.
+
+To add a tile for a new app, add an entry to `TEAM_APPS` in `lib/apps.ts`.
+
 ## Working on the code
 
 ```bash

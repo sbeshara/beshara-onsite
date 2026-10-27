@@ -33,7 +33,7 @@ export default async function JobsPage() {
         </div>
       </div>
       {problem && <div className="st-banner err">{problem}</div>}
-      {!problem && notInOnSite.length > 0 && <ImportJobs jobs={notInOnSite} />}
+      {!problem && <ImportJobs jobs={notInOnSite} />}
       <table className="st-table">
         <thead>
           <tr>

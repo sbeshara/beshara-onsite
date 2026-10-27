@@ -11,6 +11,9 @@ export default function ImportJobs({ jobs }: { jobs: JobOption[] }) {
   const [pending, start] = useTransition();
   const toggle = (id: string) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
 
+  // Stays mounted after the last job is added so the confirmation still shows.
+  if (!jobs.length) return msg.ok ? <div className="st-banner ok">{msg.ok}</div> : null;
+
   return (
     <section className="st-panel">
       <h2>Construction jobs not in OnSite yet · {jobs.length}</h2>
