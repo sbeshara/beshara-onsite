@@ -1,4 +1,4 @@
-export const PHASES = ["Preconstruction", "Permits", "Construction", "Punch list", "Closeout"] as const;
+export const PHASES = ["Preconstruction", "Permits", "Construction", "Punch List", "Closeout"] as const;
 
 export const FOLDERS = ["Drawings", "Submittals", "Permits & inspections", "Photos", "Contracts"] as const;
 export type Folder = (typeof FOLDERS)[number];

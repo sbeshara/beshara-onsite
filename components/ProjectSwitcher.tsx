@@ -24,16 +24,20 @@ export default function ProjectSwitcher({ projects, isClient, isAdmin }: { proje
   return (
     <select className="proj-select" aria-label="Go to" value={current} onChange={(e) => go(e.target.value)}>
       <option value="/">{isClient ? "Home" : "Dashboard"}</option>
-      {projects.map((p) => (
-        <option key={p.id} value={p.id}>
-          {p.name}
-          {p.town ? ` · ${p.town}` : ""}
-        </option>
-      ))}
-      {isAdmin && <option value="/projects/new">+ New Project</option>}
-      {isAdmin && <option value="/team">Team &amp; Access</option>}
-      <option value="/account">Your Account</option>
-      <option value="signout">Sign Out</option>
+      <optgroup label={isClient ? "Your Projects" : "Projects"}>
+        {projects.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name}
+            {p.town ? ` · ${p.town}` : ""}
+          </option>
+        ))}
+        {isAdmin && <option value="/projects/new">+ New Project</option>}
+      </optgroup>
+      <optgroup label="Manage">
+        {isAdmin && <option value="/team">Team &amp; Access</option>}
+        <option value="/account">Your Account</option>
+        <option value="signout">Sign Out</option>
+      </optgroup>
     </select>
   );
 }

@@ -61,15 +61,26 @@ h1,h2,h3{margin:0}
 .panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);min-height:0}
 
 /* Rail */
-.rail{display:flex;flex-direction:column;overflow:auto;padding:8px 0}
+.rail{display:flex;flex-direction:column;overflow:auto;padding:0}
 .rail h2{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);padding:14px 16px 6px}
 .navi{display:flex;align-items:center;gap:10px;border:0;background:none;text-align:left;padding:9px 16px;font-weight:600;border-left:3px solid transparent}
 .navi:hover,.proj:hover{background:var(--sunk)}
 .navi[aria-current="page"],.proj[aria-current="page"]{background:var(--brand-soft);border-left-color:var(--brand)}
 .navi svg{color:var(--brand)}
-.proj{display:grid;grid-template-columns:1fr auto;gap:1px 8px;text-align:left;border:0;background:none;padding:9px 16px;border-left:3px solid transparent}
-.proj .n{font-weight:600}
-.proj .m{grid-column:1/-1;font-size:12px;color:var(--muted)}
+.proj{display:grid;grid-template-columns:10px minmax(0,1fr) auto;gap:1px 10px;align-items:center;text-align:left;border:0;background:none;padding:8px 16px;border-left:3px solid transparent}
+.proj .n{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.proj .m{grid-column:2/-1;font-size:12px;color:var(--muted)}
+/* Phase colors: Preconstruction, Permits, Construction, Punch List, Closeout */
+.pdot{width:9px;height:9px;border-radius:50%;background:var(--ph,#8C9A92)}
+.ph0{--ph:#8C9A92}.ph1{--ph:#7B6BA8}.ph2{--ph:#3F7A5A}.ph3{--ph:#C0643A}.ph4{--ph:#4F6D8A}
+.rail-sec{display:flex;flex-direction:column;padding:6px 0;border-bottom:1px solid var(--line)}
+.rail-sec:last-child{border-bottom:0}
+.rail-projects{flex:1 0 auto}
+.rail-tools{margin-top:auto;border-top:1px solid var(--line);border-bottom:0;background:var(--sunk)}
+.rail-h{display:flex;align-items:center;justify-content:space-between;padding-right:16px}
+.rail-count{font-size:11px;font-weight:700;color:var(--muted);background:var(--sunk);border:1px solid var(--line);border-radius:999px;padding:1px 8px}
+.navi-ext{color:var(--muted);font-weight:500}
+.newb{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;background:var(--brand);color:var(--brand-ink);border-radius:999px;padding:2px 7px}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--brass);align-self:center}
 
 .work{display:flex;flex-direction:column;overflow:hidden;min-width:0}
@@ -162,7 +173,8 @@ button.pstep:hover{color:var(--ink)}
 .addc input{min-width:0;border:1px solid var(--line);background:var(--sunk);border-radius:10px;padding:9px 11px}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .field input{min-width:0}
-.navi.newp{color:var(--brand);margin-top:6px}
+.navi.newp{color:var(--brand);margin:6px 12px 4px;padding:8px 12px;border:1px dashed var(--brand);border-radius:10px;justify-content:center}
+.navi.newp:hover{background:var(--brand-soft)}
 .rolechip{font-size:11px;font-weight:700;color:var(--muted);margin-left:auto}
 .tabs{display:flex;gap:4px;padding:0 14px;border-bottom:1px solid var(--line)}
 .tab{border:0;background:none;padding:11px 10px;font-weight:600;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;display:flex;align-items:center;gap:6px}
@@ -232,6 +244,7 @@ button.vis:hover{border-color:currentColor}
 .empty{padding:36px 16px;text-align:center;color:var(--muted)}
 
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:13px;box-shadow:var(--shadow);max-width:calc(100% - 32px);z-index:40}
+.noclient{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:14px;padding:12px 14px;border-radius:12px;background:var(--internal-soft);border:1px solid var(--internal-line);color:var(--internal);font-size:14px}
 .modal-bg{position:fixed;inset:0;background:rgba(8,14,11,.55);display:grid;place-items:center;padding:16px;z-index:30}
 .modal{background:var(--surface);border:1px solid var(--line);border-radius:14px;width:min(480px,100%);max-height:calc(100% - 8px);overflow:auto;padding:22px;display:grid;gap:14px;box-shadow:0 12px 40px rgba(0,0,0,.25)}
 .modal h2{font-family:var(--f-display);font-weight:500;font-size:23px}

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import Avatar from "@/components/Avatar";
+import InviteClientButton from "@/components/InviteClientButton";
 import PhaseControl from "@/components/PhaseControl";
 import ProjectTabs from "@/components/ProjectTabs";
 import { getMe } from "@/lib/auth";
@@ -42,9 +43,10 @@ export default async function ProjectLayout({ children, params }: { children: Re
             <div className="stack">
               {everyone.map((p) => <Avatar key={p.id} id={p.id} name={p.full_name || p.email} />)}
             </div>
-            <span className="sub">{everyone.length} People</span>
+            <span className="sub">{everyone.length} {everyone.length === 1 ? "Person" : "People"}</span>
             {isAdminRole(me.role) && !previewing && (
               <>
+                <InviteClientButton projectId={id} projectName={project.name} />
                 <a className="linkbtn" href={`/preview?project=${id}`}>View as Client</a>
                 <Link className="linkbtn" href={`/projects/${id}/people`}>Team &amp; Clients</Link>
               </>
@@ -52,6 +54,9 @@ export default async function ProjectLayout({ children, params }: { children: Re
           </div>
         </div>
         <PhaseControl projectId={id} phase={project.phase} canEdit={isTeamRole(me.role) && !previewing} />
+        {isAdminRole(me.role) && !previewing && (
+          <InviteClientButton projectId={id} projectName={project.name} reminder hasClient={memberProfiles.some((p) => p.role === "client")} />
+        )}
       </div>
       <ProjectTabs projectId={id} fileCount={fileCount ?? 0} />
       {children}
