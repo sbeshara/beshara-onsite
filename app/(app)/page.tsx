@@ -108,7 +108,7 @@ async function TeamDashboard({ me }: { me: Profile }) {
       <div className="dgrid">
         <div className="col">
           <section>
-            <div className="sec-h"><h2>Needs a response</h2><span>Oldest first</span></div>
+            <div className="sec-h"><h2>Needs a Response</h2><span>Oldest First</span></div>
             <div className="box">
               {needs.length ? (
                 needs.map((n) => {
@@ -131,8 +131,8 @@ async function TeamDashboard({ me }: { me: Profile }) {
           </section>
           <section>
             <div className="sec-h">
-              <h2>{admin ? "All projects" : "Your projects"}</h2>
-              {admin ? <Link className="linkbtn" href="/projects/new">+ New project</Link> : <span>{plural(projects.length, "active project")}</span>}
+              <h2>{admin ? "All Projects" : "Your Projects"}</h2>
+              {admin ? <Link className="linkbtn" href="/projects/new">+ New Project</Link> : <span>{plural(projects.length, "active project")}</span>}
             </div>
             <div className="box">
               {projects.length ? (
@@ -155,7 +155,7 @@ async function TeamDashboard({ me }: { me: Profile }) {
                   );
                 })
               ) : (
-                <div className="empty">{admin ? "No projects yet. Create the first one with + New project." : "You haven't been assigned to a project yet."}</div>
+                <div className="empty">{admin ? "No projects yet. Create the first one with + New Project." : "You haven't been assigned to a project yet."}</div>
               )}
             </div>
           </section>
@@ -163,12 +163,12 @@ async function TeamDashboard({ me }: { me: Profile }) {
         <aside className="col">
           {photos.length > 0 && (
             <section>
-              <div className="sec-h"><h2>Recent photos</h2></div>
+              <div className="sec-h"><h2>Recent Photos</h2></div>
               <div className="box"><Photos files={photos} urls={urls} /></div>
             </section>
           )}
           <section>
-            <div className="sec-h"><h2>Recent files</h2></div>
+            <div className="sec-h"><h2>Recent Files</h2></div>
             <div className="box">
               {docs.length ? <FileList files={docs} projectNames={projectNames} urls={urls} /> : <div className="empty">Files you upload show up here.</div>}
             </div>
@@ -234,7 +234,7 @@ async function ClientDashboard({ viewerName, projectId }: { viewerName: string; 
       <div className="dgrid">
         <div className="col">
           <section>
-            <div className="sec-h"><h2>Latest from your team</h2></div>
+            <div className="sec-h"><h2>Latest from Your Team</h2></div>
             <div className="box">
               {updates.length ? (
                 updates.map((m) => {
@@ -262,7 +262,7 @@ async function ClientDashboard({ viewerName, projectId }: { viewerName: string; 
         </div>
         <aside className="col">
           <section>
-            <div className="sec-h"><h2>Recent files</h2></div>
+            <div className="sec-h"><h2>Recent Files</h2></div>
             <div className="box">
               {photos.length > 0 && <Photos files={photos} urls={urls} />}
               {docs.length > 0 && <FileList files={docs} urls={urls} />}
@@ -270,7 +270,7 @@ async function ClientDashboard({ viewerName, projectId }: { viewerName: string; 
             </div>
           </section>
           <section>
-            <div className="sec-h"><h2>Your Beshara team</h2></div>
+            <div className="sec-h"><h2>Your Beshara Team</h2></div>
             <div className="box team">
               {team.map((p) => (
                 <div key={p.id} className="member">

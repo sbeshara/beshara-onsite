@@ -56,7 +56,7 @@ export default function LoginForm({ linkError }: { linkError: boolean }) {
 
   return (
     <form className="auth-card" onSubmit={signIn}>
-      <h1>Sign in</h1>
+      <h1>Sign In</h1>
       <p className="sub">Welcome back to Beshara OnSite.</p>
       <label className="field">
         Email
@@ -68,17 +68,17 @@ export default function LoginForm({ linkError }: { linkError: boolean }) {
       </label>
       <div className="lab-row">
         <button type="button" className="textbtn" onClick={() => sendLink("reset")}>
-          Forgot password?
+          Forgot Password?
         </button>
       </div>
       {error && <p className="err" role="alert">{error}</p>}
       {notice && <p className="ok" role="status">{notice}</p>}
       <button className="btn wide" type="submit" disabled={busy}>
-        {busy ? "Signing in…" : "Sign in"}
+        {busy ? "Signing In…" : "Sign In"}
       </button>
       <div className="or"><span>or</span></div>
       <button type="button" className="btn ghost wide" onClick={() => sendLink("magic")}>
-        Email me a sign-in link
+        Email Me a Sign-In Link
       </button>
       <p className="fine">New here? Beshara Builders sends you an invite email to set up your account.</p>
     </form>

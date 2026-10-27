@@ -35,31 +35,31 @@ export default function WelcomeForm({ name, email, projectName, reset }: Props) 
 
   return (
     <form className="auth-card" onSubmit={save}>
-      <h1>{reset ? "Choose a new password" : "Create your account"}</h1>
+      <h1>{reset ? "Choose a New Password" : "Create Your Account"}</h1>
       <p className="sub">
         {reset ? "Pick a new password for Beshara OnSite." : projectName ? <>You&apos;ve been invited to <b>{projectName}</b>.</> : "Welcome to Beshara OnSite."}
       </p>
       {!reset && (
         <label className="field">
-          Your name
+          Your Name
           <input id="full-name" required autoComplete="name" value={fullName} onChange={(e) => setFullName(e.target.value)} />
         </label>
       )}
       <label className="field">
-        Email (this is your username)
+        Email (This Is Your Username)
         <input id="email" type="email" value={email} readOnly />
       </label>
       <label className="field">
-        {reset ? "New password" : "Create a password"}
+        {reset ? "New Password" : "Create a Password"}
         <input id="pw" type="password" required autoComplete="new-password" placeholder="At least 8 characters" value={pw} onChange={(e) => setPw(e.target.value)} />
       </label>
       <label className="field">
-        Confirm password
+        Confirm Password
         <input id="pw2" type="password" required autoComplete="new-password" value={pw2} onChange={(e) => setPw2(e.target.value)} />
       </label>
       {error && <p className="err" role="alert">{error}</p>}
       <button className="btn wide" type="submit" disabled={busy}>
-        {busy ? "Saving…" : reset ? "Save password" : "Create account"}
+        {busy ? "Saving…" : reset ? "Save Password" : "Create Account"}
       </button>
       <p className="fine">Use the same email and password on the website and in the Beshara OnSite app.</p>
     </form>

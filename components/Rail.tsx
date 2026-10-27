@@ -15,7 +15,7 @@ export default function Rail({ projects, isClient, isAdmin, unread }: { projects
       <Link className="navi" href="/" aria-current={path === "/" ? "page" : undefined}>
         <GridIcon /> {isClient ? "Home" : "Dashboard"}
       </Link>
-      <h2>{isClient ? (projects.length > 1 ? "Your projects" : "Your project") : isAdmin ? "All projects" : "Your projects"}</h2>
+      <h2>{isClient ? (projects.length > 1 ? "Your Projects" : "Your Project") : isAdmin ? "All Projects" : "Your Projects"}</h2>
       {projects.map((p) => {
         const current = path.startsWith(`/projects/${p.id}`);
         return (
@@ -36,14 +36,14 @@ export default function Rail({ projects, isClient, isAdmin, unread }: { projects
             Beshara HQ
           </a>
           <a className="navi" href={process.env.NEXT_PUBLIC_REPORTS_URL ?? "https://reports.besharabuilders.com"} target="_blank" rel="noreferrer">
-            Weekly reports ↗
+            Weekly Reports ↗
           </a>
         </>
       )}
       {isAdmin && (
         <>
-          <Link className="navi newp" href="/projects/new">+ New project</Link>
-          <Link className="navi" href="/team" aria-current={path === "/team" ? "page" : undefined}>Team &amp; access</Link>
+          <Link className="navi newp" href="/projects/new">+ New Project</Link>
+          <Link className="navi" href="/team" aria-current={path === "/team" ? "page" : undefined}>Team &amp; Access</Link>
         </>
       )}
     </nav>

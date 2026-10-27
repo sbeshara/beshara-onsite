@@ -34,7 +34,7 @@ export default function FilesView({ projectId, files: initial, chats, urls, name
   const groups = [
     { id: "all", label: "All" },
     ...chats.filter((c) => files.some((f) => f.chat_id === c.id)).map((c) => ({ id: c.id, label: c.name })),
-    ...(files.some((f) => !f.chat_id) ? [{ id: "direct", label: "Uploaded here" }] : []),
+    ...(files.some((f) => !f.chat_id) ? [{ id: "direct", label: "Uploaded Here" }] : []),
   ];
   const list = filter === "all" ? files : files.filter((f) => (filter === "direct" ? !f.chat_id : f.chat_id === filter));
 
@@ -120,10 +120,10 @@ export default function FilesView({ projectId, files: initial, chats, urls, name
               <tr>
                 <th>Name</th>
                 <th>From</th>
-                <th className="col-by">Added by</th>
+                <th className="col-by">Added By</th>
                 <th className="col-date">Date</th>
                 <th className="col-size">Size</th>
-                {team && <th>Who sees it</th>}
+                {team && <th>Who Sees It</th>}
               </tr>
             </thead>
             <tbody>
@@ -142,14 +142,14 @@ export default function FilesView({ projectId, files: initial, chats, urls, name
                         <span>{f.name}</span>
                       </a>
                     </td>
-                    <td>{f.chat_id ? chatName[f.chat_id] ?? "Chat" : "Files tab"}</td>
+                    <td>{f.chat_id ? chatName[f.chat_id] ?? "Chat" : "Files Tab"}</td>
                     <td className="col-by">{(f.uploaded_by && names[f.uploaded_by]) || ""}</td>
                     <td className="num col-date">{shortDate(f.created_at)}</td>
                     <td className="num col-size">{fileSize(f.size_bytes)}</td>
                     {team && (
                       <td>
                         <button type="button" className={`vis ${f.is_internal ? "int" : "cli"}`} title="Click to change" onClick={() => toggle(f)}>
-                          {f.is_internal ? <><LockIcon />Team only</> : <><PeopleIcon />Client + team</>}
+                          {f.is_internal ? <><LockIcon />Team Only</> : <><PeopleIcon />Client + Team</>}
                         </button>
                       </td>
                     )}

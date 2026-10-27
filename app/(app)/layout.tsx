@@ -44,7 +44,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <small>{ROLE_LABEL[me.role]}</small>
         </Link>
         <form id="signout-form" action="/auth/signout" method="post">
-          <button className="signout" type="submit">Sign out</button>
+          <button className="signout" type="submit">Sign Out</button>
         </form>
         <ProjectSwitcher projects={projects} isClient={isClient} isAdmin={isAdmin} />
         {previewProject && (
@@ -52,7 +52,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <span>
               Viewing <b>{previewProject.name}</b> as <b>{previewClient}</b> sees it. You can look around, but you can&apos;t post or change anything here.
             </span>
-            <a className="linkbtn" href="/preview/exit">Exit client view</a>
+            <a className="linkbtn" href="/preview/exit">Exit Client View</a>
           </div>
         )}
       </header>

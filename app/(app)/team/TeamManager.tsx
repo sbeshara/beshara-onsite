@@ -71,12 +71,12 @@ export default function TeamManager({ me, people, projects, assigned: initial, l
                     <span className="pill">{ROLE_LABEL[p.role]}</span>
                   )}
                   {p.id !== me.id && !lastSignIn[p.id] && (
-                    <button type="button" className="linkbtn" disabled={pending} onClick={() => run(() => resendInvite(p.id))}>Resend invite</button>
+                    <button type="button" className="linkbtn" disabled={pending} onClick={() => run(() => resendInvite(p.id))}>Resend Invite</button>
                   )}
                   {removable &&
                     (confirming === p.id ? (
                       <button type="button" className="linkbtn" style={{ color: "#B3261E" }} disabled={pending} onClick={() => { setConfirming(null); run(() => removeTeamMember(p.id)); }}>
-                        Confirm remove
+                        Confirm Remove
                       </button>
                     ) : (
                       <button type="button" className="linkbtn" onClick={() => setConfirming(p.id)}>Remove</button>
@@ -84,7 +84,7 @@ export default function TeamManager({ me, people, projects, assigned: initial, l
                 </span>
                 {p.role === "construction" && (
                   <fieldset className="jobpick">
-                    <legend>Jobs {p.full_name.split(" ")[0] || "they"} can see</legend>
+                    <legend>Jobs {p.full_name.split(" ")[0] || "they"} Can See</legend>
                     {projects.map((j) => {
                       const on = assigned[p.id]?.includes(j.id) ?? false;
                       return (
@@ -105,7 +105,7 @@ export default function TeamManager({ me, people, projects, assigned: initial, l
         {msg.ok && <p className="ok" style={{ marginTop: 8 }}>{msg.ok}</p>}
       </section>
       <section>
-        <div className="sec-h"><h2>Invite someone to the team</h2></div>
+        <div className="sec-h"><h2>Invite Someone to the Team</h2></div>
         <form className="form" action={action}>
           <div className="row2">
             <label className="field">Name<input name="name" required autoComplete="off" placeholder="e.g. Marco Rossi" /></label>
@@ -114,14 +114,14 @@ export default function TeamManager({ me, people, projects, assigned: initial, l
           <label className="field">
             Role
             <select name="role" defaultValue="construction">
-              <option value="construction">Construction Management (sees assigned jobs)</option>
-              {owner && <option value="admin">Admin (sees everything, manages projects and people)</option>}
+              <option value="construction">Construction Management (Sees Assigned Jobs)</option>
+              {owner && <option value="admin">Admin (Sees Everything, Manages Projects and People)</option>}
             </select>
           </label>
           {state.error && <p className="err">{state.error}</p>}
           {state.ok && <p className="ok">{state.ok}</p>}
           <div className="actions" style={{ justifyContent: "flex-start" }}>
-            <button className="btn" type="submit" disabled={inviting}>{inviting ? "Sending…" : "Send invite"}</button>
+            <button className="btn" type="submit" disabled={inviting}>{inviting ? "Sending…" : "Send Invite"}</button>
           </div>
         </form>
       </section>

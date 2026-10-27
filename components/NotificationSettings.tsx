@@ -81,15 +81,15 @@ export default function NotificationSettings({ userId, email, push }: Props) {
           <>
             <span className="upl">Notifications are on for this device.</span>
             <div className="actions" style={{ justifyContent: "flex-start" }}>
-              <button type="button" className="btn ghost" onClick={test}>Send a test</button>
-              <button type="button" className="btn ghost" disabled={busy} onClick={deviceOff}>Turn off on this device</button>
+              <button type="button" className="btn ghost" onClick={test}>Send a Test</button>
+              <button type="button" className="btn ghost" disabled={busy} onClick={deviceOff}>Turn Off on This Device</button>
             </div>
           </>
         )}
         {device === "off" && (
           <>
             <span className="upl">Get a pop-up here when there&apos;s a new message.</span>
-            <div><button type="button" className="btn" disabled={busy} onClick={deviceOn}>Turn on notifications</button></div>
+            <div><button type="button" className="btn" disabled={busy} onClick={deviceOn}>Turn On Notifications</button></div>
           </>
         )}
         {device === "blocked" && <span className="upl">Notifications are blocked for OnSite in this browser. Allow them in the browser&apos;s site settings, then reload this page.</span>}

@@ -38,11 +38,11 @@ export default function AccountForm({ id, name, email, role }: { id: string; nam
         </div>
       </div>
       <label className="field">
-        Full name
+        Full Name
         <input id="full-name" required autoComplete="name" placeholder="e.g. Samuel Beshara" value={fullName} onChange={(e) => setFullName(e.target.value)} />
       </label>
       <label className="field">
-        New password (optional)
+        New Password (Optional)
         <input id="new-pw" type="password" autoComplete="new-password" placeholder="Leave blank to keep your current one" value={pw} onChange={(e) => setPw(e.target.value)} />
       </label>
       {msg.error && <p className="err">{msg.error}</p>}

@@ -36,13 +36,13 @@ export default function NotifyPrompt() {
       <p>
         <b>Get notified about new messages.</b>{" "}
         {state === "ios-needs-home-screen" ? (
-          <span className="upl">On iPhone, add OnSite to your home screen first (Share → Add to Home Screen), then turn on notifications in <Link href="/account" style={{ textDecoration: "underline" }}>Your account</Link>.</span>
+          <span className="upl">On iPhone, add OnSite to your home screen first (Share → Add to Home Screen), then turn on notifications in <Link href="/account" style={{ textDecoration: "underline" }}>Your Account</Link>.</span>
         ) : (
           <span className="upl">See a pop-up on this device when someone posts.</span>
         )}
       </p>
       <div className="actions">
-        <button type="button" className="btn ghost" onClick={dismiss}>Not now</button>
+        <button type="button" className="btn ghost" onClick={dismiss}>Not Now</button>
         {state === "off" && (
           <button
             type="button"
@@ -52,7 +52,7 @@ export default function NotifyPrompt() {
               if (s === "on" || s === "blocked") dismiss();
             }}
           >
-            Turn on
+            Turn On
           </button>
         )}
       </div>

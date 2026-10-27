@@ -28,7 +28,7 @@ export default function PhaseControl({ projectId, phase, canEdit }: { projectId:
   return (
     <div style={{ display: "grid", gap: 8 }}>
       <div className="pb-label">
-        Project phase
+        Project Phase
         {canEdit && <span>Tap a step to update it. The client sees this on their home screen.</span>}
       </div>
       <div className="phasebar">

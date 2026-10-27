@@ -19,7 +19,7 @@ export default function PeopleManager({ projectId, primaryClientId, staff, assig
   return (
     <>
       <section>
-        <div className="sec-h"><h2>Beshara team</h2></div>
+        <div className="sec-h"><h2>Beshara Team</h2></div>
         <p className="fine" style={{ marginBottom: 10 }}>The Principal Contractor and Admin see every project. Check who on Construction Management works on this job.</p>
         <div className="opts" style={{ maxWidth: 560 }}>
           {staff.map((p) => (
@@ -37,7 +37,7 @@ export default function PeopleManager({ projectId, primaryClientId, staff, assig
         {staff.length > 0 && (
           <div className="actions" style={{ justifyContent: "flex-start", marginTop: 12 }}>
             <button className="btn" type="button" disabled={pending} onClick={() => run(() => setProjectTeam(projectId, selected), setTeamMsg)}>
-              Save team
+              Save Team
             </button>
             {teamMsg.error && <p className="err">{teamMsg.error}</p>}
             {teamMsg.ok && <p className="ok">{teamMsg.ok}</p>}
@@ -46,7 +46,7 @@ export default function PeopleManager({ projectId, primaryClientId, staff, assig
       </section>
 
       <section>
-        <div className="sec-h"><h2>Client contacts</h2></div>
+        <div className="sec-h"><h2>Client Contacts</h2></div>
         <div className="box rowlist" style={{ maxWidth: 720 }}>
           {clients.map((p) => (
             <div key={p.id} className="rowitem">
@@ -55,14 +55,14 @@ export default function PeopleManager({ projectId, primaryClientId, staff, assig
                 <b>{p.full_name || p.email}</b>
                 <small>
                   {[p.title, p.email].filter(Boolean).join(" · ")}
-                  {p.id === primaryClientId ? " · main contact" : ""}
+                  {p.id === primaryClientId ? " · Main Contact" : ""}
                 </small>
               </div>
               <span className="cbtns">
-                <button type="button" className="linkbtn" disabled={pending} onClick={() => run(() => resendInvite(p.id), setContactMsg)}>Resend invite</button>
+                <button type="button" className="linkbtn" disabled={pending} onClick={() => run(() => resendInvite(p.id), setContactMsg)}>Resend Invite</button>
                 {p.id !== primaryClientId && (
                   <>
-                    <button type="button" className="linkbtn" disabled={pending} onClick={() => run(() => setMainContact(projectId, p.id), setContactMsg)}>Make main</button>
+                    <button type="button" className="linkbtn" disabled={pending} onClick={() => run(() => setMainContact(projectId, p.id), setContactMsg)}>Make Main Contact</button>
                     <button type="button" className="linkbtn" disabled={pending} onClick={() => run(() => removeClientContact(projectId, p.id), setContactMsg)}>Remove</button>
                   </>
                 )}
@@ -76,17 +76,17 @@ export default function PeopleManager({ projectId, primaryClientId, staff, assig
       </section>
 
       <section>
-        <div className="sec-h"><h2>Add a client contact</h2></div>
+        <div className="sec-h"><h2>Add a Client Contact</h2></div>
         <form className="form" action={addAction}>
           <div className="row2">
             <label className="field">Name<input name="name" required autoComplete="off" placeholder="e.g. Lisa M." /></label>
-            <label className="field">Role at the practice<input name="title" autoComplete="off" placeholder="e.g. Office manager" /></label>
+            <label className="field">Role at the Practice<input name="title" autoComplete="off" placeholder="e.g. Office manager" /></label>
           </div>
           <label className="field">Email<input name="email" type="email" required autoComplete="off" placeholder="name@practice.com" /></label>
           {addState.error && <p className="err">{addState.error}</p>}
           {addState.ok && <p className="ok">{addState.ok}</p>}
           <div className="actions" style={{ justifyContent: "flex-start" }}>
-            <button className="btn" type="submit" disabled={adding}>{adding ? "Sending…" : "Add and send invite"}</button>
+            <button className="btn" type="submit" disabled={adding}>{adding ? "Sending…" : "Add and Send Invite"}</button>
           </div>
         </form>
       </section>

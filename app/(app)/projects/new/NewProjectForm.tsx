@@ -9,7 +9,7 @@ export default function NewProjectForm({ staff }: { staff: Profile[] }) {
   return (
     <form className="form" action={action}>
       <label className="field">
-        Project name
+        Project Name
         <input name="name" required autoComplete="off" placeholder="e.g. Maple Family Dentistry" />
       </label>
       <div className="row2">
@@ -24,15 +24,15 @@ export default function NewProjectForm({ staff }: { staff: Profile[] }) {
       </div>
       <div className="row2">
         <label className="field">
-          Client name
+          Client Name
           <input name="client_name" required autoComplete="off" placeholder="e.g. Dr. Sam Patel" />
         </label>
         <label className="field">
-          Client email
+          Client Email
           <input name="client_email" type="email" required autoComplete="off" placeholder="name@practice.com" />
         </label>
       </div>
-      <h3 className="mh">Construction management on this job</h3>
+      <h3 className="mh">Construction Management on This Job</h3>
       <div className="opts">
         {staff.length ? (
           staff.map((p) => (
@@ -47,7 +47,7 @@ export default function NewProjectForm({ staff }: { staff: Profile[] }) {
       </div>
       {state.error && <p className="err" role="alert">{state.error}</p>}
       <div className="actions" style={{ justifyContent: "flex-start" }}>
-        <button className="btn" type="submit" disabled={pending}>{pending ? "Creating…" : "Create project and invite client"}</button>
+        <button className="btn" type="submit" disabled={pending}>{pending ? "Creating…" : "Create Project and Invite Client"}</button>
       </div>
     </form>
   );

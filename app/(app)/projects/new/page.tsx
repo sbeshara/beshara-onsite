@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isAdminRole, type Profile } from "@/lib/types";
 import NewProjectForm from "./NewProjectForm";
 
-export const metadata = { title: "New project · Beshara OnSite" };
+export const metadata = { title: "New Project · Beshara OnSite" };
 
 export default async function NewProjectPage() {
   const me = await getMe();
@@ -14,7 +14,7 @@ export default async function NewProjectPage() {
   return (
     <div className="page">
       <div className="page-h">
-        <h1>New project</h1>
+        <h1>New Project</h1>
         <p>The project starts with four chats: Weekly Updates, Selections &amp; Finishes, Schedule &amp; Inspections and Internal Only. The client gets an email invite to set up their account.</p>
       </div>
       <NewProjectForm staff={(data ?? []) as Profile[]} />

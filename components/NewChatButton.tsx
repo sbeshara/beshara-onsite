@@ -35,14 +35,14 @@ export default function NewChatButton({ projectId, myId, isClient }: { projectId
 
   return (
     <>
-      <button type="button" className="chan newc" onClick={() => setOpen(true)}>+ New chat</button>
+      <button type="button" className="chan newc" onClick={() => setOpen(true)}>+ New Chat</button>
       {open && (
         <div className="modal-bg" onClick={(e) => e.target === e.currentTarget && setOpen(false)}>
           <form className="modal" role="dialog" aria-modal="true" aria-labelledby="newchat-h" onSubmit={create} onKeyDown={(e) => e.key === "Escape" && setOpen(false)}>
-            <h2 id="newchat-h">New chat</h2>
+            <h2 id="newchat-h">New Chat</h2>
             <p className="sub">Give one topic its own conversation, like millwork or the punch list.</p>
             <label className="field">
-              Chat name
+              Chat Name
               <input id="chat-name" autoFocus maxLength={60} required placeholder="e.g. Millwork" autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} />
             </label>
             <p className="sub" style={{ margin: 0 }}>
@@ -55,7 +55,7 @@ export default function NewChatButton({ projectId, myId, isClient }: { projectId
             {error && <p className="err" role="alert">{error}</p>}
             <div className="actions">
               <button type="button" className="btn ghost" onClick={() => setOpen(false)}>Cancel</button>
-              <button className="btn" type="submit" disabled={busy}>{busy ? "Creating…" : "Create chat"}</button>
+              <button className="btn" type="submit" disabled={busy}>{busy ? "Creating…" : "Create Chat"}</button>
             </div>
           </form>
         </div>

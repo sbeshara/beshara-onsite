@@ -6,7 +6,7 @@ import { isAdminRole } from "@/lib/types";
 import ImportJobs from "./ImportJobs";
 import JobLinker from "./JobLinker";
 
-export const metadata = { title: "JobTread jobs · Beshara Reports" };
+export const metadata = { title: "JobTread Jobs · Beshara Reports" };
 
 export default async function JobsPage() {
   const me = await getMe();
@@ -28,7 +28,7 @@ export default async function JobsPage() {
     <>
       <div className="st-h">
         <div>
-          <h1>JobTread jobs</h1>
+          <h1>JobTread Jobs</h1>
           <p>Link each OnSite project to its JobTread job. Only jobs with Status set to Construction in JobTread are listed. Weekly drafts are written from that job&apos;s daily logs.</p>
         </div>
       </div>
@@ -37,8 +37,8 @@ export default async function JobsPage() {
       <table className="st-table">
         <thead>
           <tr>
-            <th>OnSite project</th>
-            <th>JobTread job</th>
+            <th>OnSite Project</th>
+            <th>JobTread Job</th>
           </tr>
         </thead>
         <tbody>

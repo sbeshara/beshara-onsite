@@ -44,8 +44,8 @@ export default async function HQ() {
   const unreadCount = ((unread ?? []) as { unread: number }[]).reduce((n, r) => n + Number(r.unread), 0);
   const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
   const stats: Record<string, { text: string; hot: boolean }> = {
-    onsite: unreadCount ? { text: `${plural(unreadCount, "unread message")}`, hot: true } : { text: "All caught up", hot: false },
-    reports: toReview ? { text: `${plural(toReview, "report")} to review`, hot: true } : { text: "Nothing waiting", hot: false },
+    onsite: unreadCount ? { text: `${plural(unreadCount, "Unread Message")}`, hot: true } : { text: "All Caught Up", hot: false },
+    reports: toReview ? { text: `${plural(toReview, "Report")} to Review`, hot: true } : { text: "Nothing Waiting", hot: false },
   };
   const apps = TEAM_APPS.filter((a) => !a.roles || a.roles.includes(me.role));
   const first = (me.full_name || me.email).split(" ")[0];
@@ -60,7 +60,7 @@ export default async function HQ() {
           <small>{ROLE_LABEL[me.role]}</small>
         </Link>
         <form action="/auth/signout" method="post">
-          <button className="signout" type="submit">Sign out</button>
+          <button className="signout" type="submit">Sign Out</button>
         </form>
       </header>
       <main className="hq-main">
@@ -71,15 +71,15 @@ export default async function HQ() {
         >
           <a className="feat" href={apps.find((a) => a.key === "onsite")?.url}>
             <ChatIcon />
-            {unreadCount ? plural(unreadCount, "unread message") : "Messages all caught up"}
+            {unreadCount ? plural(unreadCount, "Unread Message") : "Messages All Caught Up"}
           </a>
           <a className="feat" href={apps.find((a) => a.key === "reports")?.url}>
             <DocIcon />
-            {toReview ? `${plural(toReview, "report")} to review` : "No reports waiting"}
+            {toReview ? `${plural(toReview, "Report")} to Review` : "No Reports Waiting"}
           </a>
           <span className="feat">
             <GridIcon />
-            {plural(projects ?? 0, "active project")}
+            {plural(projects ?? 0, "Active Project")}
           </span>
         </Hero>
         <nav className="hq-grid" aria-label="Apps">
@@ -100,7 +100,7 @@ export default async function HQ() {
           ))}
           <div className="hq-tile hq-soon" aria-hidden="true">
             <span className="hq-ic">+</span>
-            <span className="hq-t">More coming</span>
+            <span className="hq-t">More Coming</span>
             <span className="hq-b">New Beshara tools will show up here.</span>
           </div>
         </nav>

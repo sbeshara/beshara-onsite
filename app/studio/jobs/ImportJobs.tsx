@@ -16,7 +16,7 @@ export default function ImportJobs({ jobs }: { jobs: JobOption[] }) {
 
   return (
     <section className="st-panel">
-      <h2>Construction jobs not in OnSite yet · {jobs.length}</h2>
+      <h2>Construction Jobs Not in OnSite Yet · {jobs.length}</h2>
       <p className="fine" style={{ margin: 0 }}>
         Each one becomes an OnSite project with its four starter chats, set to the Construction phase and linked here. Then open the project and
         invite the client from Team &amp; clients.

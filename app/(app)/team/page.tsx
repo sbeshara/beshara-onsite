@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isAdminRole, type Profile } from "@/lib/types";
 import TeamManager from "./TeamManager";
 
-export const metadata = { title: "Team & access · Beshara OnSite" };
+export const metadata = { title: "Team & Access · Beshara OnSite" };
 
 export default async function TeamPage() {
   const me = await getMe();
@@ -27,7 +27,7 @@ export default async function TeamPage() {
   return (
     <div className="page">
       <div className="page-h">
-        <h1>Team &amp; access</h1>
+        <h1>Team &amp; Access</h1>
         <p>
           The Principal Contractor and Admins see every job. Construction Management only sees the jobs ticked under their name. Changes save as
           you tick.

@@ -44,7 +44,7 @@ function Lines({ label, hint, lines, setLines }: { label: string; hint: string; 
         </div>
       ))}
       {!lines.length && <p className="fine">Nothing here yet.</p>}
-      <button type="button" className="linkbtn st-add" onClick={() => setLines([...lines, { trade: "", text: "" }])}>+ Add line</button>
+      <button type="button" className="linkbtn st-add" onClick={() => setLines([...lines, { trade: "", text: "" }])}>+ Add Line</button>
     </section>
   );
 }
@@ -100,7 +100,7 @@ export default function ReportEditor({ report, project, thumbs, editedBy, approv
     <>
       <div className="st-h">
         <div style={{ minWidth: 0 }}>
-          <p className="st-back"><Link href={listHref} className="textbtn">← All jobs</Link></p>
+          <p className="st-back"><Link href={listHref} className="textbtn">← All Jobs</Link></p>
           <h1>{project.name}</h1>
           <p>
             Week of {short(report.week_start)}
@@ -131,18 +131,18 @@ export default function ReportEditor({ report, project, thumbs, editedBy, approv
         <div className="st-grid">
           <div style={{ display: "grid", gap: 16, minWidth: 0 }}>
             <Lines label="Completed" hint="1 to 4 high-level lines for the week. No dates, minor items or one-off events." lines={completed} setLines={setCompleted} />
-            <Lines label="Looking ahead" hint={`Week of ${short(nextMonday(report.week_start))}. From the work-to-be-conducted section of the Friday, Saturday or Sunday log.`} lines={ahead} setLines={setAhead} />
+            <Lines label="Looking Ahead" hint={`Week of ${short(nextMonday(report.week_start))}. From the work-to-be-conducted section of the Friday, Saturday or Sunday log.`} lines={ahead} setLines={setAhead} />
           </div>
           <div style={{ display: "grid", gap: 16, minWidth: 0 }}>
             <section className="st-panel">
-              <h2>PDF layout</h2>
+              <h2>PDF Layout</h2>
               <label className="st-opt">
                 <input type="radio" name="layout" checked={layout === "standard"} onChange={() => setLayout("standard")} />
                 <span><b>Standard</b> · cover, Completed with two site photos, Looking Ahead</span>
               </label>
               <label className="st-opt">
                 <input type="radio" name="layout" checked={layout === "combined"} onChange={() => setLayout("combined")} />
-                <span><b>One page</b> · cover, then Completed and Looking Ahead together, no photos</span>
+                <span><b>One Page</b> · cover, then Completed and Looking Ahead together, no photos</span>
               </label>
               {layout === "standard" && (
                 <label className="st-opt">
@@ -152,11 +152,11 @@ export default function ReportEditor({ report, project, thumbs, editedBy, approv
               )}
             </section>
             <section className="st-panel">
-              <h2>Team notes</h2>
+              <h2>Team Notes</h2>
               <textarea rows={3} aria-label="Team notes" placeholder="Corrections or context for whoever approves. Never sent to the client." value={notes} onChange={(e) => setNotes(e.target.value)} />
             </section>
             <section className="st-panel">
-              <h2>Photos · {selected} of 2 selected</h2>
+              <h2>Photos · {selected} of 2 Selected</h2>
               {photos.length ? (
                 <div className="st-photos">
                   {photos.map((p) => (
@@ -189,7 +189,7 @@ export default function ReportEditor({ report, project, thumbs, editedBy, approv
               </p>
             </section>
             <section className="st-panel">
-              <h2>Daily logs used</h2>
+              <h2>Daily Logs Used</h2>
               {report.source_logs.length ? (
                 report.source_logs.map((l, i) => (
                   <div key={i} className="st-log">
@@ -211,17 +211,17 @@ export default function ReportEditor({ report, project, thumbs, editedBy, approv
         <span className="spacer" />
         {editable && (
           <button type="button" className="btn ghost" disabled={pending} onClick={() => run(() => saveReport(report.id, edits))}>
-            Save changes
+            Save Changes
           </button>
         )}
         {editable && (
           <button type="button" className="btn ghost" disabled={pending} onClick={() => run(() => setReportStatus(report.id, "skipped"), nextHref)}>
-            Skip this week
+            Skip This Week
           </button>
         )}
         {(report.status === "skipped" || report.status === "no_logs") && (
           <button type="button" className="btn ghost" disabled={pending} onClick={() => run(() => setReportStatus(report.id, "draft"))}>
-            Write it anyway
+            Write It Anyway
           </button>
         )}
         {report.status !== "approved" && (
@@ -231,7 +231,7 @@ export default function ReportEditor({ report, project, thumbs, editedBy, approv
             disabled={pending}
             onClick={() => run(() => generateNow({ projectId: report.project_id, weekStart: report.week_start, force: true }))}
           >
-            Redraft from daily logs
+            Redraft from Daily Logs
           </button>
         )}
         {editable && (
@@ -242,7 +242,7 @@ export default function ReportEditor({ report, project, thumbs, editedBy, approv
             title={canPost ? "Posts the PDF and photos to the client's Weekly Progress Report chat" : "Add Looking Ahead first"}
             onClick={() => run(() => approveReport(report.id, edits), `${nextHref}&posted=${encodeURIComponent(project.name)}`)}
           >
-            {pending ? "Working…" : "Approve and post"}
+            {pending ? "Working…" : "Approve and Post"}
           </button>
         )}
       </div>
@@ -251,8 +251,8 @@ export default function ReportEditor({ report, project, thumbs, editedBy, approv
         <div className="st-modal" role="dialog" aria-label="PDF preview" onClick={() => setPreview(null)}>
           <div className="st-modal-box" onClick={(e) => e.stopPropagation()}>
             <div className="st-modal-h">
-              <b>Preview · what the client receives</b>
-              <a className="textbtn" href={preview} target="_blank" rel="noreferrer">Open in new tab</a>
+              <b>Preview · What the Client Receives</b>
+              <a className="textbtn" href={preview} target="_blank" rel="noreferrer">Open in New Tab</a>
               <button type="button" className="st-x" aria-label="Close preview" onClick={() => setPreview(null)}>×</button>
             </div>
             <iframe src={preview} title="Report PDF" />

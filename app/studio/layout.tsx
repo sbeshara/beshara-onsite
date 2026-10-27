@@ -25,8 +25,8 @@ export default async function StudioLayout({ children }: { children: React.React
         <a href={HQ_URL} className="logo" aria-label="Beshara HQ" />
         <span className="hub">Reports</span>
         <nav className="st-nav">
-          <Link href="/studio">Weekly reports</Link>
-          {isAdminRole(me.role) && <Link href="/studio/jobs">JobTread jobs</Link>}
+          <Link href="/studio">Weekly Reports</Link>
+          {isAdminRole(me.role) && <Link href="/studio/jobs">JobTread Jobs</Link>}
           <a href={site}>OnSite ↗</a>
         </nav>
         <span className="st-me">{me.full_name || me.email}</span>

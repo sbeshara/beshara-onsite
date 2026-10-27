@@ -21,7 +21,7 @@ export const TEAM_APPS: TeamApp[] = [
   { key: "jobtread", name: "JobTread", blurb: "Estimates, budgets, schedules and daily logs.", url: "https://app.jobtread.com", icon: "hammer", external: true },
   {
     key: "pco-log",
-    name: "PCO log",
+    name: "PCO Log",
     blurb: "Potential change orders across every job.",
     url: "https://docs.google.com/spreadsheets/d/1ORDX7I0ZjxZqcfRVV7lfv9Tlrdy6uCZ0u-lUFyloACA/edit",
     icon: "sheet",
@@ -29,11 +29,11 @@ export const TEAM_APPS: TeamApp[] = [
   },
   {
     key: "look-ahead",
-    name: "2-week look ahead",
+    name: "2-Week Look Ahead",
     blurb: "What's scheduled on every job for the next two weeks.",
     url: "https://docs.google.com/spreadsheets/d/1rcaoGaxqHSQDNtmTJGqsW7JGAaH7J2Kr/edit",
     icon: "sheet",
     external: true,
   },
-  { key: "team", name: "Team & access", blurb: "Invite teammates and set who sees what.", url: `${SITE}/team`, icon: "people", roles: ["owner", "admin"] },
+  { key: "team", name: "Team & Access", blurb: "Invite teammates and set who sees what.", url: `${SITE}/team`, icon: "people", roles: ["owner", "admin"] },
 ];

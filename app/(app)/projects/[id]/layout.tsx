@@ -42,11 +42,11 @@ export default async function ProjectLayout({ children, params }: { children: Re
             <div className="stack">
               {everyone.map((p) => <Avatar key={p.id} id={p.id} name={p.full_name || p.email} />)}
             </div>
-            <span className="sub">{everyone.length} people</span>
+            <span className="sub">{everyone.length} People</span>
             {isAdminRole(me.role) && !previewing && (
               <>
-                <a className="linkbtn" href={`/preview?project=${id}`}>View as client</a>
-                <Link className="linkbtn" href={`/projects/${id}/people`}>Team &amp; clients</Link>
+                <a className="linkbtn" href={`/preview?project=${id}`}>View as Client</a>
+                <Link className="linkbtn" href={`/projects/${id}/people`}>Team &amp; Clients</Link>
               </>
             )}
           </div>

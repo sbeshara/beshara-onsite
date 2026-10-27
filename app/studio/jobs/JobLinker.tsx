@@ -28,7 +28,7 @@ export default function JobLinker({ projectId, current, currentLabel, jobs }: Pr
           start(async () => setMsg(await linkJob(projectId, id || null, id ? label : null)));
         }}
       >
-        <option value="">Not linked</option>
+        <option value="">Not Linked</option>
         {options.map((j) => (
           <option key={j.id} value={j.id}>{j.label}</option>
         ))}

@@ -53,7 +53,7 @@ export default async function ChatPage({ params }: { params: Promise<{ id: strin
     <div className="chat">
       <div className="chans" aria-label="Chats">
         {!previewing && <NewChatButton projectId={id} myId={me.id} isClient={me.role === "client"} />}
-        {teamView && <h3>With client</h3>}
+        {teamView && <h3>With Client</h3>}
         {shared.map(chatLink)}
         {internal.length > 0 && (
           <>

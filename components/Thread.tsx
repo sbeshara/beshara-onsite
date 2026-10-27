@@ -165,7 +165,7 @@ export default function Thread({ chat, initialMessages, initialUrls, people, me,
         {/* Only the team sees which chats the client can read; clients never hear about Internal Only. */}
         {team &&
           (chat.is_internal ? (
-            <div className="banner int"><LockIcon /><span><b>Internal only.</b> {names} can&apos;t see this chat.</span></div>
+            <div className="banner int"><LockIcon /><span><b>Internal Only.</b> {names} can&apos;t see this chat.</span></div>
           ) : (
             <div className="banner cli"><PeopleIcon /><span><b>Client-visible.</b> {names} {clientNames.length > 1 ? "see" : "sees"} everything posted here.</span></div>
           ))}

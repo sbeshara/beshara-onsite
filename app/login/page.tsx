@@ -1,7 +1,7 @@
 import AuthSide from "@/components/AuthSide";
 import LoginForm from "./LoginForm";
 
-export const metadata = { title: "Sign in · Beshara OnSite" };
+export const metadata = { title: "Sign In · Beshara OnSite" };
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const { error } = await searchParams;

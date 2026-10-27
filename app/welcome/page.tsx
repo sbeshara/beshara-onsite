@@ -3,7 +3,7 @@ import { getMe } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import WelcomeForm from "./WelcomeForm";
 
-export const metadata = { title: "Set up your account · Beshara OnSite" };
+export const metadata = { title: "Set Up Your Account · Beshara OnSite" };
 
 export default async function WelcomePage({ searchParams }: { searchParams: Promise<{ reset?: string }> }) {
   const { reset } = await searchParams;

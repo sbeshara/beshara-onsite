@@ -30,10 +30,10 @@ export default function ProjectSwitcher({ projects, isClient, isAdmin }: { proje
           {p.town ? ` · ${p.town}` : ""}
         </option>
       ))}
-      {isAdmin && <option value="/projects/new">+ New project</option>}
-      {isAdmin && <option value="/team">Team &amp; access</option>}
-      <option value="/account">Your account</option>
-      <option value="signout">Sign out</option>
+      {isAdmin && <option value="/projects/new">+ New Project</option>}
+      {isAdmin && <option value="/team">Team &amp; Access</option>}
+      <option value="/account">Your Account</option>
+      <option value="signout">Sign Out</option>
     </select>
   );
 }
