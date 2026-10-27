@@ -16,7 +16,7 @@ export default async function ChatPage({ params }: { params: Promise<{ id: strin
   const supabase = await createClient();
   const [{ data: chatsData }, { data: msgData }, { data: peopleData }, { data: memberData }, { data: unreadData }] = await Promise.all([
     supabase.from("chats").select("*").eq("project_id", id).order("position").order("created_at"),
-    supabase.from("messages").select("id, chat_id, author_id, body, created_at, files(*)").eq("chat_id", chatId).order("created_at", { ascending: false }).limit(200),
+    supabase.from("messages").select("id, chat_id, author_id, body, created_at, posted_as, files(*)").eq("chat_id", chatId).order("created_at", { ascending: false }).limit(200),
     supabase.from("profiles").select("id, full_name, email, role, title"),
     supabase.from("project_members").select("user_id").eq("project_id", id),
     supabase.rpc("my_unread"),

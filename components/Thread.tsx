@@ -6,7 +6,7 @@ import { FILES_BUCKET, roleLabel } from "@/lib/constants";
 import { dayLabel, guessFolder, isImage, storagePath, timeLabel } from "@/lib/format";
 import { createClient } from "@/lib/supabase/client";
 import { isTeamRole, type Chat, type FileRow, type Message, type Profile, type Role } from "@/lib/types";
-import Avatar from "./Avatar";
+import Avatar, { CompanyAvatar } from "./Avatar";
 import { ClipIcon, DocIcon, LockIcon, PeopleIcon, SendIcon } from "./Icons";
 
 type Props = {
@@ -20,7 +20,7 @@ type Props = {
   hadUnread?: boolean;
 };
 
-const SELECT = "id, chat_id, author_id, body, created_at, files(*)";
+const SELECT = "id, chat_id, author_id, body, created_at, posted_as, files(*)";
 
 export default function Thread({ chat, initialMessages, initialUrls, people, me, clientNames, readOnly = false, hadUnread = false }: Props) {
   const router = useRouter();
@@ -174,13 +174,14 @@ export default function Thread({ chat, initialMessages, initialUrls, people, me,
           const day = dayLabel(m.created_at);
           const showDay = day !== lastDay;
           lastDay = day;
-          const who = (m.author_id && people[m.author_id]) || null;
-          const name = who ? who.full_name || who.email : "Former member";
+          const company = m.posted_as === "company";
+          const who = company ? null : (m.author_id && people[m.author_id]) || null;
+          const name = company ? "Beshara Builders" : who ? who.full_name || who.email : "Former member";
           return (
             <div key={m.id} style={{ display: "contents" }}>
               {showDay && <div className="day">{day}</div>}
               <div className="msg">
-                <Avatar id={m.author_id ?? "x"} name={name} />
+                {company ? <CompanyAvatar /> : <Avatar id={m.author_id ?? "x"} name={name} />}
                 <div style={{ minWidth: 0 }}>
                   <div className="who">
                     <b>{name}</b>

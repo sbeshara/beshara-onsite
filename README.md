@@ -73,6 +73,20 @@ Phone and computer notifications need no keys; the app creates its own the first
 
 Emails are a digest: every 5 minutes, anyone with messages they haven't read for at least 5 minutes gets one email listing them.
 
+### 6. Beshara Reports (weekly progress reports)
+
+Beshara Reports is the team's internal site at `reports.besharabuilders.com`. Every Monday at 8 AM it drafts last week's progress report for each project from its JobTread daily logs. PMs can edit drafts and leave notes; an Admin (or the Principal Contractor) approves, and the report posts to the project's **Weekly Progress Report** chat as Beshara Builders, with a branded PDF and the selected photos. Clients can't open it.
+
+1. In Supabase **SQL Editor**, run `supabase/migrations/20261028000000_weekly_reports.sql`.
+2. In Vercel → **Settings → Environment Variables**, add:
+   - `JOBTREAD_GRANT_KEY`: a JobTread API grant key (see app.jobtread.com/docs, or ask JobTread support)
+   - `ANTHROPIC_API_KEY`: from console.anthropic.com (the AI that writes the drafts)
+   Then redeploy.
+3. In Vercel → **Settings → Domains**, add `reports.besharabuilders.com`, and add the CNAME record Vercel shows in Wix (host `reports`).
+4. Open Beshara Reports → **JobTread jobs** and link each project to its JobTread job.
+
+To draft without waiting for Monday, use **Draft missing reports now** on the reports list.
+
 ## Working on the code
 
 ```bash
