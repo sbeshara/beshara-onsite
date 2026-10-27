@@ -1,10 +1,13 @@
 import { getMe } from "@/lib/auth";
 import { TEAM_APPS, type TeamApp } from "@/lib/apps";
-import { greeting, todayLabel } from "@/lib/format";
+import Link from "next/link";
+import Hero from "@/components/Hero";
+import { ChatIcon, DocIcon, GridIcon } from "@/components/Icons";
+import { todayLabel } from "@/lib/format";
 import { lastFullWeek } from "@/lib/reports";
 import { createClient } from "@/lib/supabase/server";
 import { isTeamRole } from "@/lib/types";
-import { roleLabel } from "@/lib/constants";
+import { ROLE_LABEL } from "@/lib/constants";
 import "./hq.css";
 
 export const metadata = { title: "Beshara HQ" };
@@ -31,37 +34,52 @@ export default async function HQ() {
   }
 
   const supabase = await createClient();
-  const [{ data: unread }, { count: toReview }] = await Promise.all([
+  const [{ data: unread }, { count: toReview }, { count: projects }] = await Promise.all([
     supabase.rpc("my_unread"),
     supabase.from("weekly_reports").select("id", { count: "exact", head: true }).eq("week_start", lastFullWeek()).eq("status", "draft"),
+    supabase.from("projects").select("id", { count: "exact", head: true }),
   ]);
   const unreadCount = ((unread ?? []) as { unread: number }[]).reduce((n, r) => n + Number(r.unread), 0);
+  const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
   const stats: Record<string, { text: string; hot: boolean }> = {
-    onsite: unreadCount ? { text: `${unreadCount} unread message${unreadCount === 1 ? "" : "s"}`, hot: true } : { text: "All caught up", hot: false },
-    reports: toReview ? { text: `${toReview} report${toReview === 1 ? "" : "s"} to review`, hot: true } : { text: "Nothing waiting", hot: false },
+    onsite: unreadCount ? { text: `${plural(unreadCount, "unread message")}`, hot: true } : { text: "All caught up", hot: false },
+    reports: toReview ? { text: `${plural(toReview, "report")} to review`, hot: true } : { text: "Nothing waiting", hot: false },
   };
   const apps = TEAM_APPS.filter((a) => !a.roles || a.roles.includes(me.role));
   const first = (me.full_name || me.email).split(" ")[0];
 
   return (
     <div className="hq">
-      <header className="hq-top">
-        <span className="logo" aria-label="Beshara Builders" />
-        <span className="hq-name">HQ</span>
-        <span className="hq-sp" />
-        <a href="/account" className="hq-me">{me.full_name || me.email}</a>
+      <header className="top">
+        <Link href="/" className="logo" aria-label="Beshara HQ" />
+        <span className="hub">HQ</span>
+        <Link href="/account" className="userchip" title="Your account">
+          <b>{me.full_name || me.email}</b>
+          <small>{ROLE_LABEL[me.role]}</small>
+        </Link>
         <form action="/auth/signout" method="post">
           <button className="signout" type="submit">Sign out</button>
         </form>
       </header>
       <main className="hq-main">
-        <div className="hq-hello">
-          <p className="hq-date">{todayLabel()}</p>
-          <h1>
-            {greeting()}, <em>{first}</em>
-          </h1>
-          <p className="hq-role">{roleLabel(me)} · Beshara Builders</p>
-        </div>
+        <Hero
+          name={first}
+          eyebrow={`Beshara HQ · ${todayLabel()}`}
+          copy="Everything the Beshara team runs on, in one place: client conversations, weekly progress reports and every job in JobTread."
+        >
+          <a className="feat" href={apps.find((a) => a.key === "onsite")?.url}>
+            <ChatIcon />
+            {unreadCount ? plural(unreadCount, "unread message") : "Messages all caught up"}
+          </a>
+          <a className="feat" href={apps.find((a) => a.key === "reports")?.url}>
+            <DocIcon />
+            {toReview ? `${plural(toReview, "report")} to review` : "No reports waiting"}
+          </a>
+          <span className="feat">
+            <GridIcon />
+            {plural(projects ?? 0, "active project")}
+          </span>
+        </Hero>
         <nav className="hq-grid" aria-label="Apps">
           {apps.map((a) => (
             <a key={a.key} className="hq-tile" href={a.url} {...(a.external ? { target: "_blank", rel: "noreferrer" } : {})}>

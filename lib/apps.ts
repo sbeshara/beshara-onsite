@@ -11,6 +11,7 @@ export type TeamApp = {
   roles?: Role[]; // who sees it; everyone on the team when left out
 };
 
+export const HQ_URL = process.env.NEXT_PUBLIC_HQ_URL ?? "https://hq.besharabuilders.com";
 const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? "https://onsite.besharabuilders.com";
 const REPORTS = process.env.NEXT_PUBLIC_REPORTS_URL ?? "https://reports.besharabuilders.com";
 

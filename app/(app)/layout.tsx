@@ -2,6 +2,7 @@ import Link from "next/link";
 import ProjectSwitcher from "@/components/ProjectSwitcher";
 import Rail from "@/components/Rail";
 import ServiceWorker from "@/components/ServiceWorker";
+import { HQ_URL } from "@/lib/apps";
 import { getMe } from "@/lib/auth";
 import { ROLE_LABEL } from "@/lib/constants";
 import { getPreview } from "@/lib/preview";
@@ -32,7 +33,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <div className="app">
       <ServiceWorker />
       <header className="top">
-        <Link href="/" className="logo" aria-label="Beshara Builders, go to dashboard" />
+        {me.role === "client" ? (
+          <Link href="/" className="logo" aria-label="Beshara Builders, go to dashboard" />
+        ) : (
+          <a href={HQ_URL} className="logo" aria-label="Beshara HQ" />
+        )}
         <span className="hub">OnSite</span>
         <Link href="/account" className="userchip" title="Your account">
           <b>{me.full_name || me.email}</b>

@@ -1,7 +1,5 @@
 /* Beshara Reports: internal review tool. Same tokens as OnSite, denser layout. */
 .st{min-height:100%;display:grid;grid-template-rows:auto 1fr}
-.st-top{background:var(--hdr);color:var(--hdr-ink);display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding-block:12px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
-.st-top .logo{width:120px;height:44px}
 .st-top .hub{margin-right:0}
 .st-nav{display:flex;gap:4px;margin-left:auto;flex-wrap:wrap}
 .st-nav a{color:var(--hdr-ink);font-weight:600;font-size:13.5px;padding:7px 12px;border-radius:999px;opacity:.85}

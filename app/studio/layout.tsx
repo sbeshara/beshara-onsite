@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HQ_URL } from "@/lib/apps";
 import { getMe } from "@/lib/auth";
 import { isAdminRole, isTeamRole } from "@/lib/types";
 import "./studio.css";
@@ -20,14 +21,13 @@ export default async function StudioLayout({ children }: { children: React.React
   const site = process.env.NEXT_PUBLIC_SITE_URL ?? "/";
   return (
     <div className="st">
-      <header className="st-top">
-        <Link href="/studio" className="logo" aria-label="Beshara Reports home" />
+      <header className="top st-top">
+        <a href={HQ_URL} className="logo" aria-label="Beshara HQ" />
         <span className="hub">Reports</span>
         <nav className="st-nav">
           <Link href="/studio">Weekly reports</Link>
           {isAdminRole(me.role) && <Link href="/studio/jobs">JobTread jobs</Link>}
           <a href={site}>OnSite ↗</a>
-          <a href={process.env.NEXT_PUBLIC_HQ_URL ?? "https://hq.besharabuilders.com"}>HQ</a>
         </nav>
         <span className="st-me">{me.full_name || me.email}</span>
       </header>

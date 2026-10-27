@@ -1,5 +1,6 @@
 "use client";
 
+import { HQ_URL } from "@/lib/apps";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { PHASES } from "@/lib/constants";
@@ -31,7 +32,7 @@ export default function Rail({ projects, isClient, isAdmin, unread }: { projects
       {projects.length === 0 && <p className="upl" style={{ padding: "4px 16px" }}>No projects yet.</p>}
       {!isClient && (
         <>
-          <a className="navi" href={process.env.NEXT_PUBLIC_HQ_URL ?? "https://hq.besharabuilders.com"}>
+          <a className="navi" href={HQ_URL}>
             Beshara HQ
           </a>
           <a className="navi" href={process.env.NEXT_PUBLIC_REPORTS_URL ?? "https://reports.besharabuilders.com"} target="_blank" rel="noreferrer">
