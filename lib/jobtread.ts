@@ -23,11 +23,22 @@ export async function pave<T = Record<string, unknown>>(query: Record<string, un
   }
 }
 
-let orgId: string | null = null;
+let orgId: string | null = process.env.JOBTREAD_ORG_ID ?? null;
+// A grant made for a person (not the company) has no organization of its
+// own, so fall back to the company that person belongs to.
 async function organizationId() {
   if (orgId) return orgId;
-  const r = await pave<{ currentGrant: { organization: { id: string } } }>({ currentGrant: { organization: { id: {} } } });
-  orgId = r.currentGrant.organization.id;
+  const r = await pave<{
+    currentGrant: {
+      organization: { id: string } | null;
+      user: { memberships: { nodes: { organization: { id: string } | null }[] } } | null;
+    } | null;
+  }>({ currentGrant: { organization: { id: {} }, user: { memberships: { nodes: { organization: { id: {} } } } } } });
+  const g = r.currentGrant;
+  if (!g) throw new JobTreadError("JobTread didn't accept the grant key. Check JOBTREAD_GRANT_KEY in Vercel.");
+  const id = g.organization?.id ?? g.user?.memberships.nodes.find((m) => m.organization)?.organization?.id;
+  if (!id) throw new JobTreadError("This grant key isn't connected to a JobTread company.");
+  orgId = id;
   return orgId;
 }
 
