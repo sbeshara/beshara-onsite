@@ -1,5 +1,5 @@
 import Link from "next/link";
-import Avatar from "@/components/Avatar";
+import Avatar, { CompanyAvatar } from "@/components/Avatar";
 import Hero from "@/components/Hero";
 import NotifyPrompt from "@/components/NotifyPrompt";
 import { getMe } from "@/lib/auth";
@@ -194,14 +194,14 @@ async function ClientDashboard({ viewerName, projectId }: { viewerName: string; 
     );
   }
   const [{ data: msgData }, { data: peopleData }, { data: membersData }, { data: filesData }] = await Promise.all([
-    supabase.from("messages").select("id, body, created_at, author_id, chat_id, chats!inner(name, is_internal), files(name)").eq("project_id", project.id).eq("chats.is_internal", false).order("created_at", { ascending: false }).limit(40),
+    supabase.from("messages").select("id, body, created_at, author_id, posted_as, chat_id, chats!inner(name, is_internal), files(name)").eq("project_id", project.id).eq("chats.is_internal", false).order("created_at", { ascending: false }).limit(40),
     supabase.from("profiles").select("id, full_name, email, role, title"),
     supabase.from("project_members").select("user_id").eq("project_id", project.id),
     supabase.from("files").select("*").eq("project_id", project.id).eq("is_internal", false).order("created_at", { ascending: false }).limit(20),
   ]);
   const people = Object.fromEntries(((peopleData ?? []) as Profile[]).map((p) => [p.id, p]));
   const name = projectId ? (project.primary_client_id && people[project.primary_client_id]?.full_name) || "" : viewerName;
-  type Msg = { id: string; body: string; created_at: string; author_id: string | null; chat_id: string; chats: { name: string } | null; files: { name: string }[] };
+  type Msg = { id: string; body: string; created_at: string; author_id: string | null; posted_as: string | null; chat_id: string; chats: { name: string } | null; files: { name: string }[] };
   const updates = ((msgData ?? []) as unknown as Msg[]).filter((m) => m.author_id && people[m.author_id] && isTeamRole(people[m.author_id].role)).slice(0, 4);
   const team = [
     ...Object.values(people).filter((p) => p.role === "owner"),
@@ -238,13 +238,15 @@ async function ClientDashboard({ viewerName, projectId }: { viewerName: string; 
             <div className="box">
               {updates.length ? (
                 updates.map((m) => {
+                  const company = m.posted_as === "company";
                   const who = people[m.author_id!];
+                  const name = company ? "Beshara Builders" : who.full_name;
                   return (
                     <div key={m.id} className="upd">
-                      <Avatar id={who.id} name={who.full_name || who.email} />
+                      {company ? <CompanyAvatar /> : <Avatar id={who.id} name={who.full_name || who.email} />}
                       <div style={{ minWidth: 0 }}>
                         <div className="t">
-                          <b style={{ color: "var(--ink)" }}>{who.full_name}</b> · {dayLabel(m.created_at)} · in{" "}
+                          <b style={{ color: "var(--ink)" }}>{name}</b> · {dayLabel(m.created_at)} · in{" "}
                           <Link className="reply" href={`/projects/${project.id}/chats/${m.chat_id}`}>{m.chats?.name}</Link>
                         </div>
                         <div className="body">{m.body || m.files.map((f) => f.name).join(", ") || "Sent an attachment"}</div>

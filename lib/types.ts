@@ -47,6 +47,7 @@ export type Message = {
   author_id: string | null;
   body: string;
   created_at: string;
+  posted_as?: "company" | null;
   files?: FileRow[];
 };
 

@@ -29,6 +29,11 @@ export default function Rail({ projects, isClient, isAdmin, unread }: { projects
         );
       })}
       {projects.length === 0 && <p className="upl" style={{ padding: "4px 16px" }}>No projects yet.</p>}
+      {!isClient && (
+        <a className="navi" href={process.env.NEXT_PUBLIC_REPORTS_URL ?? "https://reports.besharabuilders.com"} target="_blank" rel="noreferrer">
+          Weekly reports ↗
+        </a>
+      )}
       {isAdmin && (
         <>
           <Link className="navi newp" href="/projects/new">+ New project</Link>
