@@ -1,12 +1,34 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ReportLine } from "@/lib/report-pdf";
 import type { ReportPhoto, WeeklyReport } from "@/lib/reports";
-import { approveReport, generateNow, saveReport, setReportStatus, type Result } from "../../actions";
+import { approveReport, generateNow, saveReport, setReportStatus, type Result } from "./actions";
 
-type Props = { report: WeeklyReport; thumbs: Record<string, string>; canApprove: boolean; draftName: string };
+type Props = {
+  report: WeeklyReport;
+  project: { name: string; town: string; job: string | null };
+  thumbs: Record<string, string>;
+  editedBy: string;
+  approvedBy: string;
+  draftName: string;
+  nextHref: string;
+  listHref: string;
+};
+
+const short = (iso: string) => {
+  const [y, m, d] = iso.split("-");
+  return `${Number(m)}/${Number(d)}/${y.slice(2)}`;
+};
+const nextMonday = (iso: string) => {
+  const d = new Date(`${iso}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 7);
+  return d.toISOString().slice(0, 10);
+};
+// Friday, Saturday or Sunday: the logs Looking Ahead can come from.
+const isLookAheadDay = (iso: string) => [5, 6, 0].includes(new Date(`${iso}T12:00:00Z`).getUTCDay());
 
 function Lines({ label, hint, lines, setLines }: { label: string; hint: string; lines: ReportLine[]; setLines: (l: ReportLine[]) => void }) {
   const update = (i: number, k: keyof ReportLine, v: string) => setLines(lines.map((l, j) => (j === i ? { ...l, [k]: v } : l)));
@@ -27,7 +49,7 @@ function Lines({ label, hint, lines, setLines }: { label: string; hint: string; 
   );
 }
 
-export default function ReportEditor({ report, thumbs, canApprove, draftName }: Props) {
+export default function ReportEditor({ report, project, thumbs, editedBy, approvedBy, draftName, nextHref, listHref }: Props) {
   const router = useRouter();
   const editable = report.status === "draft";
   const [completed, setCompleted] = useState<ReportLine[]>(report.completed);
@@ -37,16 +59,30 @@ export default function ReportEditor({ report, thumbs, canApprove, draftName }: 
   const [photos, setPhotos] = useState<ReportPhoto[]>(report.photos);
   const [notes, setNotes] = useState(report.pm_notes);
   const [msg, setMsg] = useState<Result>({});
-  const [confirm, setConfirm] = useState(false);
+  const [preview, setPreview] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const edits = { completed, looking_ahead: ahead, layout, skip_completed: skipCompleted, photos, pm_notes: notes };
-  const run = (fn: () => Promise<Result>) =>
+  const run = (fn: () => Promise<Result>, then?: string) =>
     start(async () => {
       setMsg({});
       const r = await fn();
-      setMsg(r);
-      router.refresh();
+      if (r.ok && then) router.push(then);
+      else {
+        setMsg(r);
+        router.refresh();
+      }
     });
+  // Saves first so the preview shows exactly what's on screen.
+  const openPreview = () =>
+    start(async () => {
+      setMsg({});
+      if (editable) {
+        const r = await saveReport(report.id, edits);
+        if (r.error) return setMsg(r);
+      }
+      setPreview(`/studio/r/${report.id}/pdf?v=${Date.now()}`);
+    });
+  const canPost = ahead.some((l) => l.text.trim()) && (completed.some((l) => l.text.trim()) || skipCompleted);
   const selected = photos.filter((p) => p.selected).length;
   const usesPhotos = layout === "standard" && !skipCompleted;
   const togglePhoto = (id: string) => {
@@ -62,22 +98,40 @@ export default function ReportEditor({ report, thumbs, canApprove, draftName }: 
 
   return (
     <>
+      <div className="st-h">
+        <div style={{ minWidth: 0 }}>
+          <p className="st-back"><Link href={listHref} className="textbtn">← All jobs</Link></p>
+          <h1>{project.name}</h1>
+          <p>
+            Week of {short(report.week_start)}
+            {project.job ? ` · JobTread ${project.job}` : ""}
+            {project.town ? ` · ${project.town}` : ""}
+            {editedBy ? ` · last edited by ${editedBy}` : ""}
+            {report.approved_at ? ` · posted by ${approvedBy} on ${new Date(report.approved_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}
+          </p>
+        </div>
+        <button type="button" className="btn ghost" disabled={pending} onClick={openPreview}>Preview PDF</button>
+      </div>
       {report.error && <div className="st-banner err">The draft ran into a problem: {report.error}</div>}
       {report.status === "approved" && <div className="st-banner ok">This report was approved and posted to the client.</div>}
       {report.status === "skipped" && <div className="st-banner note">Skipped. Nothing was posted for this week.</div>}
       {report.status === "no_logs" && <div className="st-banner note">There were no daily logs in JobTread for this week, so no draft was written.</div>}
       {editable && !report.looking_ahead.length && (
         <div className="st-banner err">
-          Looking Ahead is pending: {report.source_logs.some((l) => new Date(`${l.date}T12:00:00Z`).getUTCDay() === 5) ? "Friday's daily log has no work-to-be-conducted section" : "there's no Friday daily log"}. The project manager needs to add next week&apos;s work before this can be approved. Until then the PDF is saved as &ldquo;{draftName}&rdquo;.
+          Looking Ahead is pending:{" "}
+          {report.source_logs.some((l) => isLookAheadDay(l.date))
+            ? "none of the Friday, Saturday or Sunday logs has a work-to-be-conducted section"
+            : "there's no Friday, Saturday or Sunday daily log"}
+          . The project&apos;s PM was emailed. Add next week&apos;s work below to approve; until then the PDF is named &ldquo;{draftName}&rdquo;.
         </div>
       )}
-      {report.pm_notes && !editable && <div className="st-banner note">PM notes: {report.pm_notes}</div>}
+      {report.pm_notes && !editable && <div className="st-banner note">Team notes: {report.pm_notes}</div>}
 
       <fieldset disabled={!editable || pending} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
         <div className="st-grid">
           <div style={{ display: "grid", gap: 16, minWidth: 0 }}>
             <Lines label="Completed" hint="1 to 4 high-level lines for the week. No dates, minor items or one-off events." lines={completed} setLines={setCompleted} />
-            <Lines label="Looking ahead" hint="Only from Friday's daily log, the work to be conducted next week." lines={ahead} setLines={setAhead} />
+            <Lines label="Looking ahead" hint={`Week of ${short(nextMonday(report.week_start))}. From the work-to-be-conducted section of the Friday, Saturday or Sunday log.`} lines={ahead} setLines={setAhead} />
           </div>
           <div style={{ display: "grid", gap: 16, minWidth: 0 }}>
             <section className="st-panel">
@@ -98,8 +152,8 @@ export default function ReportEditor({ report, thumbs, canApprove, draftName }: 
               )}
             </section>
             <section className="st-panel">
-              <h2>Notes for the reviewer</h2>
-              <textarea rows={3} aria-label="Notes for the reviewer" placeholder="PMs: add corrections or context for Julia. Never sent to the client." value={notes} onChange={(e) => setNotes(e.target.value)} />
+              <h2>Team notes</h2>
+              <textarea rows={3} aria-label="Team notes" placeholder="Corrections or context for whoever approves. Never sent to the client." value={notes} onChange={(e) => setNotes(e.target.value)} />
             </section>
             <section className="st-panel">
               <h2>Photos · {selected} of 2 selected</h2>
@@ -160,17 +214,17 @@ export default function ReportEditor({ report, thumbs, canApprove, draftName }: 
             Save changes
           </button>
         )}
-        {canApprove && editable && (
-          <button type="button" className="btn ghost" disabled={pending} onClick={() => run(() => setReportStatus(report.id, "skipped"))}>
+        {editable && (
+          <button type="button" className="btn ghost" disabled={pending} onClick={() => run(() => setReportStatus(report.id, "skipped"), nextHref)}>
             Skip this week
           </button>
         )}
-        {canApprove && (report.status === "skipped" || report.status === "no_logs") && (
+        {(report.status === "skipped" || report.status === "no_logs") && (
           <button type="button" className="btn ghost" disabled={pending} onClick={() => run(() => setReportStatus(report.id, "draft"))}>
             Write it anyway
           </button>
         )}
-        {canApprove && report.status !== "approved" && (
+        {report.status !== "approved" && (
           <button
             type="button"
             className="btn ghost"
@@ -180,18 +234,31 @@ export default function ReportEditor({ report, thumbs, canApprove, draftName }: 
             Redraft from daily logs
           </button>
         )}
-        {canApprove && editable &&
-          (confirm ? (
-            <button type="button" className="btn" disabled={pending} onClick={() => { setConfirm(false); run(() => approveReport(report.id, edits)); }}>
-              {pending ? "Posting…" : "Yes, post to the client"}
-            </button>
-          ) : (
-            <button type="button" className="btn" disabled={pending} onClick={() => setConfirm(true)}>
-              Approve and post
-            </button>
-          ))}
-        {!canApprove && editable && <span className="fine">Julia or the Principal Contractor approves and posts.</span>}
+        {editable && (
+          <button
+            type="button"
+            className="btn"
+            disabled={pending || !canPost}
+            title={canPost ? "Posts the PDF and photos to the client's Weekly Progress Report chat" : "Add Looking Ahead first"}
+            onClick={() => run(() => approveReport(report.id, edits), `${nextHref}&posted=${encodeURIComponent(project.name)}`)}
+          >
+            {pending ? "Working…" : "Approve and post"}
+          </button>
+        )}
       </div>
+
+      {preview && (
+        <div className="st-modal" role="dialog" aria-label="PDF preview" onClick={() => setPreview(null)}>
+          <div className="st-modal-box" onClick={(e) => e.stopPropagation()}>
+            <div className="st-modal-h">
+              <b>Preview · what the client receives</b>
+              <a className="textbtn" href={preview} target="_blank" rel="noreferrer">Open in new tab</a>
+              <button type="button" className="st-x" aria-label="Close preview" onClick={() => setPreview(null)}>×</button>
+            </div>
+            <iframe src={preview} title="Report PDF" />
+          </div>
+        </div>
+      )}
     </>
   );
 }

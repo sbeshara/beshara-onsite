@@ -23,13 +23,32 @@ const clean = (lines: ReportLine[]) =>
     .map((l) => ({ trade: l.trade.trim(), text: l.text.trim() }))
     .filter((l) => l.trade || l.text);
 
-async function requireApprover() {
+async function requireAdmin() {
   const me = await getMe();
-  if (!isAdminRole(me.role)) throw new Error("Only an Admin or the Principal Contractor can approve reports.");
+  if (!isAdminRole(me.role)) throw new Error("Only an Admin or the Principal Contractor can do that.");
   return me;
 }
 
-// Anyone on the team with access to the project can edit a draft.
+// PMs, Admins and the Principal Contractor can review, edit and approve the
+// reports for the jobs they're on. Row-level security decides which those are.
+async function requireReviewer(reportId: string) {
+  const me = await getMe();
+  if (!isTeamRole(me.role)) throw new Error("Beshara Reports is for the Beshara team.");
+  const supabase = await createClient();
+  const { data } = await supabase.from("weekly_reports").select("id, project_id, status").eq("id", reportId).maybeSingle();
+  if (!data) throw new Error("You don't have access to this report.");
+  return { me, report: data };
+}
+
+async function requireProject(projectId: string) {
+  const me = await getMe();
+  if (!isTeamRole(me.role)) throw new Error("Beshara Reports is for the Beshara team.");
+  const { data } = await (await createClient()).from("projects").select("id").eq("id", projectId).maybeSingle();
+  if (!data) throw new Error("You don't have access to this project.");
+  return me;
+}
+
+// Saves edits. Called as people type, so it doesn't refresh the page.
 export async function saveReport(id: string, edits: Edits): Promise<Result> {
   const me = await getMe();
   if (!isTeamRole(me.role)) return { error: "Beshara Reports is for the Beshara team." };
@@ -51,31 +70,30 @@ export async function saveReport(id: string, edits: Edits): Promise<Result> {
     )
     .eq("id", id);
   if (error || !count) return { error: "Couldn't save. The report may have been approved or skipped already." };
-  revalidatePath("/studio", "layout");
   return { ok: "Saved." };
 }
 
 export async function approveReport(id: string, edits: Edits): Promise<Result> {
   try {
-    const me = await requireApprover();
+    const { me } = await requireReviewer(id);
     const saved = await saveReport(id, edits);
     if (saved.error) return saved;
     const admin = createAdminClient();
     const { data: report } = await admin.from("weekly_reports").select("*").eq("id", id).single();
     if (!report || report.status !== "draft") return { error: "This report isn't a draft anymore." };
-    if (!(report.looking_ahead as ReportLine[]).length) return { error: "Looking Ahead is still pending. The PM needs to add it from Friday's log." };
+    if (!(report.looking_ahead as ReportLine[]).length) return { error: "Add Looking Ahead first (next week's work from the Friday, Saturday or Sunday log)." };
     if (!(report.completed as ReportLine[]).length && !report.skip_completed) return { error: "Add at least one Completed item, or turn on \"Leave out the Completed page\"." };
     await postReport(admin, report as WeeklyReport, me.id);
   } catch (e) {
     return { error: (e as Error).message };
   }
   revalidatePath("/studio", "layout");
-  return { ok: "Approved and posted to the client's Weekly Progress Report chat." };
+  return { ok: "Posted to the client's Weekly Progress Report chat." };
 }
 
 export async function setReportStatus(id: string, status: "skipped" | "draft"): Promise<Result> {
   try {
-    await requireApprover();
+    await requireReviewer(id);
     const admin = createAdminClient();
     const { data: report } = await admin.from("weekly_reports").select("status").eq("id", id).single();
     if (report?.status === "approved") return { error: "This report was already posted." };
@@ -90,7 +108,8 @@ export async function setReportStatus(id: string, status: "skipped" | "draft"): 
 // Drafts now instead of waiting for Monday. force=true rewrites an existing draft.
 export async function generateNow(opts: { projectId?: string; force?: boolean; weekStart?: string } = {}): Promise<Result> {
   try {
-    await requireApprover();
+    if (opts.projectId) await requireProject(opts.projectId);
+    else await requireAdmin();
     const results = await generateAll(createAdminClient(), opts.weekStart ?? lastFullWeek(), opts);
     revalidatePath("/studio", "layout");
     const drafted = results.filter((r) => r.result === "drafted").length;
@@ -105,7 +124,7 @@ export async function generateNow(opts: { projectId?: string; force?: boolean; w
 
 export async function linkJob(projectId: string, jobId: string | null, label: string | null): Promise<Result> {
   try {
-    await requireApprover();
+    await requireAdmin();
     const { error } = await createAdminClient().from("projects").update({ jobtread_job_id: jobId, jobtread_label: label }).eq("id", projectId);
     if (error) return { error: error.code === "23505" ? "That JobTread job is already linked to another project." : "Couldn't save the link." };
   } catch (e) {

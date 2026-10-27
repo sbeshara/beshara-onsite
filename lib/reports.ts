@@ -53,7 +53,7 @@ export function mondayOf(iso: string) {
   return addDays(iso, -((d.getUTCDay() + 6) % 7));
 }
 
-// The week a report covers: the most recent full week. Logs are read Monday through Saturday.
+// The week a report covers: the most recent full Monday-Sunday week.
 export function lastFullWeek(now = new Date()) {
   return addDays(mondayOf(nj(now).date), -7);
 }
@@ -67,7 +67,9 @@ export const shortDate = (iso: string) => {
   const [y, m, d] = iso.split("-");
   return `${Number(m)}/${Number(d)}/${y.slice(2)}`;
 };
-export const weekLabel = (weekStart: string) => `${shortDate(weekStart)} - ${shortDate(addDays(weekStart, 5))}`;
+export const weekLabel = (weekStart: string) => `${shortDate(weekStart)} - ${shortDate(addDays(weekStart, 6))}`;
+// Looking Ahead comes from the Friday, Saturday or Sunday log.
+export const lookAheadDates = (weekStart: string) => [4, 5, 6].map((n) => addDays(weekStart, n));
 
 // ---- Drafting ----------------------------------------------------------------
 
@@ -78,17 +80,15 @@ export async function generateReport(admin: Admin, project: ProjectForReport, we
   const { data: existing } = await admin.from("weekly_reports").select("id, status").eq("project_id", project.id).eq("week_start", weekStart).maybeSingle();
   if (existing && (!opts.force || existing.status === "approved")) return { project: project.name, result: "exists" };
 
-  const saturday = addDays(weekStart, 5);
-  const friday = addDays(weekStart, 4);
   const base = { project_id: project.id, week_start: weekStart, generated_at: new Date().toISOString(), updated_at: new Date().toISOString() };
   try {
-    const logs = await dailyLogs(project.jobtread_job_id, weekStart, saturday);
+    const logs = await dailyLogs(project.jobtread_job_id, weekStart, addDays(weekStart, 6));
     const source = logs.map((l) => ({ date: l.date, author: l.author, notes: l.notes, trades: l.trades }));
     if (!logs.length || logs.every((l) => !l.notes.trim())) {
       await admin.from("weekly_reports").upsert({ ...base, status: "no_logs", completed: [], looking_ahead: [], photos: [], source_logs: source, error: null }, { onConflict: "project_id,week_start" });
       return { project: project.name, result: "no logs" };
     }
-    const draft = await draftReport({ project: project.name, weekOf: shortDate(weekStart), fridayDate: friday, logs });
+    const draft = await draftReport({ project: project.name, weekOf: shortDate(weekStart), lookAheadDates: lookAheadDates(weekStart), logs });
     // The PDF has two photo spots; suggest the first photo from the latest days.
     const all = logs.flatMap((l) => l.photos.map((p) => ({ ...p, log_date: l.date })));
     const picks = new Set([...logs].reverse().map((l) => l.photos[0]?.id).filter(Boolean).slice(0, 2));
@@ -102,7 +102,7 @@ export async function generateReport(admin: Admin, project: ProjectForReport, we
       )
       .select("id")
       .single();
-    if (!draft.looking_ahead.length && saved) await askPmsForLookingAhead(admin, project, weekStart, saved.id, logs.some((l) => l.date === friday));
+    if (!draft.looking_ahead.length && saved) await askPmsForLookingAhead(admin, project, weekStart, saved.id, logs.some((l) => lookAheadDates(weekStart).includes(l.date)));
     return { project: project.name, result: "drafted" };
   } catch (e) {
     const message = (e as Error).message.slice(0, 500);
@@ -113,22 +113,28 @@ export async function generateReport(admin: Admin, project: ProjectForReport, we
 
 const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
-// Looking Ahead only comes from Friday's log. When it's missing, the
-// project's Construction Management team is asked to add it.
-async function askPmsForLookingAhead(admin: Admin, project: ProjectForReport, weekStart: string, reportId: string, hadFriday: boolean) {
+// When Looking Ahead is missing, the PMs on the project (its Construction
+// Management members in OnSite) are asked to add it. A project with no PM
+// assigned goes to the Admins instead.
+async function askPmsForLookingAhead(admin: Admin, project: ProjectForReport, weekStart: string, reportId: string, hadLog: boolean) {
+  type Person = { email: string; full_name: string; role: string };
   const { data: members } = await admin.from("project_members").select("profiles(email, full_name, role)").eq("project_id", project.id);
-  const pms = (members ?? [])
-    .map((m) => m.profiles as unknown as { email: string; full_name: string; role: string } | null)
-    .filter((p): p is { email: string; full_name: string; role: string } => !!p && p.role === "construction");
-  const link = `${process.env.NEXT_PUBLIC_REPORTS_URL ?? "https://reports.besharabuilders.com"}/r/${reportId}`;
-  const why = hadFriday ? "Friday's daily log has no work-to-be-conducted section" : "there's no Friday daily log";
-  for (const pm of pms) {
+  let to = (members ?? []).map((m) => m.profiles as unknown as Person | null).filter((p): p is Person => !!p && p.role === "construction");
+  if (!to.length) {
+    const { data: admins } = await admin.from("profiles").select("email, full_name, role").eq("role", "admin");
+    to = (admins ?? []) as Person[];
+  }
+  const link = `${process.env.NEXT_PUBLIC_REPORTS_URL ?? "https://reports.besharabuilders.com"}/studio?week=${weekStart}&r=${reportId}`;
+  const why = hadLog
+    ? "none of the Friday, Saturday or Sunday daily logs has a work-to-be-conducted section"
+    : "there's no Friday, Saturday or Sunday daily log";
+  for (const p of to) {
     await sendEmail(
-      pm.email,
+      p.email,
       `Looking Ahead needed: ${project.name}, week of ${shortDate(weekStart)}`,
-      `<p>Hi ${esc(pm.full_name.split(" ")[0] || "there")},</p>
-<p>The weekly progress report for <b>${esc(project.name)}</b> (week of ${shortDate(weekStart)}) is drafted, but ${why}, so the Looking Ahead section is empty.</p>
-<p>Please add next week's work so Julia can approve it: <a href="${link}">${link}</a></p>
+      `<p>Hi ${esc(p.full_name.split(" ")[0] || "there")},</p>
+<p>The weekly progress report for <b>${esc(project.name)}</b> (week of ${shortDate(weekStart)}) is drafted, but ${why}, so Looking Ahead is empty.</p>
+<p>Please add next week's work, then approve it: <a href="${link}">${link}</a></p>
 <p>Beshara Reports</p>`,
     ).catch(() => null);
   }
