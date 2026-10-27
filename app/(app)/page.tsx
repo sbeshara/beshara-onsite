@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Avatar from "@/components/Avatar";
 import Hero from "@/components/Hero";
+import NotifyPrompt from "@/components/NotifyPrompt";
 import { getMe } from "@/lib/auth";
 import { getPreview } from "@/lib/preview";
 import { PHASES, ROLE_LABEL } from "@/lib/constants";
@@ -70,13 +71,15 @@ export default async function Dashboard() {
 async function TeamDashboard({ me }: { me: Profile }) {
   const supabase = await createClient();
   const weekAgo = new Date(Date.now() - 7 * 864e5).toISOString();
-  const [{ data: projectsData }, { data: peopleData }, { data: latestData }, { data: filesData }, { count: weekCount }] = await Promise.all([
+  const [{ data: projectsData }, { data: peopleData }, { data: latestData }, { data: filesData }, { count: weekCount }, { data: unreadData }] = await Promise.all([
     supabase.from("projects").select("id, name, town, scope, phase, project_members(user_id)").order("created_at"),
     supabase.from("profiles").select("id, full_name, email, role, title"),
     supabase.rpc("latest_messages"),
     supabase.from("files").select("*").order("created_at", { ascending: false }).limit(40),
     supabase.from("files").select("id", { count: "exact", head: true }).gte("created_at", weekAgo),
+    supabase.rpc("my_unread"),
   ]);
+  const unreadProjects = new Set(((unreadData ?? []) as { project_id: string }[]).map((u) => u.project_id));
   const projects = (projectsData ?? []) as ProjectRow[];
   const people = Object.fromEntries(((peopleData ?? []) as Profile[]).map((p) => [p.id, p]));
   const owners = Object.values(people).filter((p) => p.role === "owner");
@@ -94,6 +97,7 @@ async function TeamDashboard({ me }: { me: Profile }) {
   return (
     <div className="dash">
       <Hero name={first} eyebrow="Beshara OnSite" copy={TEAM_COPY} />
+      <NotifyPrompt />
       <section className="hello">
         <p className="summary">
           <span className="today">{todayLabel()}</span> ·{" "}
@@ -137,7 +141,7 @@ async function TeamDashboard({ me }: { me: Profile }) {
                   return (
                     <Link key={p.id} className="prow" href={`/projects/${p.id}`}>
                       <span style={{ minWidth: 0 }}>
-                        <h3>{p.name}</h3>
+                        <h3>{p.name}{unreadProjects.has(p.id) && <span className="dot" aria-label="New messages" />}</h3>
                         <span className="meta">{[p.town, p.scope].filter(Boolean).join(" · ")}</span>
                       </span>
                       <span className="ph">
@@ -211,6 +215,7 @@ async function ClientDashboard({ viewerName, projectId }: { viewerName: string; 
   return (
     <div className="dash">
       <Hero name={name || "there"} eyebrow={`Beshara OnSite · ${project.name}`} copy={CLIENT_COPY} />
+      {!projectId && <NotifyPrompt />}
       <section className="hello">
         <p className="summary">
           Your project is in <b>{PHASES[project.phase]}</b>, step {project.phase + 1} of 5. Everything your Beshara team shares with you is here.

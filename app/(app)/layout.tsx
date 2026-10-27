@@ -1,6 +1,7 @@
 import Link from "next/link";
 import ProjectSwitcher from "@/components/ProjectSwitcher";
 import Rail from "@/components/Rail";
+import ServiceWorker from "@/components/ServiceWorker";
 import { getMe } from "@/lib/auth";
 import { ROLE_LABEL } from "@/lib/constants";
 import { getPreview } from "@/lib/preview";
@@ -13,6 +14,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const supabase = await createClient();
   const { data } = await supabase.from("projects").select("id, name, town, phase, primary_client_id").order("created_at");
   const all = data ?? [];
+  const { data: unreadRows } = preview ? { data: [] } : await supabase.rpc("my_unread");
+  const unreadProjects = [...new Set(((unreadRows ?? []) as { project_id: string }[]).map((r) => r.project_id))];
 
   // While previewing as a client, the menus show exactly what that client would see.
   const previewProject = preview ? all.find((p) => p.id === preview) : undefined;
@@ -27,6 +30,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="app">
+      <ServiceWorker />
       <header className="top">
         <Link href="/" className="logo" aria-label="Beshara Builders, go to dashboard" />
         <span className="hub">OnSite</span>
@@ -48,7 +52,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         )}
       </header>
       <div className="shell">
-        <Rail projects={projects} isClient={isClient} isAdmin={isAdmin} />
+        <Rail projects={projects} isClient={isClient} isAdmin={isAdmin} unread={unreadProjects} />
         <main className="panel work">{children}</main>
       </div>
     </div>

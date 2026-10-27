@@ -17,11 +17,12 @@ type Props = {
   me: { id: string; role: Role };
   clientNames: string[];
   readOnly?: boolean;
+  hadUnread?: boolean;
 };
 
 const SELECT = "id, chat_id, author_id, body, created_at, files(*)";
 
-export default function Thread({ chat, initialMessages, initialUrls, people, me, clientNames, readOnly = false }: Props) {
+export default function Thread({ chat, initialMessages, initialUrls, people, me, clientNames, readOnly = false, hadUnread = false }: Props) {
   const router = useRouter();
   const supabase = useRef(createClient()).current;
   const [messages, setMessages] = useState(initialMessages);
@@ -71,6 +72,22 @@ export default function Thread({ chat, initialMessages, initialUrls, people, me,
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
   }, [messages.length]);
+
+  // Opening a chat (or seeing a new message arrive in it) marks it read,
+  // which clears its unread dot and keeps it out of the email digest.
+  const refreshedRef = useRef(false);
+  useEffect(() => {
+    if (readOnly) return;
+    supabase
+      .from("chat_reads")
+      .upsert({ user_id: me.id, chat_id: chat.id, last_read_at: new Date().toISOString() }, { onConflict: "user_id,chat_id" })
+      .then(() => {
+        if (hadUnread && !refreshedRef.current) {
+          refreshedRef.current = true;
+          router.refresh();
+        }
+      });
+  }, [supabase, me.id, chat.id, messages.length, readOnly, hadUnread, router]);
 
   async function send(body: string, files: File[]) {
     if (readOnly || (!body.trim() && !files.length)) return;

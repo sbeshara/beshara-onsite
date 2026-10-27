@@ -63,6 +63,16 @@ The client portal for Beshara Builders: project communication, the documents we 
 
 The first account created becomes the **Owner**. In Supabase, go to **Authentication → Users → Add user → Send invitation** and enter your own email. Open the invite, set your password, and you're in. From there, use **Team** to invite your Admin and Construction Management, and **+ New project** to add jobs and invite clients.
 
+### 5. Notifications
+
+1. In Supabase **SQL Editor**, run `supabase/migrations/20261027000000_notifications.sql` the same way as the first file.
+2. In Resend, create an API key with **Sending access** for besharabuilders.com.
+3. In Vercel → **Settings → Environment Variables**, add `RESEND_API_KEY` with that key, then redeploy.
+
+Phone and computer notifications need no keys; the app creates its own the first time someone turns them on. Each person turns them on per device in **Your account**. On iPhone and iPad, OnSite must be added to the home screen first (Safari → Share → Add to Home Screen).
+
+Emails are a digest: every 5 minutes, anyone with messages they haven't read for at least 5 minutes gets one email listing them.
+
 ## Working on the code
 
 ```bash

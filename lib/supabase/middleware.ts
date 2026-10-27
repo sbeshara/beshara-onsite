@@ -1,7 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/auth"];
+// /api/notify is called by the database, which has no sign-in.
+const PUBLIC_PATHS = ["/login", "/auth", "/api/notify"];
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });

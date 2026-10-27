@@ -14,12 +14,14 @@ export default async function ChatPage({ params }: { params: Promise<{ id: strin
   const me = await getMe();
   const previewing = (await getPreview()) === id;
   const supabase = await createClient();
-  const [{ data: chatsData }, { data: msgData }, { data: peopleData }, { data: memberData }] = await Promise.all([
+  const [{ data: chatsData }, { data: msgData }, { data: peopleData }, { data: memberData }, { data: unreadData }] = await Promise.all([
     supabase.from("chats").select("*").eq("project_id", id).order("position").order("created_at"),
     supabase.from("messages").select("id, chat_id, author_id, body, created_at, files(*)").eq("chat_id", chatId).order("created_at", { ascending: false }).limit(200),
     supabase.from("profiles").select("id, full_name, email, role, title"),
     supabase.from("project_members").select("user_id").eq("project_id", id),
+    supabase.rpc("my_unread"),
   ]);
+  const unread = Object.fromEntries(((unreadData ?? []) as { chat_id: string; unread: number }[]).map((u) => [u.chat_id, Number(u.unread)]));
   const chats = ((chatsData ?? []) as Chat[]).filter((c) => !previewing || !c.is_internal);
   const chat = chats.find((c) => c.id === chatId);
   if (!chat) {
@@ -35,9 +37,15 @@ export default async function ChatPage({ params }: { params: Promise<{ id: strin
   const internal = chats.filter((c) => c.is_internal);
 
   const chatLink = (c: Chat) => (
-    <Link key={c.id} className={`chan ${c.is_internal ? "int" : ""}`} href={`/projects/${id}/chats/${c.id}`} aria-current={c.id === chatId ? "page" : undefined}>
+    <Link
+      key={c.id}
+      className={`chan ${c.is_internal ? "int" : ""} ${unread[c.id] && c.id !== chatId ? "unread" : ""}`}
+      href={`/projects/${id}/chats/${c.id}`}
+      aria-current={c.id === chatId ? "page" : undefined}
+    >
       <span className="ic">{c.is_internal ? <LockIcon /> : <PeopleIcon />}</span>
-      {c.name}
+      <span style={{ minWidth: 0 }}>{c.name}</span>
+      {unread[c.id] && c.id !== chatId ? <span className="udot" aria-label={`${unread[c.id]} new`} /> : null}
     </Link>
   );
 
@@ -63,6 +71,7 @@ export default async function ChatPage({ params }: { params: Promise<{ id: strin
         me={{ id: me.id, role: previewing ? "client" : me.role }}
         clientNames={clientNames}
         readOnly={previewing}
+        hadUnread={!!unread[chatId]}
       />
     </div>
   );

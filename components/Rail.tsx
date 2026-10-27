@@ -7,7 +7,7 @@ import { GridIcon } from "./Icons";
 
 type P = { id: string; name: string; town: string; phase: number };
 
-export default function Rail({ projects, isClient, isAdmin }: { projects: P[]; isClient: boolean; isAdmin: boolean }) {
+export default function Rail({ projects, isClient, isAdmin, unread }: { projects: P[]; isClient: boolean; isAdmin: boolean; unread: string[] }) {
   const path = usePathname();
   return (
     <nav className="panel rail" aria-label="Main">
@@ -20,7 +20,7 @@ export default function Rail({ projects, isClient, isAdmin }: { projects: P[]; i
         return (
           <Link key={p.id} className="proj" href={`/projects/${p.id}`} aria-current={current ? "page" : undefined}>
             <span className="n">{p.name}</span>
-            <span />
+            {unread.includes(p.id) && !current ? <span className="dot" aria-label="New messages" /> : <span />}
             <span className="m">
               {p.town ? `${p.town} · ` : ""}
               {PHASES[p.phase]}
