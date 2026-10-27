@@ -63,7 +63,7 @@ export async function createProject(_prev: Result, form: FormData): Promise<Resu
 
     const members = [client.id, ...staff].map((user_id) => ({ project_id: project.id, user_id }));
     const { error: memberErr } = await supabase.from("project_members").insert(members);
-    if (memberErr) return { error: "The project was created, but adding people failed. Open Team & clients to add them." };
+    if (memberErr) return { error: "The project was created, but adding people failed. Open Team & Clients to add them." };
   } catch (e) {
     return { error: (e as Error).message };
   }

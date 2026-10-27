@@ -157,7 +157,7 @@ export async function importJobs(jobIds: string[]): Promise<Result> {
     );
     if (error) return { error: `Couldn't create the projects: ${error.message}` };
     revalidatePath("/", "layout");
-    return { ok: `Added ${jobs.length} project${jobs.length === 1 ? "" : "s"} to OnSite. Invite each client from the project's Team & clients page.` };
+    return { ok: `Added ${jobs.length} project${jobs.length === 1 ? "" : "s"} to OnSite. Invite each client from the project's Team & Clients page.` };
   } catch (e) {
     return { error: (e as Error).message };
   }

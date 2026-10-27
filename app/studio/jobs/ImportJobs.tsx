@@ -19,7 +19,7 @@ export default function ImportJobs({ jobs }: { jobs: JobOption[] }) {
       <h2>Construction Jobs Not in OnSite Yet · {jobs.length}</h2>
       <p className="fine" style={{ margin: 0 }}>
         Each one becomes an OnSite project with its four starter chats, set to the Construction phase and linked here. Then open the project and
-        invite the client from Team &amp; clients.
+        invite the client from Team &amp; Clients.
       </p>
       <div style={{ display: "grid", gap: 2 }}>
         {jobs.map((j) => (
