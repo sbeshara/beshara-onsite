@@ -3,6 +3,7 @@ import { getMe } from "@/lib/auth";
 import { listOpenJobs, type JobOption } from "@/lib/jobtread";
 import { createClient } from "@/lib/supabase/server";
 import { isAdminRole } from "@/lib/types";
+import ImportJobs from "./ImportJobs";
 import JobLinker from "./JobLinker";
 
 export const metadata = { title: "JobTread jobs · Beshara Reports" };
@@ -21,6 +22,8 @@ export default async function JobsPage() {
       ? "The JobTread key isn't set up yet. Add JOBTREAD_GRANT_KEY in Vercel, then redeploy."
       : `Couldn't reach JobTread: ${(e as Error).message}`;
   }
+  const linked = new Set((projects ?? []).map((p) => p.jobtread_job_id).filter(Boolean));
+  const notInOnSite = jobs.filter((j) => !linked.has(j.id));
   return (
     <>
       <div className="st-h">
@@ -30,6 +33,7 @@ export default async function JobsPage() {
         </div>
       </div>
       {problem && <div className="st-banner err">{problem}</div>}
+      {!problem && notInOnSite.length > 0 && <ImportJobs jobs={notInOnSite} />}
       <table className="st-table">
         <thead>
           <tr>

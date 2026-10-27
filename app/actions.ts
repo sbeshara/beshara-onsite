@@ -103,6 +103,8 @@ export async function addClientContact(projectId: string, _prev: Result, form: F
     const supabase = await createClient();
     const { error } = await supabase.from("project_members").upsert({ project_id: projectId, user_id: person.id }, { onConflict: "project_id,user_id", ignoreDuplicates: true });
     if (error) return { error: "Couldn't add that contact. Try again." };
+    // The first client added to a project becomes its main contact.
+    await createAdminClient().from("projects").update({ primary_client_id: person.id }).eq("id", projectId).is("primary_client_id", null);
     revalidatePath("/", "layout");
     return { ok: person.invited ? `Invite sent to ${email}.` : `${name} already has an account and now has access to this project.` };
   } catch (e) {

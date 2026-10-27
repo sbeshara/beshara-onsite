@@ -42,7 +42,7 @@ async function organizationId() {
   return orgId;
 }
 
-export type JobOption = { id: string; label: string };
+export type JobOption = { id: string; label: string; number: string; client: string | null; town: string | null };
 
 // Open jobs whose "Status" custom field is Construction, newest first,
 // labelled the way the office knows them.
@@ -74,7 +74,7 @@ export async function listOpenJobs(): Promise<JobOption[]> {
     const who = j.location?.account?.name;
     const town = j.location?.address?.split(",").slice(-3, -2)[0]?.trim();
     const name = j.name && !/^Job \d+$/.test(j.name) ? j.name : null;
-    return { id: j.id, label: [j.number, who, name, town].filter(Boolean).join(" · ") };
+    return { id: j.id, label: [j.number, who, name, town].filter(Boolean).join(" · "), number: j.number, client: who ?? name, town: town ?? null };
   });
 }
 

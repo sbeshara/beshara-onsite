@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getMe } from "@/lib/auth";
 import type { ReportLine } from "@/lib/report-pdf";
+import { listOpenJobs } from "@/lib/jobtread";
 import { generateAll, lastFullWeek, postReport, type ReportPhoto, type WeeklyReport } from "@/lib/reports";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -132,4 +133,32 @@ export async function linkJob(projectId: string, jobId: string | null, label: st
   }
   revalidatePath("/studio", "layout");
   return { ok: jobId ? "Linked." : "Unlinked." };
+}
+
+// Creates an OnSite project (with its starter chats) for each chosen
+// JobTread job, already linked so weekly reports draft from its logs.
+export async function importJobs(jobIds: string[]): Promise<Result> {
+  try {
+    const me = await requireAdmin();
+    const admin = createAdminClient();
+    const { data: linked } = await admin.from("projects").select("jobtread_job_id").not("jobtread_job_id", "is", null);
+    const taken = new Set((linked ?? []).map((p) => p.jobtread_job_id));
+    const jobs = (await listOpenJobs()).filter((j) => jobIds.includes(j.id) && !taken.has(j.id));
+    if (!jobs.length) return { error: "Those jobs are already in OnSite." };
+    const { error } = await admin.from("projects").insert(
+      jobs.map((j) => ({
+        name: (j.client ?? `Job ${j.number}`).slice(0, 120),
+        town: j.town ?? "",
+        phase: 2, // Construction
+        created_by: me.id,
+        jobtread_job_id: j.id,
+        jobtread_label: j.label,
+      })),
+    );
+    if (error) return { error: `Couldn't create the projects: ${error.message}` };
+    revalidatePath("/", "layout");
+    return { ok: `Added ${jobs.length} project${jobs.length === 1 ? "" : "s"} to OnSite. Invite each client from the project's Team & clients page.` };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
 }
