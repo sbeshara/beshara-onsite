@@ -77,7 +77,7 @@ export default async function HQ() {
         <Hero
           name={first}
           eyebrow={`Beshara HQ · ${todayLabel()}`}
-          copy="Everything the Beshara team runs on, in one place: client conversations, weekly progress reports and every job in JobTread."
+          copy="Everything the Beshara team runs on, in one place: client conversations, progress reports and every job in JobTread."
         >
           <a className="feat" href={apps.find((a) => a.key === "onsite")?.url}>
             <ChatIcon />

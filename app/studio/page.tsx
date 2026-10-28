@@ -92,7 +92,7 @@ export default async function ReportsHome({ searchParams }: { searchParams: Prom
     <div className="st-split" data-open={editor ? "" : undefined}>
       <aside className="st-side">
         <div className="st-side-h">
-          <h1>Weekly Reports</h1>
+          <h1>Progress Reports</h1>
           <p>Week of {weekLabel(week)}</p>
         </div>
         <div className="st-weeks" aria-label="Week">
@@ -139,7 +139,7 @@ export default async function ReportsHome({ searchParams }: { searchParams: Prom
         <p className="fine">Drafts are written from JobTread daily logs every Monday at 8 AM. Next: Monday {shortDate(addDays(lastFullWeek(), 14))}.</p>
       </aside>
       <section className="st-detail">
-        {posted && <div className="st-banner ok">Posted the {posted} report to the client&apos;s Weekly Progress Report chat.</div>}
+        {posted && <div className="st-banner ok">Posted the {posted} report to the client&apos;s Progress Reports chat.</div>}
         {editor ?? (
           <div className="st-empty">
             <h2>{waiting ? "Pick a Job to Review" : "All Caught Up"}</h2>

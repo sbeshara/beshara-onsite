@@ -89,7 +89,7 @@ export async function approveReport(id: string, edits: Edits): Promise<Result> {
     return { error: (e as Error).message };
   }
   revalidatePath("/studio", "layout");
-  return { ok: "Posted to the client's Weekly Progress Report chat." };
+  return { ok: "Posted the PDF to the client's Progress Reports chat." };
 }
 
 export async function setReportStatus(id: string, status: "skipped" | "draft"): Promise<Result> {
@@ -136,7 +136,7 @@ export async function linkJob(projectId: string, jobId: string | null, label: st
 }
 
 // Creates an OnSite project (with its starter chats) for each chosen
-// JobTread job, already linked so weekly reports draft from its logs.
+// JobTread job, already linked so progress reports draft from its logs.
 export async function importJobs(jobIds: string[]): Promise<Result> {
   try {
     const me = await requireAdmin();

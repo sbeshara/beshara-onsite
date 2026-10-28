@@ -1,6 +1,6 @@
 import { avatarTone, initials } from "@/lib/format";
 
-// Posts made on behalf of the company (e.g. weekly progress reports).
+// Posts made on behalf of the company (e.g. progress reports).
 export function CompanyAvatar() {
   return (
     <div className="av av-co" title="Beshara Builders" aria-hidden="true">

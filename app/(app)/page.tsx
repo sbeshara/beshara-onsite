@@ -10,9 +10,9 @@ import { signUrls } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 import { isAdminRole, isTeamRole, type FileRow, type Profile } from "@/lib/types";
 
-const TEAM_COPY = "Every client conversation in one place: weekly updates, questions, selections and the schedule, plus the documents we share.";
+const TEAM_COPY = "Every client conversation in one place: progress reports, questions, selections and the schedule, plus the documents we share.";
 const CLIENT_COPY =
-  "Stay in touch with your Beshara team throughout your buildout. Weekly updates, questions, selections and the schedule, all in one conversation, plus key documents like your plans.";
+  "Stay in touch with your Beshara team throughout your buildout. Progress reports, questions, selections and the schedule, all in one conversation, plus key documents like your plans.";
 
 type ProjectRow = { id: string; name: string; town: string; scope: string | null; phase: number; project_members: { user_id: string }[] };
 type Latest = { chat_id: string; project_id: string; chat_name: string; is_internal: boolean; author_id: string | null; body: string; created_at: string };

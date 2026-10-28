@@ -184,7 +184,7 @@ export default function ReportEditor({ report, project, thumbs, editedBy, approv
               )}
               <p className="fine">
                 {usesPhotos
-                  ? "The two selected photos go on the Completed page and are posted with the report. With none selected, the PDF shows gray placeholders."
+                  ? "The two selected photos go on the Completed page of the PDF. With none selected, the PDF shows gray placeholders."
                   : "This layout has no photo spots, so no photos are included."}
               </p>
             </section>
@@ -239,7 +239,7 @@ export default function ReportEditor({ report, project, thumbs, editedBy, approv
             type="button"
             className="btn"
             disabled={pending || !canPost}
-            title={canPost ? "Posts the PDF and photos to the client's Weekly Progress Report chat" : "Add Looking Ahead first"}
+            title={canPost ? "Posts the PDF to the client's Progress Reports chat" : "Add Looking Ahead first"}
             onClick={() => run(() => approveReport(report.id, edits), `${nextHref}&posted=${encodeURIComponent(project.name)}`)}
           >
             {pending ? "Working…" : "Approve and Post"}

@@ -133,7 +133,7 @@ async function askPmsForLookingAhead(admin: Admin, project: ProjectForReport, we
       p.email,
       `Looking Ahead needed: ${project.name}, week of ${shortDate(weekStart)}`,
       `<p>Hi ${esc(p.full_name.split(" ")[0] || "there")},</p>
-<p>The weekly progress report for <b>${esc(project.name)}</b> (week of ${shortDate(weekStart)}) is drafted, but ${why}, so Looking Ahead is empty.</p>
+<p>The progress report for <b>${esc(project.name)}</b> (week of ${shortDate(weekStart)}) is drafted, but ${why}, so Looking Ahead is empty.</p>
 <p>Please add next week's work, then approve it: <a href="${link}">${link}</a></p>
 <p>Beshara Reports</p>`,
     ).catch(() => null);
@@ -151,16 +151,8 @@ export async function generateAll(admin: Admin, weekStart: string, opts: { force
 
 // ---- Posting ------------------------------------------------------------------
 
-export function reportText(r: Pick<WeeklyReport, "week_start" | "completed" | "looking_ahead">) {
-  const line = (l: ReportLine) => `• ${lineText(l)}`;
-  return [
-    `Weekly Progress Report · Week of ${shortDate(r.week_start)}`,
-    "",
-    ...(r.completed.length ? ["COMPLETED", ...r.completed.map(line), ""] : []),
-    `LOOKING AHEAD · Week of ${shortDate(addDays(r.week_start, 7))}`,
-    ...r.looking_ahead.map(line),
-  ].join("\n");
-}
+// The one line posted with the PDF in the client's Progress Reports chat.
+export const reportCaption = (r: Pick<WeeklyReport, "week_start">) => `Progress Report · Week of ${shortDate(r.week_start)}`;
 
 async function download(url: string) {
   const res = await fetch(url, { cache: "no-store" });
@@ -189,41 +181,39 @@ export async function reportPdf(admin: Admin, report: WeeklyReport) {
   return { pdf, photos, chosen, fileName };
 }
 
-// Posts an approved report to the project's Weekly Progress Report chat as Beshara Builders.
+// Posts an approved report to the project's Progress Reports chat as Beshara
+// Builders: the PDF as an attachment, with a one-line caption.
 export async function postReport(admin: Admin, report: WeeklyReport, approverId: string) {
   const { data: chats } = await admin.from("chats").select("id, name, is_internal").eq("project_id", report.project_id).order("position");
   const chat =
-    chats?.find((c) => !c.is_internal && /weekly (progress|update)/i.test(c.name)) ?? chats?.find((c) => !c.is_internal);
+    chats?.find((c) => !c.is_internal && /progress report|weekly (progress|update)/i.test(c.name)) ?? chats?.find((c) => !c.is_internal);
   if (!chat) throw new Error("This project has no client chat to post in.");
 
-  const { pdf, photos, chosen, fileName } = await reportPdf(admin, report);
+  const { pdf, fileName } = await reportPdf(admin, report);
+  const path = storagePath(report.project_id, fileName);
+  const up = await admin.storage.from(FILES_BUCKET).upload(path, pdf, { contentType: "application/pdf" });
+  if (up.error) throw new Error(`Couldn't upload the PDF: ${up.error.message}`);
+
   const { data: msg, error } = await admin
     .from("messages")
-    .insert({ chat_id: chat.id, author_id: approverId, body: reportText(report), posted_as: "company" })
+    .insert({ chat_id: chat.id, author_id: approverId, body: reportCaption(report), posted_as: "company" })
     .select("id")
     .single();
-  if (error || !msg) throw new Error(`Couldn't post the report: ${error?.message}`);
-
-  const uploads: { name: string; bytes: Uint8Array; type: string; folder: string }[] = [
-    { name: fileName, bytes: pdf, type: "application/pdf", folder: "Submittals" },
-    ...photos.map((p, i) => ({ name: chosen[i]?.name ?? `Photo ${i + 1}.jpg`, bytes: p.bytes, type: p.type, folder: "Photos" })),
-  ];
-  for (const u of uploads) {
-    const path = storagePath(report.project_id, u.name);
-    const up = await admin.storage.from(FILES_BUCKET).upload(path, u.bytes, { contentType: u.type });
-    if (up.error) continue;
-    await admin.from("files").insert({
-      project_id: report.project_id,
-      message_id: msg.id,
-      name: u.name,
-      storage_path: path,
-      size_bytes: u.bytes.length,
-      mime_type: u.type,
-      folder: u.folder,
-      is_internal: false,
-      uploaded_by: approverId,
-    });
+  if (error || !msg) {
+    await admin.storage.from(FILES_BUCKET).remove([path]);
+    throw new Error(`Couldn't post the report: ${error?.message}`);
   }
+  await admin.from("files").insert({
+    project_id: report.project_id,
+    message_id: msg.id,
+    name: fileName,
+    storage_path: path,
+    size_bytes: pdf.length,
+    mime_type: "application/pdf",
+    folder: "Submittals",
+    is_internal: false,
+    uploaded_by: approverId,
+  });
   await admin
     .from("weekly_reports")
     .update({ status: "approved", approved_by: approverId, approved_at: new Date().toISOString(), message_id: msg.id, updated_at: new Date().toISOString() })

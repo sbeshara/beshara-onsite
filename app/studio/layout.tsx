@@ -6,7 +6,7 @@ import "./studio.css";
 
 export const metadata = { title: "Beshara Reports" };
 
-// Beshara Reports: the team's internal site for weekly progress reports.
+// Beshara Reports: the team's internal site for progress reports.
 export default async function StudioLayout({ children }: { children: React.ReactNode }) {
   const me = await getMe();
   if (!isTeamRole(me.role)) {
@@ -25,7 +25,7 @@ export default async function StudioLayout({ children }: { children: React.React
         <a href={HQ_URL} className="logo" aria-label="Beshara HQ" />
         <span className="hub">Reports</span>
         <nav className="st-nav">
-          <Link href="/studio">Weekly Reports</Link>
+          <Link href="/studio">Progress Reports</Link>
           {isAdminRole(me.role) && <Link href="/studio/jobs">JobTread Jobs</Link>}
           <a href={site}>OnSite ↗</a>
         </nav>

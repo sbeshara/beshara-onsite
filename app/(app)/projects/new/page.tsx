@@ -15,7 +15,7 @@ export default async function NewProjectPage() {
     <div className="page">
       <div className="page-h">
         <h1>New Project</h1>
-        <p>The project starts with four chats: Weekly Updates, Selections &amp; Finishes, Schedule &amp; Inspections and Internal Only. The client gets an email invite to set up their account.</p>
+        <p>The project starts with four chats: Progress Reports, Selections &amp; Finishes, Schedule &amp; Inspections and Internal Only. The client gets an email invite to set up their account.</p>
       </div>
       <NewProjectForm staff={(data ?? []) as Profile[]} />
     </div>

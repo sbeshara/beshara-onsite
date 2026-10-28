@@ -51,7 +51,7 @@ export default function Rail({ projects, isClient, isAdmin, unread }: { projects
         <div className="rail-sec rail-tools">
           <h2>Manage</h2>
           <a className="navi" href={process.env.NEXT_PUBLIC_REPORTS_URL ?? "https://reports.besharabuilders.com"} target="_blank" rel="noreferrer">
-            <DocIcon /> Weekly Reports <span className="navi-ext">↗</span>
+            <DocIcon /> Progress Reports <span className="navi-ext">↗</span>
           </a>
           {isAdmin && (
             <Link className="navi" href="/team" aria-current={path === "/team" ? "page" : undefined}>

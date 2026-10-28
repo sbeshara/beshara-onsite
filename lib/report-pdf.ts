@@ -46,10 +46,10 @@ const asset = (f: string) => fs.readFileSync(path.join(ASSETS, f));
 
 export const lineText = (l: ReportLine) => (l.trade.trim() ? `${l.trade.trim()}: ${l.text.trim()}` : l.text.trim());
 
-// File name the office uses, e.g. "DRAFT - Salib Smiles - Weekly Progress Report 10-12.pdf".
+// File name the office uses, e.g. "DRAFT - Salib Smiles - Progress Report 10-12.pdf".
 export function reportFileName(name: string, week: string, draft: boolean) {
   const [m, d] = week.split("/");
-  return `${draft ? "DRAFT - " : ""}${name.replace(/[\\/:*?"<>|]/g, "")} - Weekly Progress Report ${m}-${d}.pdf`;
+  return `${draft ? "DRAFT - " : ""}${name.replace(/[\\/:*?"<>|]/g, "")} - Progress Report ${m}-${d}.pdf`;
 }
 
 type Fonts = { regular: PDFFont; bold: PDFFont; light: PDFFont; italic: PDFFont };
