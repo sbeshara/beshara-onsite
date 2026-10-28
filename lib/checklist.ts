@@ -85,23 +85,25 @@ const jobList = (items: CheckItem[]) =>
 const button = (label: string) =>
   `<p style="margin:18px 0 0"><a href="${HQ_URL}" style="display:inline-block;background:#455C51;color:#FFFFFF;text-decoration:none;font-weight:bold;font-size:14px;padding:11px 18px;border-radius:999px">${esc(label)}</a></p>`;
 
-const FOOTER = "A job is checked off when a daily log is posted for it in JobTread, or when you tick it on Beshara HQ.";
+const FOOTER = "A job is checked off when a daily log is posted for it in JobTread, or when you tick it on Beshara HQ. You only get these emails when a job still needs a check.";
 
+// 10 AM: every job not checked yet today.
 function morningEmail(p: PersonChecklist, day: string) {
   const first = p.name.split(" ")[0] || "there";
-  const open = p.items.filter((i) => !i.done).length;
+  const open = p.items.filter((i) => !i.done);
   return {
-    subject: `Today's jobs · ${dayLabel(day)} · ${open} to check`,
+    subject: `Today's jobs to check · ${dayLabel(day)} · ${open.length} open`,
     html: brandEmail({
       tag: "Daily Checklist",
       heading: `Good morning, ${first}`,
-      body: `<p style="margin:0 0 12px;font-size:15px;line-height:1.5">Here are your ${p.items.length} job${p.items.length === 1 ? "" : "s"} for ${esc(dayLabel(day))}. Check in on each one today, even the quiet ones.</p>
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${jobList(p.items)}</table>${button("Open My Checklist")}`,
+      body: `<p style="margin:0 0 12px;font-size:15px;line-height:1.5">These job${open.length === 1 ? " hasn't" : "s haven't"} been checked yet for ${esc(dayLabel(day))}. Check in on each one today, even the quiet ones.</p>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${jobList(open)}</table>${button("Open My Checklist")}`,
       footer: FOOTER,
     }),
   };
 }
 
+// 5 PM: whatever is still missing a check.
 function afternoonEmail(p: PersonChecklist, day: string) {
   const open = p.items.filter((i) => !i.done);
   const first = p.name.split(" ")[0] || "there";
@@ -110,7 +112,7 @@ function afternoonEmail(p: PersonChecklist, day: string) {
     html: brandEmail({
       tag: "Daily Checklist",
       heading: `${first}, ${open.length === 1 ? "one job is" : `${open.length} jobs are`} still open`,
-      body: `<p style="margin:0 0 12px;font-size:15px;line-height:1.5">No daily log or check-off yet today for:</p>
+      body: `<p style="margin:0 0 12px;font-size:15px;line-height:1.5">It's 5 PM and these still have no daily log or check-off today:</p>
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${jobList(open)}</table>
         <p style="margin:14px 0 0;font-size:14px;line-height:1.5;color:#5D6A64">If nothing happened on a site, tick it on HQ with a quick note so the team knows it was looked at.</p>${button("Check Them Off")}`,
       footer: FOOTER,
@@ -131,7 +133,7 @@ function teamEmail(name: string, open: PersonChecklist[], day: string) {
     html: brandEmail({
       tag: "Daily Checklist",
       heading: `Hi ${name.split(" ")[0] || "there"}, ${count === 1 ? "one job hasn't" : `${count} jobs haven't`} been checked today`,
-      body: `<p style="margin:0;font-size:15px;line-height:1.5">As of 3 PM on ${esc(dayLabel(day))}, these have no daily log or check-off:</p>${sections}${button("Open Team Board")}`,
+      body: `<p style="margin:0;font-size:15px;line-height:1.5">As of 5 PM on ${esc(dayLabel(day))}, these have no daily log or check-off:</p>${sections}${button("Open Team Board")}`,
       footer: "You're getting this as the Principal Contractor or an Admin. Each PM also got their own reminder.",
     }),
   };
@@ -147,7 +149,7 @@ export async function sendReminders(admin: Admin, day: string, slot: "morning" |
   };
   for (const p of lists) {
     const open = p.items.filter((i) => !i.done);
-    if (!p.items.length || (slot === "afternoon" && !open.length)) continue;
+    if (!open.length) continue; // only email about jobs still missing a check
     if (!(await claim(p.userId))) continue;
     const mail = slot === "morning" ? morningEmail(p, day) : afternoonEmail(p, day);
     const r = await sendEmail(p.email, mail.subject, mail.html);

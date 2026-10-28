@@ -3,7 +3,7 @@
 -- Every weekday each PM has one line per assigned job. A job counts as done
 -- when JobTread has a daily log for it that day (checked live, not stored
 -- here) or when the PM ticks it by hand (stored here, with an optional note).
--- Reminder emails go out in the morning and at 3 PM New Jersey time.
+-- Reminder emails go out at 10 AM and 5 PM New Jersey time.
 
 create table public.daily_checks (
   project_id  uuid not null references public.projects (id) on delete cascade,
@@ -37,7 +37,7 @@ create table public.checklist_emails (
 alter table public.checklist_emails enable row level security;
 revoke all on public.checklist_emails from anon, authenticated;
 
--- Hourly on weekdays; the app sends at 7 AM and 3 PM New Jersey time and
+-- Hourly on weekdays; the app sends at 10 AM and 5 PM New Jersey time and
 -- ignores the other hours (this keeps it right through daylight saving).
 select cron.schedule(
   'onsite-daily-checklist',
