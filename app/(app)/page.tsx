@@ -132,7 +132,7 @@ async function TeamDashboard({ me }: { me: Profile }) {
           <section>
             <div className="sec-h">
               <h2>{admin ? "All Projects" : "Your Projects"}</h2>
-              {admin ? <Link className="linkbtn" href="/projects/new">+ New Project</Link> : <span>{plural(projects.length, "active project")}</span>}
+              {admin ? <Link className="linkbtn" href="/projects/new">+ New Project</Link> : <span>{plural(projects.length, "Active Project")}</span>}
             </div>
             <div className="box">
               {projects.length ? (
