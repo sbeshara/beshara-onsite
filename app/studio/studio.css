@@ -21,7 +21,8 @@
 .st-status{font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;border-radius:999px;padding:4px 10px;white-space:nowrap}
 .st-status.draft{background:var(--internal-soft);color:var(--internal);border:1px solid var(--internal-line)}
 .st-status.pending{background:#FBE7E5;color:#9F2A1E;border:1px solid #F0C4BE}
-.st-status.approved{background:var(--brand-soft);color:var(--brand)}
+.st-status.sent{background:var(--brand-soft);color:var(--brand)}
+.st-status.approved{background:#E4ECF7;color:#2D4E7A;border:1px solid #B9CBE3}
 .st-status.no_logs,.st-status.skipped,.st-status.unlinked{background:var(--sunk);color:var(--muted);border:1px solid var(--line)}
 .st-status.error{background:#FBE7E5;color:#9F2A1E}
 .st-grid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:22px;align-items:start}
