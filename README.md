@@ -96,6 +96,12 @@ To draft without waiting for Monday, use **Draft missing reports now** on the re
 
 To add a tile for a new app, add an entry to `TEAM_APPS` in `lib/apps.ts`.
 
+### 8. Daily job checklist
+
+Each Construction Management teammate sees today's assigned jobs on Beshara HQ. A job is checked off when JobTread has a daily log for it that day (by anyone on the job), or when the PM ticks it with an optional note. Weekdays at 7 AM each PM gets their list; at 3 PM anyone with open jobs gets a reminder, and the Principal Contractor and Admins get a summary. The Principal Contractor and Admins also see a Team Check-Ins board on HQ.
+
+Run `supabase/migrations/20261029000000_daily_checklist.sql` in the Supabase SQL Editor to turn it on.
+
 ## Working on the code
 
 ```bash

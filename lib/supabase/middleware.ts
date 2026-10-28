@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { AUTH_COOKIE, authCookieOptions, cookieDomain, isAuthCookie, LEGACY_AUTH_COOKIE } from "./cookies";
 
 // /api/notify is called by the database, which has no sign-in.
-const PUBLIC_PATHS = ["/login", "/auth", "/api/notify", "/api/reports/generate"];
+const PUBLIC_PATHS = ["/login", "/auth", "/api/notify", "/api/reports/generate", "/api/checklist/remind"];
 const KEEP = 400 * 24 * 60 * 60;
 
 export async function updateSession(request: NextRequest) {

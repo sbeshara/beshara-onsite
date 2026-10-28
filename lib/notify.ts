@@ -62,6 +62,27 @@ export async function sendEmail(to: string, subject: string, html: string) {
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
+// The branded email frame used for checklist reminders.
+export function brandEmail(opts: { tag: string; heading: string; body: string; footer: string }) {
+  const site = siteUrl();
+  return `<!doctype html><html><body style="margin:0;padding:0;background:#F0F3F1;font-family:Helvetica,Arial,sans-serif;color:#151B18">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F0F3F1;padding:32px 12px"><tr><td align="center">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#FFFFFF;border:1px solid #DCE3DF;border-radius:14px;overflow:hidden">
+    <tr><td style="background:#455C51;padding:22px 28px">
+      <img src="${site}/logo.png" alt="Beshara Builders" height="44" style="display:inline-block;height:44px;vertical-align:middle;border:0">
+      <span style="display:inline-block;vertical-align:middle;margin-left:14px;padding-left:14px;border-left:1px solid rgba(255,255,255,.3);color:#FFFFFF;font-family:Georgia,serif;font-style:italic;font-size:18px">${esc(opts.tag)}</span>
+    </td></tr>
+    <tr><td style="padding:26px 28px">
+      <h1 style="margin:0 0 14px;font-family:Didot,'Bodoni 72',Georgia,serif;font-weight:normal;font-size:26px">${esc(opts.heading)}</h1>
+      ${opts.body}
+      <p style="margin:18px 0 0;font-size:12.5px;color:#5D6A64">${opts.footer}</p>
+    </td></tr>
+    <tr><td style="padding:16px 28px;border-top:1px solid #DCE3DF;font-size:12px;color:#5D6A64">Beshara Builders · Healthcare construction management · New Jersey</td></tr>
+  </table></td></tr></table></body></html>`;
+}
+
+export { esc as escapeHtml };
+
 export type DigestRow = {
   user_id: string;
   email: string;

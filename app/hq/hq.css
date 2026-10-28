@@ -16,6 +16,29 @@ a.hq-tile:focus-visible{outline:2px solid var(--brand);outline-offset:3px}
 .hq-soon .hq-t{color:var(--muted)}
 a.feat{color:inherit;transition:background .15s}
 a.feat:hover{background:rgba(255,255,255,.2)}
+/* Daily job checklist */
+.ck{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:20px 22px;display:grid;gap:12px}
+.ck-h{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.ck-h h2{font-family:var(--f-display);font-weight:500;font-size:24px}
+.ck-count{font-size:12px;font-weight:700;border-radius:999px;padding:4px 10px;background:#FBE7E5;color:#9F2A1E;border:1px solid #F0C4BE;white-space:nowrap}
+.ck-count.all{background:var(--brand-soft);color:var(--brand);border-color:var(--brand)}
+.ck-list{list-style:none;margin:0;padding:0;display:grid}
+.ck-list li{display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:12px;align-items:start;padding:12px 0;border-top:1px solid var(--line)}
+.ck-list li:first-child{border-top:0}
+.ck-box{width:22px;height:22px;border-radius:6px;border:2px solid #C9A3A0;display:grid;place-items:center;font-size:13px;font-weight:800;margin-top:1px}
+.ck-box.on{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
+.ck-main{display:grid;gap:3px;min-width:0}
+.ck-name{font-weight:700;color:inherit;display:inline-flex;align-items:center;gap:8px}
+.ck-name:hover{text-decoration:underline}
+.ck-sub{font-size:13px;color:var(--muted)}
+.ck-list li:not(.done) .ck-sub{color:#9F2A1E}
+.ck-note{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.ck-note input{flex:1 1 220px;min-width:0;border:1px solid var(--line);background:var(--sunk);border-radius:8px;padding:9px 11px;font-size:14px}
+.ck-board{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.ck-card{border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:grid;gap:6px;background:var(--bg)}
+.ck-card-h{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.ck-list.compact li{grid-template-columns:22px minmax(0,1fr);gap:10px;padding:8px 0}
+.ck-list.compact .ck-box{width:18px;height:18px;font-size:11px;border-radius:5px}
 .hq-blocked{min-height:100%;display:grid;place-content:center;justify-items:center;gap:12px;padding:24px;text-align:center}
 .hq-blocked h1{font-family:var(--f-display);font-weight:500}
 @media (max-width:600px){

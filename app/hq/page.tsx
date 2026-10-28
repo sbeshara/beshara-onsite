@@ -4,10 +4,14 @@ import Link from "next/link";
 import Hero from "@/components/Hero";
 import { ChatIcon, DocIcon, GridIcon } from "@/components/Icons";
 import { todayLabel } from "@/lib/format";
+import { isWeekday, loadChecklists, njNow } from "@/lib/checklist";
 import { lastFullWeek } from "@/lib/reports";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { isTeamRole } from "@/lib/types";
+import { isAdminRole, isTeamRole } from "@/lib/types";
 import { ROLE_LABEL } from "@/lib/constants";
+import Checklist from "./Checklist";
+import TeamBoard from "./TeamBoard";
 import "./hq.css";
 
 export const metadata = { title: "Beshara HQ" };
@@ -47,6 +51,12 @@ export default async function HQ() {
     onsite: unreadCount ? { text: `${plural(unreadCount, "Unread Message")}`, hot: true } : { text: "All Caught Up", hot: false },
     reports: toReview ? { text: `${plural(toReview, "Report")} to Review`, hot: true } : { text: "Nothing Waiting", hot: false },
   };
+  // Today's checklist: a PM's own jobs, or every PM's for the Principal Contractor and Admins.
+  const today = njNow();
+  const workday = isWeekday(today.weekday);
+  const lists = workday ? await loadChecklists(createAdminClient(), today.day, isAdminRole(me.role) ? undefined : me.id) : [];
+  const mine = me.role === "construction" ? (lists[0]?.items ?? []) : null;
+  const mineOpen = mine ? mine.filter((i) => !i.done).length : 0;
   const apps = TEAM_APPS.filter((a) => !a.roles || a.roles.includes(me.role));
   const first = (me.full_name || me.email).split(" ")[0];
 
@@ -77,11 +87,24 @@ export default async function HQ() {
             <DocIcon />
             {toReview ? `${plural(toReview, "Report")} to Review` : "No Reports Waiting"}
           </a>
-          <span className="feat">
-            <GridIcon />
-            {plural(projects ?? 0, "Active Project")}
-          </span>
+          {mine && workday && mine.length ? (
+            <a className="feat" href="#today">
+              <GridIcon />
+              {mineOpen ? `${plural(mineOpen, "Job")} to Check Today` : "All Jobs Checked Today"}
+            </a>
+          ) : (
+            <span className="feat">
+              <GridIcon />
+              {plural(projects ?? 0, "Active Project")}
+            </span>
+          )}
         </Hero>
+        {workday && mine && mine.length > 0 && (
+          <div id="today">
+            <Checklist items={mine} site={site} />
+          </div>
+        )}
+        {workday && isAdminRole(me.role) && <TeamBoard lists={lists} site={site} />}
         <nav className="hq-grid" aria-label="Apps">
           {apps.map((a) => (
             <a key={a.key} className="hq-tile" href={a.url} {...(a.external ? { target: "_blank", rel: "noreferrer" } : {})}>

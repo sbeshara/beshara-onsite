@@ -163,3 +163,17 @@ export async function fileUrls(ids: string[], size?: number): Promise<Record<str
   for (const v of Object.values(r)) if (v?.url) out[v.id] = v.url;
   return out;
 }
+
+export type DayLog = { jobId: string; author: string; createdAt: string };
+
+// Every daily log dated `day` across the company (one request).
+export async function logsOn(day: string): Promise<DayLog[]> {
+  const org = await organizationId();
+  const r = await pave<{ organization: { dailyLogs: { nodes: { createdAt: string; job: { id: string } | null; user: { name: string } | null }[] } } }>({
+    organization: {
+      $: { id: org },
+      dailyLogs: { $: { where: ["date", day], size: 100 }, nodes: { createdAt: {}, job: { id: {} }, user: { name: {} } } },
+    },
+  });
+  return r.organization.dailyLogs.nodes.filter((l) => l.job).map((l) => ({ jobId: l.job!.id, author: l.user?.name ?? "", createdAt: l.createdAt }));
+}
