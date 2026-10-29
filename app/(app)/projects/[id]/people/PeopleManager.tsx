@@ -5,9 +5,18 @@ import { addClientContact, removeClientContact, resendInvite, setMainContact, se
 import Avatar from "@/components/Avatar";
 import type { Profile } from "@/lib/types";
 
-type Props = { projectId: string; primaryClientId: string | null; staff: Profile[]; assigned: string[]; clients: Profile[] };
+type Props = {
+  projectId: string;
+  primaryClientId: string | null;
+  staff: Profile[];
+  assigned: string[];
+  clients: Profile[];
+  status: Record<string, { signedIn: string | null; lastOpened: string | null }>;
+};
 
-export default function PeopleManager({ projectId, primaryClientId, staff, assigned, clients }: Props) {
+const day = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/New_York" });
+
+export default function PeopleManager({ projectId, primaryClientId, staff, assigned, clients, status }: Props) {
   const [selected, setSelected] = useState(assigned);
   const [teamMsg, setTeamMsg] = useState<Result>({});
   const [contactMsg, setContactMsg] = useState<Result>({});
@@ -57,9 +66,18 @@ export default function PeopleManager({ projectId, primaryClientId, staff, assig
                   {[p.title, p.email].filter(Boolean).join(" · ")}
                   {p.id === primaryClientId ? " · Main Contact" : ""}
                 </small>
+                <small className={`signin ${status[p.id]?.signedIn ? "in" : ""}`}>
+                  {!status[p.id]?.signedIn
+                    ? "Invite pending · hasn't accepted or signed in yet"
+                    : status[p.id].lastOpened
+                      ? `Signed in · last opened this project ${day(status[p.id].lastOpened!)}`
+                      : `Signed in ${day(status[p.id].signedIn!)} · hasn't opened a chat yet`}
+                </small>
               </div>
               <span className="cbtns">
-                <button type="button" className="linkbtn" disabled={pending} onClick={() => run(() => resendInvite(p.id), setContactMsg)}>Resend Invite</button>
+                {!status[p.id]?.signedIn && (
+                  <button type="button" className="linkbtn" disabled={pending} onClick={() => run(() => resendInvite(p.id), setContactMsg)}>Resend Invite</button>
+                )}
                 {p.id !== primaryClientId && (
                   <>
                     <button type="button" className="linkbtn" disabled={pending} onClick={() => run(() => setMainContact(projectId, p.id), setContactMsg)}>Make Main Contact</button>
