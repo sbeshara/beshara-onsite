@@ -14,7 +14,7 @@ export type WeeklyReport = {
   id: string;
   project_id: string;
   week_start: string;
-  status: "draft" | "approved" | "skipped" | "no_logs";
+  status: "draft" | "approved" | "sent" | "skipped" | "no_logs"; // approved = ready to send
   completed: ReportLine[];
   looking_ahead: ReportLine[];
   layout: "standard" | "combined";
@@ -27,6 +27,8 @@ export type WeeklyReport = {
   updated_at: string;
   approved_at: string | null;
   approved_by: string | null;
+  sent_at: string | null;
+  sent_by: string | null;
   updated_by: string | null;
   message_id: string | null;
 };
@@ -78,7 +80,7 @@ type ProjectForReport = { id: string; name: string; town: string; jobtread_job_i
 export async function generateReport(admin: Admin, project: ProjectForReport, weekStart: string, opts: { force?: boolean } = {}) {
   if (!project.jobtread_job_id) return { project: project.name, result: "not linked" };
   const { data: existing } = await admin.from("weekly_reports").select("id, status").eq("project_id", project.id).eq("week_start", weekStart).maybeSingle();
-  if (existing && (!opts.force || existing.status === "approved")) return { project: project.name, result: "exists" };
+  if (existing && (!opts.force || ["approved", "sent"].includes(existing.status))) return { project: project.name, result: "exists" };
 
   const base = { project_id: project.id, week_start: weekStart, generated_at: new Date().toISOString(), updated_at: new Date().toISOString() };
   try {
@@ -183,7 +185,8 @@ export async function reportPdf(admin: Admin, report: WeeklyReport) {
 
 // Posts an approved report to the project's Progress Reports chat as Beshara
 // Builders: the PDF as an attachment, with a one-line caption.
-export async function postReport(admin: Admin, report: WeeklyReport, approverId: string) {
+export async function postReport(admin: Admin, report: WeeklyReport, senderId: string) {
+  if (report.status !== "approved") throw new Error(report.status === "sent" ? "This report was already sent." : "Approve this report before sending it.");
   const { data: chats } = await admin.from("chats").select("id, name, is_internal").eq("project_id", report.project_id).order("position");
   const chat =
     chats?.find((c) => !c.is_internal && /progress report|weekly (progress|update)/i.test(c.name)) ?? chats?.find((c) => !c.is_internal);
@@ -196,7 +199,7 @@ export async function postReport(admin: Admin, report: WeeklyReport, approverId:
 
   const { data: msg, error } = await admin
     .from("messages")
-    .insert({ chat_id: chat.id, author_id: approverId, body: reportCaption(report), posted_as: "company" })
+    .insert({ chat_id: chat.id, author_id: senderId, body: reportCaption(report), posted_as: "company" })
     .select("id")
     .single();
   if (error || !msg) {
@@ -212,11 +215,32 @@ export async function postReport(admin: Admin, report: WeeklyReport, approverId:
     mime_type: "application/pdf",
     folder: "Submittals",
     is_internal: false,
-    uploaded_by: approverId,
+    uploaded_by: senderId,
   });
-  await admin
+  const { error: markErr } = await admin
     .from("weekly_reports")
-    .update({ status: "approved", approved_by: approverId, approved_at: new Date().toISOString(), message_id: msg.id, updated_at: new Date().toISOString() })
+    .update({ status: "sent", sent_by: senderId, sent_at: new Date().toISOString(), message_id: msg.id, updated_at: new Date().toISOString() })
     .eq("id", report.id);
+  if (markErr) throw new Error(`The PDF was posted, but the report couldn't be marked as sent: ${markErr.message}`);
   return msg.id as string;
+}
+
+// Approved reports waiting to be sent, oldest week first (only the projects
+// the signed-in person can see, since this uses their client).
+export async function readyToSend(supabase: Pick<Admin, "from">) {
+  const { data } = await supabase
+    .from("weekly_reports")
+    .select("id, week_start, approved_at, approved_by, projects(name), approver:profiles!weekly_reports_approved_by_fkey(full_name)")
+    .eq("status", "approved")
+    .order("week_start")
+    .order("approved_at");
+  type Row = { id: string; week_start: string; approved_at: string; projects: { name: string } | null; approver: { full_name: string } | null };
+  return ((data ?? []) as unknown as Row[]).map((r) => ({
+    id: r.id,
+    project: r.projects?.name ?? "Project",
+    weekStart: r.week_start,
+    weekLabel: shortDate(r.week_start),
+    approvedBy: r.approver?.full_name ?? "",
+    approvedAt: r.approved_at,
+  }));
 }

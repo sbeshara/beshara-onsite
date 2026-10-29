@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { getMe } from "@/lib/auth";
 import { fileUrls } from "@/lib/jobtread";
-import { addDays, lastFullWeek, shortDate, weekLabel, type WeeklyReport } from "@/lib/reports";
+import ReadyToSend from "@/components/ReadyToSend";
+import { addDays, lastFullWeek, readyToSend, shortDate, weekLabel, type WeeklyReport } from "@/lib/reports";
 import { reportFileName } from "@/lib/report-pdf";
 import { createClient } from "@/lib/supabase/server";
 import { isAdminRole } from "@/lib/types";
@@ -13,27 +14,29 @@ export const maxDuration = 300;
 const STATUS: Record<string, string> = {
   draft: "Ready to Review",
   pending: "Needs Looking Ahead",
-  approved: "Posted",
+  approved: "Ready to Send",
+  sent: "Sent",
   no_logs: "No Daily Logs",
   skipped: "Skipped",
   unlinked: "Not Linked",
   missing: "Not Drafted Yet",
   error: "Couldn't Draft",
 };
-const ORDER = ["pending", "draft", "error", "missing", "no_logs", "approved", "skipped", "unlinked"];
+const ORDER = ["pending", "draft", "error", "missing", "approved", "no_logs", "sent", "skipped", "unlinked"];
 
-type Search = { week?: string; r?: string; posted?: string };
+type Search = { week?: string; r?: string; posted?: string; approved?: string };
 
 // One screen: the week's jobs on the left, the selected job's report on the right.
 export default async function ReportsHome({ searchParams }: { searchParams: Promise<Search> }) {
   const me = await getMe();
   const admin = isAdminRole(me.role);
   const supabase = await createClient();
-  const { week: wanted, r: selectedId, posted } = await searchParams;
+  const { week: wanted, r: selectedId, posted, approved } = await searchParams;
 
-  const [{ data: weeksData }, { data: projectsData }] = await Promise.all([
+  const [{ data: weeksData }, { data: projectsData }, ready] = await Promise.all([
     supabase.from("weekly_reports").select("week_start").order("week_start", { ascending: false }).limit(200),
     supabase.from("projects").select("id, name, town, jobtread_job_id, jobtread_label").order("name"),
+    readyToSend(supabase),
   ]);
   const weeks = [...new Set([lastFullWeek(), ...(weeksData ?? []).map((w) => w.week_start as string)])].sort().reverse().slice(0, 8);
   const week = wanted && /^\d{4}-\d{2}-\d{2}$/.test(wanted) ? wanted : weeks[0];
@@ -67,7 +70,7 @@ export default async function ReportsHome({ searchParams }: { searchParams: Prom
   let editor = null;
   if (selected?.r) {
     const report = selected.r;
-    const ids = [report.updated_by, report.approved_by].filter(Boolean) as string[];
+    const ids = [report.updated_by, report.approved_by, report.sent_by].filter(Boolean) as string[];
     const [{ data: people }, thumbs] = await Promise.all([
       supabase.from("profiles").select("id, full_name").in("id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]),
       fileUrls(report.photos.map((p) => p.id), 400).catch(() => ({}) as Record<string, string>),
@@ -81,6 +84,8 @@ export default async function ReportsHome({ searchParams }: { searchParams: Prom
         thumbs={thumbs}
         editedBy={name(report.updated_by)}
         approvedBy={name(report.approved_by)}
+        sentBy={name(report.sent_by)}
+        canSend={admin}
         draftName={reportFileName(selected.p.name, shortDate(report.week_start), true)}
         nextHref={nextUp?.r ? href(nextUp.r.id) : href()}
         listHref={href()}
@@ -104,7 +109,8 @@ export default async function ReportsHome({ searchParams }: { searchParams: Prom
         </div>
         <div className="st-sum">
           <span>{waiting} to Review</span>
-          <span>{count("approved")} Posted</span>
+          <span>{count("approved")} Ready to Send</span>
+          <span>{count("sent")} Sent</span>
         </div>
         <nav className="st-jobs" aria-label="Jobs">
           {rows.map(({ p, r, status }) => {
@@ -139,7 +145,9 @@ export default async function ReportsHome({ searchParams }: { searchParams: Prom
         <p className="fine">Drafts are written from JobTread daily logs every Monday at 8 AM. Next: Monday {shortDate(addDays(lastFullWeek(), 14))}.</p>
       </aside>
       <section className="st-detail">
-        {posted && <div className="st-banner ok">Posted the {posted} report to the client&apos;s Progress Reports chat.</div>}
+        {posted && <div className="st-banner ok">Sent the {posted} report to the client&apos;s Progress Reports chat.</div>}
+        {approved && <div className="st-banner ok">Approved the {approved} report. It&apos;s in Ready to Send; nothing goes to the client until it&apos;s sent.</div>}
+        {!editor && <ReadyToSend reports={ready} canSend={admin} />}
         {editor ?? (
           <div className="st-empty">
             <h2>{waiting ? "Pick a Job to Review" : "All Caught Up"}</h2>

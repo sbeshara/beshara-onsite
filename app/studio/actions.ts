@@ -84,12 +84,59 @@ export async function approveReport(id: string, edits: Edits): Promise<Result> {
     if (!report || report.status !== "draft") return { error: "This report isn't a draft anymore." };
     if (!(report.looking_ahead as ReportLine[]).length) return { error: "Add Looking Ahead first (next week's work from the Friday, Saturday or Sunday log)." };
     if (!(report.completed as ReportLine[]).length && !report.skip_completed) return { error: "Add at least one Completed item, or turn on \"Leave out the Completed page\"." };
-    await postReport(admin, report as WeeklyReport, me.id);
+    await admin
+      .from("weekly_reports")
+      .update({ status: "approved", approved_by: me.id, approved_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .eq("status", "draft");
   } catch (e) {
     return { error: (e as Error).message };
   }
-  revalidatePath("/studio", "layout");
-  return { ok: "Posted the PDF to the client's Progress Reports chat." };
+  revalidatePath("/", "layout");
+  return { ok: "Approved. It's in Ready to Send; nothing goes to the client until it's sent." };
+}
+
+// Back from Ready to Send to draft, so it can be edited again.
+export async function reopenReport(id: string): Promise<Result> {
+  try {
+    await requireReviewer(id);
+    const { data } = await createAdminClient()
+      .from("weekly_reports")
+      .update({ status: "draft", approved_by: null, approved_at: null, updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .eq("status", "approved")
+      .select("id");
+    if (!data?.length) return { error: "This report was already sent, so it can't be reopened." };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+  revalidatePath("/", "layout");
+  return { ok: "Reopened. Edit it, then approve it again." };
+}
+
+// The Principal Contractor or an Admin sends approved reports to clients.
+export async function sendReports(ids: string[]): Promise<Result> {
+  let sent = 0;
+  const problems: string[] = [];
+  try {
+    const me = await requireAdmin();
+    const admin = createAdminClient();
+    const { data: reports } = await admin.from("weekly_reports").select("*, projects(name)").in("id", ids).eq("status", "approved");
+    for (const r of (reports ?? []) as (WeeklyReport & { projects: { name: string } | null })[]) {
+      try {
+        await postReport(admin, r, me.id);
+        sent++;
+      } catch (e) {
+        problems.push(`${r.projects?.name ?? "A report"}: ${(e as Error).message}`);
+      }
+    }
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+  revalidatePath("/", "layout");
+  if (problems.length) return { error: `Sent ${sent}. Couldn't send ${problems.join("; ")}` };
+  if (!sent) return { error: "Those reports were already sent or reopened." };
+  return { ok: `Sent ${sent} report${sent === 1 ? "" : "s"} to ${sent === 1 ? "the client" : "clients"}.` };
 }
 
 export async function setReportStatus(id: string, status: "skipped" | "draft"): Promise<Result> {
@@ -97,7 +144,8 @@ export async function setReportStatus(id: string, status: "skipped" | "draft"): 
     await requireReviewer(id);
     const admin = createAdminClient();
     const { data: report } = await admin.from("weekly_reports").select("status").eq("id", id).single();
-    if (report?.status === "approved") return { error: "This report was already posted." };
+    if (report?.status === "sent") return { error: "This report was already sent." };
+    if (report?.status === "approved") return { error: "Reopen this report before changing it." };
     await admin.from("weekly_reports").update({ status, updated_at: new Date().toISOString() }).eq("id", id);
   } catch (e) {
     return { error: (e as Error).message };

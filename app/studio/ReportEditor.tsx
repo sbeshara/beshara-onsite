@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ReportLine } from "@/lib/report-pdf";
 import type { ReportPhoto, WeeklyReport } from "@/lib/reports";
-import { approveReport, generateNow, saveReport, setReportStatus, type Result } from "./actions";
+import { approveReport, generateNow, reopenReport, saveReport, sendReports, setReportStatus, type Result } from "./actions";
 
 type Props = {
   report: WeeklyReport;
@@ -15,6 +15,8 @@ type Props = {
   approvedBy: string;
   draftName: string;
   nextHref: string;
+  canSend: boolean;
+  sentBy: string;
   listHref: string;
 };
 
@@ -49,7 +51,7 @@ function Lines({ label, hint, lines, setLines }: { label: string; hint: string; 
   );
 }
 
-export default function ReportEditor({ report, project, thumbs, editedBy, approvedBy, draftName, nextHref, listHref }: Props) {
+export default function ReportEditor({ report, project, thumbs, editedBy, approvedBy, sentBy, draftName, nextHref, listHref, canSend }: Props) {
   const router = useRouter();
   const editable = report.status === "draft";
   const [completed, setCompleted] = useState<ReportLine[]>(report.completed);
@@ -107,13 +109,19 @@ export default function ReportEditor({ report, project, thumbs, editedBy, approv
             {project.job ? ` · JobTread ${project.job}` : ""}
             {project.town ? ` · ${project.town}` : ""}
             {editedBy ? ` · last edited by ${editedBy}` : ""}
-            {report.approved_at ? ` · posted by ${approvedBy} on ${new Date(report.approved_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}
+            {report.approved_at ? ` · approved by ${approvedBy} on ${new Date(report.approved_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}
+            {report.sent_at ? ` · sent by ${sentBy} on ${new Date(report.sent_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}
           </p>
         </div>
         <button type="button" className="btn ghost" disabled={pending} onClick={openPreview}>Preview PDF</button>
       </div>
       {report.error && <div className="st-banner err">The draft ran into a problem: {report.error}</div>}
-      {report.status === "approved" && <div className="st-banner ok">This report was approved and posted to the client.</div>}
+      {report.status === "approved" && (
+        <div className="st-banner note">
+          Approved and waiting in Ready to Send. Nothing has gone to the client yet. Reopen it to make changes{canSend ? ", or send it now" : ""}.
+        </div>
+      )}
+      {report.status === "sent" && <div className="st-banner ok">Sent to the client&apos;s Progress Reports chat as a PDF.</div>}
       {report.status === "skipped" && <div className="st-banner note">Skipped. Nothing was posted for this week.</div>}
       {report.status === "no_logs" && <div className="st-banner note">There were no daily logs in JobTread for this week, so no draft was written.</div>}
       {editable && !report.looking_ahead.length && !(report.error && !report.completed.length) && (
@@ -224,7 +232,17 @@ export default function ReportEditor({ report, project, thumbs, editedBy, approv
             Write It Anyway
           </button>
         )}
-        {report.status !== "approved" && (
+        {report.status === "approved" && (
+          <button type="button" className="btn ghost" disabled={pending} onClick={() => run(() => reopenReport(report.id))}>
+            Reopen to Edit
+          </button>
+        )}
+        {report.status === "approved" && canSend && (
+          <button type="button" className="btn" disabled={pending} onClick={() => run(() => sendReports([report.id]), `${nextHref}&posted=${encodeURIComponent(project.name)}`)}>
+            {pending ? "Sending…" : "Send Now"}
+          </button>
+        )}
+        {!["approved", "sent"].includes(report.status) && (
           <button
             type="button"
             className="btn ghost"
@@ -239,10 +257,10 @@ export default function ReportEditor({ report, project, thumbs, editedBy, approv
             type="button"
             className="btn"
             disabled={pending || !canPost}
-            title={canPost ? "Posts the PDF to the client's Progress Reports chat" : "Add Looking Ahead first"}
-            onClick={() => run(() => approveReport(report.id, edits), `${nextHref}&posted=${encodeURIComponent(project.name)}`)}
+            title={canPost ? "Moves it to Ready to Send. Nothing goes to the client until it's sent." : "Add Looking Ahead first"}
+            onClick={() => run(() => approveReport(report.id, edits), `${nextHref}&approved=${encodeURIComponent(project.name)}`)}
           >
-            {pending ? "Working…" : "Approve and Post"}
+            {pending ? "Working…" : "Approve"}
           </button>
         )}
       </div>

@@ -5,7 +5,8 @@ import Hero from "@/components/Hero";
 import { ChatIcon, DocIcon, GridIcon } from "@/components/Icons";
 import { todayLabel } from "@/lib/format";
 import { isWeekday, loadChecklists, njNow } from "@/lib/checklist";
-import { lastFullWeek } from "@/lib/reports";
+import ReadyToSend from "@/components/ReadyToSend";
+import { lastFullWeek, readyToSend } from "@/lib/reports";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { isAdminRole, isTeamRole } from "@/lib/types";
@@ -46,10 +47,15 @@ export default async function HQ() {
     supabase.from("projects").select("id", { count: "exact", head: true }),
   ]);
   const unreadCount = ((unread ?? []) as { unread: number }[]).reduce((n, r) => n + Number(r.unread), 0);
+  const ready = isAdminRole(me.role) ? await readyToSend(supabase) : [];
   const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
   const stats: Record<string, { text: string; hot: boolean }> = {
     onsite: unreadCount ? { text: `${plural(unreadCount, "Unread Message")}`, hot: true } : { text: "All Caught Up", hot: false },
-    reports: toReview ? { text: `${plural(toReview, "Report")} to Review`, hot: true } : { text: "Nothing Waiting", hot: false },
+    reports: ready.length
+      ? { text: `${plural(ready.length, "Report")} Ready to Send`, hot: true }
+      : toReview
+        ? { text: `${plural(toReview, "Report")} to Review`, hot: true }
+        : { text: "Nothing Waiting", hot: false },
   };
   // Today's checklist: a PM's own jobs, or every PM's for the Principal Contractor and Admins.
   const today = njNow();
@@ -85,7 +91,7 @@ export default async function HQ() {
           </a>
           <a className="feat" href={apps.find((a) => a.key === "reports")?.url}>
             <DocIcon />
-            {toReview ? `${plural(toReview, "Report")} to Review` : "No Reports Waiting"}
+            {ready.length ? `${plural(ready.length, "Report")} Ready to Send` : toReview ? `${plural(toReview, "Report")} to Review` : "No Reports Waiting"}
           </a>
           {mine && workday && mine.length ? (
             <a className="feat" href="#today">
@@ -99,6 +105,7 @@ export default async function HQ() {
             </span>
           )}
         </Hero>
+        {isAdminRole(me.role) && <ReadyToSend reports={ready} canSend />}
         {workday && mine && mine.length > 0 && (
           <div id="today">
             <Checklist items={mine} site={site} />
