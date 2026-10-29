@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FILES_BUCKET, roleLabel } from "@/lib/constants";
-import { dayLabel, guessFolder, isImage, storagePath, timeLabel } from "@/lib/format";
+import { dayLabel, guessFolder, isImage, shortDate, storagePath, timeLabel } from "@/lib/format";
 import { createClient } from "@/lib/supabase/client";
 import { isTeamRole, type Chat, type FileRow, type Message, type Profile, type Role } from "@/lib/types";
 import Avatar, { CompanyAvatar } from "./Avatar";
@@ -22,7 +22,7 @@ type Props = {
   hadUnread?: boolean;
 };
 
-const SELECT = "id, chat_id, author_id, body, created_at, posted_as, files(*)";
+const SELECT = "*, files(*)";
 
 export default function Thread({ chat, initialMessages, initialUrls, people, me, clientNames, readOnly = false, hadUnread = false }: Props) {
   const router = useRouter();
@@ -176,18 +176,19 @@ export default function Thread({ chat, initialMessages, initialUrls, people, me,
           lastDay = day;
           const company = m.posted_as === "company";
           const who = company ? null : (m.author_id && people[m.author_id]) || null;
-          const name = company ? "Beshara Builders" : who ? who.full_name || who.email : "Former member";
+          const name = company ? "Beshara Builders" : who ? who.full_name || who.email : m.imported_author || "Former member";
           return (
             <div key={m.id} style={{ display: "contents" }}>
               {showDay && <div className="day">{day}</div>}
               <div className="msg" id={`m-${m.id}`}>
-                {company ? <CompanyAvatar /> : <Avatar id={m.author_id ?? "x"} name={name} url={who?.avatar_url} />}
+                {company ? <CompanyAvatar /> : <Avatar id={m.author_id ?? name} name={name} url={who?.avatar_url} />}
                 <div style={{ minWidth: 0 }}>
                   <div className="who">
                     <b>{name}</b>
                     {who && <span className="role">{roleLabel(who)}</span>}
                     {who && !isTeamRole(who.role) && <span className="tagc">Client</span>}
-                    <time>{timeLabel(m.created_at)}</time>
+                    <time>{m.source_id ? `${shortDate(m.created_at)}, ${timeLabel(m.created_at)}` : timeLabel(m.created_at)}</time>
+                    {m.source_id && <span className="tag-bc" title="Brought over from Basecamp">Basecamp</span>}
                   </div>
                   {m.body && <MessageBody text={m.body} />}
                   {(m.files ?? []).map((f) => {

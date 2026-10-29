@@ -76,6 +76,12 @@ export function isHtml(body: string) {
 
 const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
 
+export function decodeEntities(text: string) {
+  return text.replace(/&(?:(amp|lt|gt|quot|apos|nbsp)|#(\d+)|#x([0-9a-f]+));/gi, (m, name?: string, dec?: string, hex?: string) =>
+    name ? ENTITIES[name.toLowerCase()] ?? m : String.fromCodePoint(dec ? Number(dec) : parseInt(hex!, 16)),
+  );
+}
+
 // Message text as plain words, for previews, emails and phone notifications.
 export function plainText(markdown: string) {
   if (isHtml(markdown)) {
@@ -84,9 +90,7 @@ export function plainText(markdown: string) {
       .replace(/<\/(td|th)>/gi, " ")
       .replace(/<(br|hr)[^>]*>|<\/(p|h[1-6]|li|tr|blockquote|table|ul|ol)>/gi, "\n")
       .replace(/<[^>]+>/g, "")
-      .replace(/&(?:(amp|lt|gt|quot|apos|nbsp)|#(\d+)|#x([0-9a-f]+));/gi, (m, name?: string, dec?: string, hex?: string) =>
-        name ? ENTITIES[name.toLowerCase()] ?? m : String.fromCodePoint(dec ? Number(dec) : parseInt(hex!, 16)),
-      )
+      .replace(/&[#a-z0-9]+;/gi, decodeEntities)
       .replace(/[ \t]+/g, " ")
       .replace(/ *\n[\s]*/g, "\n")
       .trim();

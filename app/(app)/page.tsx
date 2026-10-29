@@ -15,7 +15,7 @@ const CLIENT_COPY =
   "Stay in touch with your Beshara team throughout your buildout. Progress reports, questions, selections and the schedule, all in one conversation, plus key documents like your plans.";
 
 type ProjectRow = { id: string; name: string; town: string; scope: string | null; phase: number; project_members: { user_id: string }[] };
-type Latest = { chat_id: string; project_id: string; chat_name: string; is_internal: boolean; author_id: string | null; body: string; created_at: string };
+type Latest = { chat_id: string; project_id: string; chat_name: string; is_internal: boolean; author_id: string | null; body: string; created_at: string; imported?: boolean };
 
 function PhaseBar({ phase }: { phase: number }) {
   return (
@@ -85,7 +85,7 @@ async function TeamDashboard({ me }: { me: Profile }) {
   const owners = Object.values(people).filter((p) => p.role === "owner");
   const projectNames = Object.fromEntries(projects.map((p) => [p.id, p.name]));
   const needs = ((latestData ?? []) as Latest[])
-    .filter((l) => !l.is_internal && l.author_id && people[l.author_id]?.role === "client")
+    .filter((l) => !l.is_internal && !l.imported && l.author_id && people[l.author_id]?.role === "client")
     .sort((a, b) => a.created_at.localeCompare(b.created_at));
   const files = (filesData ?? []) as FileRow[];
   const photos = files.filter((f) => isImage(f.mime_type, f.name)).slice(0, 6);

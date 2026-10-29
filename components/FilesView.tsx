@@ -13,7 +13,7 @@ type Item = FileRow & { chat_id: string | null };
 type Props = {
   projectId: string;
   files: Item[];
-  chats: { id: string; name: string; is_internal: boolean }[];
+  chats: { id: string; name: string; is_internal: boolean; imported: boolean }[];
   readOnly?: boolean;
   urls: Record<string, string>;
   names: Record<string, string>;
@@ -32,13 +32,21 @@ export default function FilesView({ projectId, files: initial, chats, urls, name
   const [error, setError] = useState("");
 
   const chatName = Object.fromEntries(chats.map((c) => [c.id, c.name]));
+  // Files from Basecamp get two folders (post attachments, and its Docs &
+  // Files) rather than one per imported post.
+  const importedChats = new Set(chats.filter((c) => c.imported).map((c) => c.id));
+  const inFolder = (f: Item, id: string) =>
+    id === "all" ||
+    (id === "direct" ? !f.chat_id && !f.source_folder : id === "bc-posts" ? !!f.chat_id && importedChats.has(f.chat_id) : id === "bc-files" ? !f.chat_id && !!f.source_folder : f.chat_id === id);
   const folders = [
-    { id: "all", label: "All Files", kind: "all", count: files.length },
-    ...chats.map((c) => ({ id: c.id, label: c.name, kind: c.is_internal ? "int" : "cli", count: files.filter((f) => f.chat_id === c.id).length })),
-    { id: "direct", label: "Uploaded Here", kind: "direct", count: files.filter((f) => !f.chat_id).length },
-  ];
+    { id: "all", label: "All Files", kind: "all" },
+    ...chats.filter((c) => !c.imported).map((c) => ({ id: c.id, label: c.name, kind: c.is_internal ? "int" : "cli" })),
+    { id: "direct", label: "Uploaded Here", kind: "direct" },
+    ...(importedChats.size ? [{ id: "bc-posts", label: "Basecamp Posts", kind: "bc" }] : []),
+    ...(files.some((f) => !f.chat_id && f.source_folder) ? [{ id: "bc-files", label: "Basecamp Docs & Files", kind: "bc" }] : []),
+  ].map((g) => ({ ...g, count: files.filter((f) => inFolder(f, g.id)).length }));
   const inChat = chats.find((c) => c.id === filter);
-  const list = filter === "all" ? files : files.filter((f) => (filter === "direct" ? !f.chat_id : f.chat_id === filter));
+  const list = files.filter((f) => inFolder(f, filter));
 
   async function upload(chosen: File[]) {
     if (!chosen.length) return;
@@ -114,6 +122,10 @@ export default function FilesView({ projectId, files: initial, chats, urls, name
             </>
           ) : filter === "direct" ? (
             "Files uploaded on this tab"
+          ) : filter === "bc-posts" ? (
+            "Attachments from Basecamp Message Board posts"
+          ) : filter === "bc-files" ? (
+            "Basecamp Docs & Files, with their original folders"
           ) : (
             "Every file on this project"
           )}
@@ -171,7 +183,7 @@ export default function FilesView({ projectId, files: initial, chats, urls, name
                         <span>{f.name}</span>
                       </a>
                     </td>
-                    <td>{f.chat_id ? chatName[f.chat_id] ?? "Chat" : "Files Tab"}</td>
+                    <td>{f.chat_id ? chatName[f.chat_id] ?? "Chat" : f.source_folder ? `Basecamp · ${f.source_folder}` : "Files Tab"}</td>
                     <td className="col-by">{(f.uploaded_by && names[f.uploaded_by]) || ""}</td>
                     <td className="num col-date">{shortDate(f.created_at)}</td>
                     <td className="num col-size">{fileSize(f.size_bytes)}</td>

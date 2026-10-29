@@ -14,7 +14,7 @@ export default async function FilesPage({ params }: { params: Promise<{ id: stri
   const supabase = await createClient();
   const [{ data: filesData }, { data: chatsData }, { data: peopleData }] = await Promise.all([
     supabase.from("files").select("*, messages(chat_id)").eq("project_id", id).order("created_at", { ascending: false }),
-    supabase.from("chats").select("id, name, is_internal").eq("project_id", id).order("position").order("created_at"),
+    supabase.from("chats").select("*").eq("project_id", id).order("position").order("created_at"),
     supabase.from("profiles").select("id, full_name, email"),
   ]);
   const rows = (filesData ?? []) as Row[];
@@ -25,7 +25,9 @@ export default async function FilesPage({ params }: { params: Promise<{ id: stri
     <FilesView
       projectId={id}
       files={files}
-      chats={((chatsData ?? []) as { id: string; name: string; is_internal: boolean }[]).filter((c) => !previewing || !c.is_internal)}
+      chats={((chatsData ?? []) as { id: string; name: string; is_internal: boolean; source_id?: string | null }[])
+        .filter((c) => !previewing || !c.is_internal)
+        .map((c) => ({ id: c.id, name: c.name, is_internal: c.is_internal, imported: !!c.source_id }))}
       readOnly={previewing}
       urls={urls}
       names={names}

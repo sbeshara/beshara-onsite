@@ -19,14 +19,14 @@ export default async function ChatPage({ params }: { params: Promise<{ id: strin
   const supabase = await createClient();
   const [{ data: chatsData }, { data: msgData }, { data: peopleData }, { data: memberData }, { data: unreadData }] = await Promise.all([
     supabase.from("chats").select("*").eq("project_id", id).order("position").order("created_at"),
-    supabase.from("messages").select("id, chat_id, author_id, body, created_at, posted_as, files(*)").eq("chat_id", chatId).order("created_at", { ascending: false }).limit(200),
+    supabase.from("messages").select("*, files(*)").eq("chat_id", chatId).order("created_at", { ascending: false }).limit(200),
     supabase.from("profiles").select("*"),
     supabase.from("project_members").select("user_id").eq("project_id", id),
     supabase.rpc("my_unread"),
   ]);
   // The newest message in each chat, for the previews in the chat list.
   const { data: latestData } = await supabase.rpc("latest_messages");
-  type Latest = { chat_id: string; project_id: string; message_id: string; author_id: string | null; body: string; created_at: string };
+  type Latest = { chat_id: string; project_id: string; message_id: string; author_id: string | null; body: string; created_at: string; imported_author?: string | null };
   const latestRows = ((latestData ?? []) as Latest[]).filter((l) => l.project_id === id);
   const { data: postedAs } = latestRows.length
     ? await supabase.from("messages").select("id, posted_as").in("id", latestRows.map((l) => l.message_id))
@@ -45,13 +45,18 @@ export default async function ChatPage({ params }: { params: Promise<{ id: strin
   const clientNames = (memberData ?? []).map((m) => people[m.user_id]).filter((p) => p?.role === "client").map((p) => p.full_name || p.email);
   const urls = await signUrls(supabase, messages.flatMap((m) => (m.files ?? []).map((f) => f.storage_path)));
   const teamView = me.role !== "client" && !previewing;
-  const shared = chats.filter((c) => !c.is_internal);
-  const internal = chats.filter((c) => c.is_internal);
+  const everyday = chats.filter((c) => !c.source_id);
+  const shared = everyday.filter((c) => !c.is_internal);
+  const internal = everyday.filter((c) => c.is_internal);
+  // Posts brought over from Basecamp, most recent activity first.
+  const imported = chats
+    .filter((c) => c.source_id)
+    .sort((a, b) => (latest[b.id]?.created_at ?? "").localeCompare(latest[a.id]?.created_at ?? ""));
 
   const chatLink = (c: Chat) => {
     const l = latest[c.id];
     const who = l && !l.company && l.author_id ? people[l.author_id] : undefined;
-    const author = l ? (l.company ? "Beshara Builders" : who?.full_name || who?.email || "Former member") : "";
+    const author = l ? (l.company ? "Beshara Builders" : who?.full_name || who?.email || l.imported_author || "Former member") : "";
     const text = l ? plainText(l.body).replace(/\s+/g, " ") || "Sent an attachment" : "No messages yet";
     const count = c.id !== chatId ? unread[c.id] ?? 0 : 0;
     return (
@@ -66,7 +71,7 @@ export default async function ChatPage({ params }: { params: Promise<{ id: strin
         ) : l.company ? (
           <CompanyAvatar />
         ) : (
-          <Avatar id={l.author_id ?? "x"} name={author} url={who?.avatar_url} />
+          <Avatar id={l.author_id ?? author} name={author} url={who?.avatar_url} />
         )}
         <span className="chan-main">
           <span className="chan-top">
@@ -99,6 +104,12 @@ export default async function ChatPage({ params }: { params: Promise<{ id: strin
             <>
               <h3>Internal</h3>
               {internal.map(chatLink)}
+            </>
+          )}
+          {imported.length > 0 && (
+            <>
+              <h3>From Basecamp · {imported.length}</h3>
+              {imported.map(chatLink)}
             </>
           )}
         </ChatSearch>

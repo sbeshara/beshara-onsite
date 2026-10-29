@@ -26,6 +26,7 @@ export type Chat = {
   is_internal: boolean;
   position: number;
   created_by: string | null;
+  source_id?: string | null; // set when imported from Basecamp
 };
 
 export type FileRow = {
@@ -40,6 +41,8 @@ export type FileRow = {
   is_internal: boolean;
   uploaded_by: string | null;
   created_at: string;
+  source_id?: string | null;
+  source_folder?: string | null; // Basecamp Docs & Files folder it came from
 };
 
 export type Message = {
@@ -49,6 +52,8 @@ export type Message = {
   body: string;
   created_at: string;
   posted_as?: "company" | null;
+  imported_author?: string | null; // name from Basecamp when they aren't in OnSite
+  source_id?: string | null;
   files?: FileRow[];
 };
 

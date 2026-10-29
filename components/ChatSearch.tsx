@@ -15,6 +15,7 @@ type Hit = {
   body: string;
   created_at: string;
   posted_as: string | null;
+  imported_author: string | null;
   chats: { name: string; is_internal: boolean };
 };
 
@@ -64,7 +65,7 @@ export default function ChatSearch({ projectId, chatId, clientView, people, chil
       const like = `%${term.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
       let query = createClient()
         .from("messages")
-        .select("id, chat_id, author_id, body, created_at, posted_as, chats!inner(name, is_internal, project_id)")
+        .select("*, chats!inner(name, is_internal, project_id)")
         .eq("chats.project_id", projectId)
         .ilike("body", like)
         .order("created_at", { ascending: false })
@@ -120,10 +121,10 @@ export default function ChatSearch({ projectId, chatId, clientView, people, chil
           {hits.map((h) => {
             const company = h.posted_as === "company";
             const who = h.author_id ? people[h.author_id] : undefined;
-            const name = company ? "Beshara Builders" : who?.name ?? "Former member";
+            const name = company ? "Beshara Builders" : who?.name ?? (h.imported_author || "Former member");
             return (
               <button key={h.id} type="button" className={`chan shit ${h.chats.is_internal ? "int" : ""}`} onClick={() => open(h)}>
-                {company ? <CompanyAvatar /> : <Avatar id={h.author_id ?? "x"} name={name} url={who?.url} />}
+                {company ? <CompanyAvatar /> : <Avatar id={h.author_id ?? name} name={name} url={who?.url} />}
                 <span className="chan-main">
                   <span className="chan-top">
                     <span className="ic">{h.chats.is_internal ? <LockIcon /> : <PeopleIcon />}</span>
