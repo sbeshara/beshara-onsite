@@ -8,7 +8,7 @@ import { disconnectBasecamp } from "./actions";
 type OnSite = { id: string; name: string; basecamp: string | null };
 type BcProject = { id: number; name: string; status: string; description: string | null; kind: string; updated_at: string; app_url: string };
 type Props = {
-  connected: { account: string | null; who: string | null; viaKey: boolean } | null;
+  connected: { account: string | null; href: string; who: string | null; viaKey: boolean } | null;
   canConnect: boolean;
   redirectUri: string;
   onsite: OnSite[];
@@ -78,6 +78,11 @@ export default function BasecampImport({ connected, canConnect, redirectUri, ons
 
   useEffect(() => {
     if (!connected) return;
+    setList(null);
+    setLoadError("");
+    setPicked([]);
+    // Only the newest request counts (switching accounts fires a new one).
+    let live = true;
     fetch("/api/basecamp/projects")
       .then(async (r) => {
         const j = await r.json().catch(() => ({ error: "Couldn't reach Basecamp. Reload to try again." }));
@@ -85,6 +90,7 @@ export default function BasecampImport({ connected, canConnect, redirectUri, ons
         return j.projects as BcProject[];
       })
       .then((projects) => {
+        if (!live) return;
         setList(projects);
         // Start each one where it was imported before, or in the OnSite project with the same name.
         const t: Record<number, string> = {};
@@ -96,8 +102,11 @@ export default function BasecampImport({ connected, canConnect, redirectUri, ons
         }
         setTargets(t);
       })
-      .catch((e: Error) => setLoadError(e.message));
-  }, [connected, onsite]);
+      .catch((e: Error) => live && setLoadError(e.message));
+    return () => {
+      live = false;
+    };
+  }, [connected?.href, onsite]);
 
   useEffect(() => {
     if (!running) return;

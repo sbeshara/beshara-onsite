@@ -39,7 +39,7 @@ export default async function BasecampPage({ searchParams }: { searchParams: Pro
       {q.error && <p className="err">{ERRORS[q.error] ?? ERRORS.signin}</p>}
       {connError && <p className="err">{connError}</p>}
       <BasecampImport
-        connected={conn ? { account: conn.accountName, who: conn.identityName, viaKey: !!process.env.BASECAMP_ACCESS_TOKEN } : null}
+        connected={conn ? { account: conn.accountName, href: conn.href, who: conn.identityName, viaKey: !!process.env.BASECAMP_ACCESS_TOKEN } : null}
         canConnect={oauthReady()}
         redirectUri={redirectUri()}
         onsite={(projects ?? []).map((p) => ({ id: p.id as string, name: p.name as string, basecamp: (p.basecamp_project_id as string | null) ?? null }))}

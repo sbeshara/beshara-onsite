@@ -49,8 +49,11 @@ async function tokenRequest(params: Record<string, string>): Promise<Tokens> {
   }
 }
 
-// Which Basecamp account the token reaches (the first Basecamp 3/4/5 one).
-async function accountFor(token: string) {
+type Account = { href: string; name: string };
+
+// The Basecamp (3/4/5) accounts this sign-in can reach. Someone invited into
+// another company's Basecamp has more than one.
+async function accountsFor(token: string) {
   const res = await fetch(`${API_ROOT}/authorization.json`, {
     headers: { Authorization: `Bearer ${token}`, "User-Agent": USER_AGENT },
     cache: "no-store",
@@ -60,14 +63,22 @@ async function accountFor(token: string) {
     identity?: { first_name?: string; last_name?: string };
     accounts?: { product: string; name: string; href: string }[];
   };
-  const account = auth.accounts?.find((a) => a.product === "bc3");
-  if (!account) throw new BasecampError("That Basecamp sign-in doesn't have a Basecamp account on it.");
+  const accounts: Account[] = (auth.accounts ?? []).filter((a) => a.product === "bc3").map((a) => ({ href: a.href.replace(/\/$/, ""), name: a.name }));
+  if (!accounts.length) throw new BasecampError("That Basecamp sign-in doesn't have a Basecamp account on it.");
   const identity = [auth.identity?.first_name, auth.identity?.last_name].filter(Boolean).join(" ") || null;
-  return { href: account.href.replace(/\/$/, ""), accountName: account.name, identityName: identity };
+  return { accounts, identity };
+}
+
+// Always Beshara Builders' own Basecamp, even when the person signing in was
+// also invited into another company's (BASECAMP_ACCOUNT_ID overrides).
+function pick(accounts: Account[]) {
+  const id = process.env.BASECAMP_ACCOUNT_ID;
+  return (id ? accounts.find((a) => a.href.endsWith(`/${id}`)) : undefined) ?? accounts.find((a) => /beshara/i.test(a.name)) ?? accounts[0];
 }
 
 async function save(t: Tokens, connectedBy: string | null) {
-  const acct = await accountFor(t.access_token);
+  const { accounts, identity } = await accountsFor(t.access_token);
+  const acct = pick(accounts);
   const { error } = await createAdminClient()
     .from("basecamp_connection")
     .upsert({
@@ -76,8 +87,8 @@ async function save(t: Tokens, connectedBy: string | null) {
       refresh_token: t.refresh_token ?? null,
       expires_at: new Date(Date.now() + (t.expires_in ?? 14 * 86400) * 1000).toISOString(),
       account_href: acct.href,
-      account_name: acct.accountName,
-      identity_name: acct.identityName,
+      account_name: acct.name,
+      identity_name: identity,
       ...(connectedBy ? { connected_by: connectedBy } : {}),
       updated_at: new Date().toISOString(),
     });
@@ -92,14 +103,19 @@ export async function disconnect() {
   await createAdminClient().from("basecamp_connection").delete().eq("id", 1);
 }
 
-let envAccount: Promise<Awaited<ReturnType<typeof accountFor>>> | null = null;
+let envAccount: Promise<{ href: string; accountName: string; identityName: string | null }> | null = null;
 
 // The current connection, refreshing the token when it's within a day of expiring.
 // BASECAMP_ACCESS_TOKEN in Vercel, if set, is used instead of signing in.
 export async function connection(): Promise<Connection | null> {
   const envToken = process.env.BASECAMP_ACCESS_TOKEN;
   if (envToken) {
-    envAccount ??= accountFor(envToken).catch((e) => {
+    envAccount ??= accountsFor(envToken)
+      .then(({ accounts, identity }) => {
+        const a = pick(accounts);
+        return { href: a.href, accountName: a.name, identityName: identity };
+      })
+      .catch((e) => {
       envAccount = null;
       throw e;
     });
@@ -112,9 +128,18 @@ export async function connection(): Promise<Connection | null> {
     try {
       const t = await tokenRequest({ grant_type: "refresh_token", type: "refresh", refresh_token: data.refresh_token });
       await save({ refresh_token: data.refresh_token, ...t }, null);
-      return { token: t.access_token, href: data.account_href, accountName: data.account_name, identityName: data.identity_name };
+      return connection();
     } catch {
       if (new Date(data.expires_at).getTime() < Date.now()) return null;
+    }
+  }
+  // A connection saved before OnSite always chose Beshara Builders may point
+  // at another company's account; switch it over.
+  if (!process.env.BASECAMP_ACCOUNT_ID && !/beshara/i.test(data.account_name ?? "")) {
+    const acct = pick((await accountsFor(data.access_token)).accounts);
+    if (acct.href !== data.account_href) {
+      await createAdminClient().from("basecamp_connection").update({ account_href: acct.href, account_name: acct.name }).eq("id", 1);
+      return { token: data.access_token, href: acct.href, accountName: acct.name, identityName: data.identity_name };
     }
   }
   return { token: data.access_token, href: data.account_href, accountName: data.account_name, identityName: data.identity_name };
