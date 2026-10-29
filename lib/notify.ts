@@ -1,4 +1,5 @@
 import "server-only";
+import { plainText } from "./format";
 import webpush from "web-push";
 import { createAdminClient } from "./supabase/admin";
 
@@ -83,6 +84,11 @@ export function brandEmail(opts: { tag: string; heading: string; body: string; f
 
 export { esc as escapeHtml };
 
+const preview = (body: string, max: number) => {
+  const t = plainText(body ?? "");
+  return t ? (t.length > max ? t.slice(0, max) + "…" : t) : "Sent an attachment";
+};
+
 export type DigestRow = {
   user_id: string;
   email: string;
@@ -117,7 +123,7 @@ export function digestEmail(rows: DigestRow[]) {
         .slice(-5)
         .map(
           (m) =>
-            `<p style="margin:0 0 10px;font-size:14.5px;line-height:1.5"><b>${esc(m.author_name)}:</b> ${esc(m.body ? (m.body.length > 280 ? m.body.slice(0, 280) + "…" : m.body) : "Sent an attachment")}</p>`,
+            `<p style="margin:0 0 10px;font-size:14.5px;line-height:1.5"><b>${esc(m.author_name)}:</b> ${esc(preview(m.body, 280))}</p>`,
         )
         .join("");
       const more = list.length > 5 ? `<p style="margin:0 0 10px;font-size:13px;color:#5D6A64">and ${list.length - 5} more</p>` : "";

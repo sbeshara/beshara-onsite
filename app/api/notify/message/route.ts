@@ -1,3 +1,4 @@
+import { plainText } from "@/lib/format";
 import { NextResponse, type NextRequest } from "next/server";
 import { sendPushes } from "@/lib/notify";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -11,7 +12,8 @@ export async function POST(request: NextRequest) {
   const { data } = await admin.rpc("claim_message_push", { p_message: id });
   const m = data?.[0] as { project_id: string; project_name: string; chat_id: string; chat_name: string; author_name: string; body: string } | undefined;
   if (!m) return NextResponse.json({ ok: true, sent: 0 });
-  const text = m.body ? (m.body.length > 160 ? m.body.slice(0, 160) + "…" : m.body) : "Sent an attachment";
+  const plain = plainText(m.body ?? "");
+  const text = plain ? (plain.length > 160 ? plain.slice(0, 160) + "…" : plain) : "Sent an attachment";
   const sent = await sendPushes(admin, id, {
     title: `${m.author_name} · ${m.chat_name}`,
     body: `${m.project_name}: ${text}`,

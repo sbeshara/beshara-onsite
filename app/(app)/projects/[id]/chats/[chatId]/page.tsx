@@ -4,6 +4,7 @@ import { LockIcon, PeopleIcon } from "@/components/Icons";
 import NewChatButton from "@/components/NewChatButton";
 import Thread from "@/components/Thread";
 import { getMe } from "@/lib/auth";
+import { plainText, shortDate, timeLabel } from "@/lib/format";
 import { getPreview } from "@/lib/preview";
 import { signUrls } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
@@ -21,6 +22,15 @@ export default async function ChatPage({ params }: { params: Promise<{ id: strin
     supabase.from("project_members").select("user_id").eq("project_id", id),
     supabase.rpc("my_unread"),
   ]);
+  // The newest message in each chat, for the previews in the chat list.
+  const { data: latestData } = await supabase.rpc("latest_messages");
+  type Latest = { chat_id: string; project_id: string; message_id: string; author_id: string | null; body: string; created_at: string };
+  const latestRows = ((latestData ?? []) as Latest[]).filter((l) => l.project_id === id);
+  const { data: postedAs } = latestRows.length
+    ? await supabase.from("messages").select("id, posted_as").in("id", latestRows.map((l) => l.message_id))
+    : { data: [] as { id: string; posted_as: string | null }[] };
+  const company = new Set((postedAs ?? []).filter((m) => m.posted_as === "company").map((m) => m.id));
+  const latest = Object.fromEntries(latestRows.map((l) => [l.chat_id, { ...l, company: company.has(l.message_id) }]));
   const unread = Object.fromEntries(((unreadData ?? []) as { chat_id: string; unread: number }[]).map((u) => [u.chat_id, Number(u.unread)]));
   const chats = ((chatsData ?? []) as Chat[]).filter((c) => !previewing || !c.is_internal);
   const chat = chats.find((c) => c.id === chatId);
@@ -36,18 +46,34 @@ export default async function ChatPage({ params }: { params: Promise<{ id: strin
   const shared = chats.filter((c) => !c.is_internal);
   const internal = chats.filter((c) => c.is_internal);
 
-  const chatLink = (c: Chat) => (
-    <Link
-      key={c.id}
-      className={`chan ${c.is_internal ? "int" : ""} ${unread[c.id] && c.id !== chatId ? "unread" : ""}`}
-      href={`/projects/${id}/chats/${c.id}`}
-      aria-current={c.id === chatId ? "page" : undefined}
-    >
-      <span className="ic">{c.is_internal ? <LockIcon /> : <PeopleIcon />}</span>
-      <span style={{ minWidth: 0 }}>{c.name}</span>
-      {unread[c.id] && c.id !== chatId ? <span className="udot" aria-label={`${unread[c.id]} new`} /> : null}
-    </Link>
-  );
+  const today = shortDate(new Date().toISOString());
+  const when = (iso: string) => (shortDate(iso) === today ? timeLabel(iso) : `${shortDate(iso)} · ${timeLabel(iso)}`);
+  const chatLink = (c: Chat) => {
+    const l = latest[c.id];
+    const author = l ? (l.company ? "Beshara Builders" : (l.author_id && (people[l.author_id]?.full_name || people[l.author_id]?.email)) || "Former member") : "";
+    const text = l ? plainText(l.body) || "Sent an attachment" : "No messages yet";
+    return (
+      <Link
+        key={c.id}
+        className={`chan ${c.is_internal ? "int" : ""} ${unread[c.id] && c.id !== chatId ? "unread" : ""}`}
+        href={`/projects/${id}/chats/${c.id}`}
+        aria-current={c.id === chatId ? "page" : undefined}
+      >
+        <span className="ic">{c.is_internal ? <LockIcon /> : <PeopleIcon />}</span>
+        <span className="chan-main">
+          <span className="chan-top">
+            <span className="chan-name">{c.name}</span>
+            {l && <time className="chan-when">{when(l.created_at)}</time>}
+            {unread[c.id] && c.id !== chatId ? <span className="udot" aria-label={`${unread[c.id]} new`} /> : null}
+          </span>
+          <span className="chan-prev">
+            {author && <b>{author}: </b>}
+            {text}
+          </span>
+        </span>
+      </Link>
+    );
+  };
 
   return (
     <div className="chat">

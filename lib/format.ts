@@ -68,3 +68,20 @@ export function storagePath(projectId: string, fileName: string) {
   const safe = fileName.replace(/[^\w.\- ]+/g, "_").replace(/\s+/g, "_").slice(-120);
   return `${projectId}/${crypto.randomUUID()}-${safe}`;
 }
+
+// Message text as plain words, for previews, emails and phone notifications
+// (messages are written as Markdown in the editor).
+export function plainText(markdown: string) {
+  return markdown
+    .replace(/```[\s\S]*?```/g, (m) => m.replace(/```\w*\n?/g, ""))
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/^\s{0,3}(#{1,6}|>)\s?/gm, "")
+    .replace(/^\s*([-*+]|\d+\.)\s+/gm, "• ")
+    .replace(/^\s*([-*_]\s*){3,}$/gm, "")
+    .replace(/(\*\*|__|~~|`)/g, "")
+    .replace(/(^|[^\w*])[*_]([^*_\n]+)[*_](?=[^\w*]|$)/g, "$1$2")
+    .replace(/\\([\\`*_{}[\]()#+\-.!>~|])/g, "$1")
+    .replace(/\n{2,}/g, "\n")
+    .trim();
+}

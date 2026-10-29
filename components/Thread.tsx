@@ -7,7 +7,9 @@ import { dayLabel, guessFolder, isImage, storagePath, timeLabel } from "@/lib/fo
 import { createClient } from "@/lib/supabase/client";
 import { isTeamRole, type Chat, type FileRow, type Message, type Profile, type Role } from "@/lib/types";
 import Avatar, { CompanyAvatar } from "./Avatar";
-import { ClipIcon, DocIcon, LockIcon, PeopleIcon, SendIcon } from "./Icons";
+import Composer from "./Composer";
+import { DocIcon, LockIcon, PeopleIcon } from "./Icons";
+import MessageBody from "./MessageBody";
 
 type Props = {
   chat: Chat;
@@ -27,12 +29,11 @@ export default function Thread({ chat, initialMessages, initialUrls, people, me,
   const supabase = useRef(createClient()).current;
   const [messages, setMessages] = useState(initialMessages);
   const [urls, setUrls] = useState(initialUrls);
-  const [text, setText] = useState("");
-  const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [dragging, setDragging] = useState(false);
+  const [dropped, setDropped] = useState<File[]>([]);
+  const takeDropped = useCallback(() => setDropped([]), []);
   const listRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const urlsRef = useRef(urls);
   urlsRef.current = urls;
@@ -89,9 +90,9 @@ export default function Thread({ chat, initialMessages, initialUrls, people, me,
       });
   }, [supabase, me.id, chat.id, messages.length, readOnly, hadUnread, router]);
 
-  async function send(body: string, files: File[]) {
-    if (readOnly || (!body.trim() && !files.length)) return;
-    setSending(true);
+  // Posts a message (Markdown from the editor) and its attachments.
+  async function send(body: string, files: File[]): Promise<boolean> {
+    if (readOnly || (!body.trim() && !files.length)) return false;
     setError("");
     const { data: msg, error: msgErr } = await supabase
       .from("messages")
@@ -99,11 +100,9 @@ export default function Thread({ chat, initialMessages, initialUrls, people, me,
       .select("id")
       .single();
     if (msgErr || !msg) {
-      setSending(false);
       setError("Your message didn't send. Check your connection and try again.");
-      return;
+      return false;
     }
-    setText("");
     let failed = 0;
     for (const file of files) {
       const path = storagePath(chat.project_id, file.name);
@@ -126,17 +125,9 @@ export default function Thread({ chat, initialMessages, initialUrls, people, me,
       if (rowErr) failed++;
     }
     if (failed) setError(`${failed} file${failed > 1 ? "s" : ""} didn't upload. Try attaching ${failed > 1 ? "them" : "it"} again.`);
-    setSending(false);
     await reload();
-    if (files.length) router.refresh(); // updates the Files count
-    inputRef.current?.focus();
-  }
-
-  function onKey(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      send(text, []);
-    }
+    router.refresh(); // updates the chat list preview and the Files count
+    return true;
   }
 
   const team = isTeamRole(me.role);
@@ -158,7 +149,7 @@ export default function Thread({ chat, initialMessages, initialUrls, people, me,
       onDrop={(e) => {
         e.preventDefault();
         setDragging(false);
-        send(text, [...e.dataTransfer.files]);
+        if (!readOnly) setDropped([...e.dataTransfer.files]);
       }}
     >
       <div className="msgs" ref={listRef} aria-live="polite">
@@ -189,7 +180,7 @@ export default function Thread({ chat, initialMessages, initialUrls, people, me,
                     {who && !isTeamRole(who.role) && <span className="tagc">Client</span>}
                     <time>{timeLabel(m.created_at)}</time>
                   </div>
-                  {m.body && <div className="body">{m.body}</div>}
+                  {m.body && <MessageBody text={m.body} />}
                   {(m.files ?? []).map((f) => {
                     const url = urls[f.storage_path];
                     return isImage(f.mime_type, f.name) && url ? (
@@ -214,56 +205,21 @@ export default function Thread({ chat, initialMessages, initialUrls, people, me,
       {readOnly ? (
         <div className="compose"><div className="hint">Client view: this is what the client sees. Exit client view to post.</div></div>
       ) : (
-      <div className={`compose ${chat.is_internal ? "int" : ""}`}>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            send(text, []);
-          }}
-        >
-          <label className="iconbtn" title="Attach photos or files" aria-label="Attach photos or files">
-            <ClipIcon />
-            <input
-              type="file"
-              multiple
-              hidden
-              onChange={(e) => {
-                const files = [...(e.target.files ?? [])];
-                e.target.value = "";
-                send(text, files);
-              }}
-            />
-          </label>
-          <textarea
-            ref={inputRef}
-            rows={1}
-            placeholder="Write a message…"
-            aria-label="Message"
-            value={text}
-            onChange={(e) => {
-              setText(e.target.value);
-              e.target.style.height = "auto";
-              e.target.style.height = Math.min(e.target.scrollHeight, 140) + "px";
-            }}
-            onKeyDown={onKey}
-          />
-          <button className="btn" type="submit" disabled={sending}>
-            <SendIcon />
-            <span>{sending ? "Sending…" : "Send"}</span>
-          </button>
-        </form>
-        {error ? (
-          <div className="err">{error}</div>
-        ) : (
-          <div className="hint">
-            {chat.is_internal
-              ? "Internal chat. The client won't see this, or anything you attach."
-              : me.role === "client"
-                ? "Your Beshara team sees everything here. Attach photos or drop files."
-                : "The client will see this message. Attach photos or drop files here."}
-          </div>
-        )}
-      </div>
+      <Composer
+        internal={chat.is_internal}
+        placeholder={chat.is_internal ? "Write to the team…" : "Write a message…"}
+        error={error}
+        hint={
+          chat.is_internal
+            ? "Internal chat. The client won't see this, or anything you attach."
+            : me.role === "client"
+              ? "Your Beshara team sees everything here."
+              : "The client will see this message."
+        }
+        onPost={send}
+        dropped={dropped}
+        onDroppedTaken={takeDropped}
+      />
       )}
     </div>
   );

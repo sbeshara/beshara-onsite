@@ -5,7 +5,7 @@ import NotifyPrompt from "@/components/NotifyPrompt";
 import { getMe } from "@/lib/auth";
 import { getPreview } from "@/lib/preview";
 import { PHASES, ROLE_LABEL } from "@/lib/constants";
-import { dayLabel, fileExt, isImage, plural, shortDate, todayLabel } from "@/lib/format";
+import { dayLabel, fileExt, isImage, plainText, plural, shortDate, todayLabel } from "@/lib/format";
 import { signUrls } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 import { isAdminRole, isTeamRole, type FileRow, type Profile } from "@/lib/types";
@@ -118,7 +118,7 @@ async function TeamDashboard({ me }: { me: Profile }) {
                       <Avatar id={who.id} name={who.full_name || who.email} />
                       <span style={{ minWidth: 0 }}>
                         <span className="t">{who.full_name} · {projectNames[n.project_id]} · {n.chat_name}</span>
-                        <span className="s" style={{ display: "block" }}>{n.body || "Sent an attachment"}</span>
+                        <span className="s" style={{ display: "block" }}>{plainText(n.body) || "Sent an attachment"}</span>
                       </span>
                       <span className="reply">Reply →</span>
                     </Link>
@@ -249,7 +249,7 @@ async function ClientDashboard({ viewerName, projectId }: { viewerName: string; 
                           <b style={{ color: "var(--ink)" }}>{name}</b> · {dayLabel(m.created_at)} · in{" "}
                           <Link className="reply" href={`/projects/${project.id}/chats/${m.chat_id}`}>{m.chats?.name}</Link>
                         </div>
-                        <div className="body">{m.body || m.files.map((f) => f.name).join(", ") || "Sent an attachment"}</div>
+                        <div className="body">{plainText(m.body) || m.files.map((f) => f.name).join(", ") || "Sent an attachment"}</div>
                       </div>
                     </div>
                   );
