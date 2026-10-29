@@ -4,6 +4,7 @@ import { BasecampError, connection, oauthReady, redirectUri } from "@/lib/baseca
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isAdminRole } from "@/lib/types";
 import BasecampImport from "./BasecampImport";
+import TellClients from "./TellClients";
 
 export const metadata = { title: "Basecamp Import · Beshara OnSite" };
 
@@ -44,6 +45,7 @@ export default async function BasecampPage({ searchParams }: { searchParams: Pro
         redirectUri={redirectUri()}
         onsite={(projects ?? []).map((p) => ({ id: p.id as string, name: p.name as string, basecamp: (p.basecamp_project_id as string | null) ?? null }))}
       />
+      {conn && <TellClients signer={me.full_name || "Beshara Builders"} />}
     </div>
   );
 }

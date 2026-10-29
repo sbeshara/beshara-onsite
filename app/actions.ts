@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getMe } from "@/lib/auth";
 import { jobContacts, type JobContact } from "@/lib/jobtread";
+import { inviteOrFind } from "@/lib/invite";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { isAdminRole, type Role } from "@/lib/types";
@@ -18,23 +19,6 @@ async function requireAdmin() {
   const me = await getMe();
   if (!isAdminRole(me.role)) throw new Error("Only the Principal Contractor or Admin can do that.");
   return me;
-}
-
-// Finds the account for this email, or creates it and emails an invite.
-// New accounts get the role given here; existing accounts keep theirs.
-async function inviteOrFind(email: string, fullName: string, role: Role, title: string | null) {
-  const admin = createAdminClient();
-  const address = email.toLowerCase();
-  const { data: existing } = await admin.from("profiles").select("id, role").eq("email", address).maybeSingle();
-  if (existing) return { id: existing.id as string, role: existing.role as Role, invited: false };
-
-  const { data, error } = await admin.auth.admin.inviteUserByEmail(address, {
-    data: { full_name: fullName, title },
-    redirectTo: `${siteUrl()}/auth/confirm?next=/welcome`,
-  });
-  if (error || !data.user) throw new Error(`Couldn't send the invite to ${address}: ${error?.message ?? "unknown error"}`);
-  await admin.from("profiles").update({ role, full_name: fullName, title }).eq("id", data.user.id);
-  return { id: data.user.id, role, invited: true };
 }
 
 export async function createProject(_prev: Result, form: FormData): Promise<Result> {

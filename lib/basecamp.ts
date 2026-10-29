@@ -149,13 +149,19 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // A request to the connected account, retrying when Basecamp asks us to slow
 // down or has a hiccup. The token is only ever sent to Basecamp's own API.
-export async function bcFetch(conn: Connection, pathOrUrl: string): Promise<Response> {
+export async function bcFetch(conn: Connection, pathOrUrl: string, send?: { method: "POST" | "PUT"; body: unknown }): Promise<Response> {
   const url = pathOrUrl.startsWith("http") ? pathOrUrl : `${conn.href}${pathOrUrl}`;
   const origin = new URL(url).origin;
   if (origin !== new URL(conn.href).origin && origin !== new URL(API_ROOT).origin) throw new BasecampError(`Refusing to send the Basecamp sign-in to ${origin}`);
   for (let attempt = 0; ; attempt++) {
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${conn.token}`, "User-Agent": USER_AGENT }, cache: "no-store" });
-    if ((res.status === 429 || res.status >= 500) && attempt < 5) {
+    const res = await fetch(url, {
+      method: send?.method ?? "GET",
+      headers: { Authorization: `Bearer ${conn.token}`, "User-Agent": USER_AGENT, ...(send ? { "Content-Type": "application/json" } : {}) },
+      body: send ? JSON.stringify(send.body) : undefined,
+      cache: "no-store",
+    });
+    // Posting again after a server error could post twice, so only GETs retry on 5xx.
+    if ((res.status === 429 || (res.status >= 500 && !send)) && attempt < 5) {
       const wait = Number(res.headers.get("retry-after")) || 2 ** attempt;
       await sleep(Math.min(wait, 30) * 1000);
       continue;
@@ -189,7 +195,7 @@ export async function bcAll<T>(conn: Connection, path: string): Promise<T[]> {
 // Basecamp records
 // ---------------------------------------------------------------------------
 
-export type BcPerson = { id: number; name: string; email_address?: string | null };
+export type BcPerson = { id: number; name: string; email_address?: string | null; client?: boolean; title?: string | null; company?: { name: string } | null };
 export type BcAttachment = { id: number; filename: string; content_type: string; byte_size: number; download_url: string };
 export type BcProject = {
   id: number;
