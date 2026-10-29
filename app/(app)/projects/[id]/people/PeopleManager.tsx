@@ -71,13 +71,19 @@ export default function PeopleManager({ projectId, primaryClientId, staff, assig
                     ? "Invite pending · hasn't accepted or signed in yet"
                     : status[p.id].lastOpened
                       ? `Signed in · last opened this project ${day(status[p.id].lastOpened!)}`
-                      : `Signed in ${day(status[p.id].signedIn!)} · hasn't opened a chat yet`}
+                      : `Opened their invite link ${day(status[p.id].signedIn!)} · hasn't opened a chat yet`}
                 </small>
               </div>
               <span className="cbtns">
-                {!status[p.id]?.signedIn && (
-                  <button type="button" className="linkbtn" disabled={pending} onClick={() => run(() => resendInvite(p.id), setContactMsg)}>Resend Invite</button>
-                )}
+                <button
+                  type="button"
+                  className="linkbtn"
+                  disabled={pending}
+                  title={status[p.id]?.signedIn ? "Emails them a link to set a new password and sign in" : "Emails the invite again"}
+                  onClick={() => run(() => resendInvite(p.id), setContactMsg)}
+                >
+                  {status[p.id]?.signedIn ? "Send Password Link" : "Resend Invite"}
+                </button>
                 {p.id !== primaryClientId && (
                   <>
                     <button type="button" className="linkbtn" disabled={pending} onClick={() => run(() => setMainContact(projectId, p.id), setContactMsg)}>Make Main Contact</button>

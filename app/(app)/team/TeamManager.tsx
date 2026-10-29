@@ -70,8 +70,10 @@ export default function TeamManager({ me, people, projects, assigned: initial, l
                   ) : (
                     <span className="pill">{ROLE_LABEL[p.role]}</span>
                   )}
-                  {p.id !== me.id && !lastSignIn[p.id] && (
-                    <button type="button" className="linkbtn" disabled={pending} onClick={() => run(() => resendInvite(p.id))}>Resend Invite</button>
+                  {p.id !== me.id && (
+                    <button type="button" className="linkbtn" disabled={pending} onClick={() => run(() => resendInvite(p.id))}>
+                      {lastSignIn[p.id] ? "Send Password Link" : "Resend Invite"}
+                    </button>
                   )}
                   {removable &&
                     (confirming === p.id ? (
