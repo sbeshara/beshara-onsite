@@ -80,7 +80,7 @@ export default function Checklist({ items, site }: { items: CheckItem[]; site: s
         ))}
       </ul>
       {msg.error && <p className="err">{msg.error}</p>}
-      <p className="fine">Posting a daily log in JobTread checks a job off automatically. Reminders go out at 10 AM and 5 PM, only for jobs still unchecked.</p>
+      <p className="fine">Only jobs in construction are listed. Posting a daily log in JobTread checks a job off automatically. Reminders go out at 10 AM and 5 PM, only for jobs still unchecked.</p>
     </section>
   );
 }

@@ -1,14 +1,19 @@
 import "server-only";
 import { HQ_URL } from "./apps";
 import { TZ } from "./format";
-import { logsOn, type DayLog } from "./jobtread";
+import { listOpenJobs, logsOn, type DayLog } from "./jobtread";
 import { brandEmail, escapeHtml as esc, sendEmail } from "./notify";
 import { createAdminClient } from "./supabase/admin";
 
 type Admin = ReturnType<typeof createAdminClient>;
 
-// The daily job checklist for Construction Management. A job is done for the
-// day when JobTread has a daily log for it, or when the PM ticks it by hand.
+// The daily job checklist for Construction Management. Only jobs in
+// construction are on it: a job linked to JobTread while its Status there is
+// Construction, an unlinked job while its OnSite phase is Construction. A job
+// is done for the day when JobTread has a daily log for it, or when the PM
+// ticks it by hand.
+
+const CONSTRUCTION_PHASE = 2;
 
 export type CheckItem = {
   projectId: string;
@@ -42,6 +47,12 @@ export async function loadChecklists(admin: Admin, day: string, onlyUser?: strin
     admin.from("daily_checks").select("project_id, user_id, note, checked_at").eq("day", day),
     logsOn(day).catch(() => [] as DayLog[]),
   ]);
+  // JobTread jobs whose Status is Construction (null if JobTread can't be reached).
+  const inConstruction = await listOpenJobs()
+    .then((jobs) => new Set(jobs.map((j) => j.id)))
+    .catch(() => null);
+  const onChecklist = (p: { phase: number; jobtread_job_id: string | null }) =>
+    p.jobtread_job_id && inConstruction ? inConstruction.has(p.jobtread_job_id) : p.phase === CONSTRUCTION_PHASE;
   type Row = {
     user_id: string;
     profiles: { id: string; full_name: string; email: string };
@@ -49,6 +60,7 @@ export async function loadChecklists(admin: Admin, day: string, onlyUser?: strin
   };
   const people = new Map<string, PersonChecklist>();
   for (const r of (rows ?? []) as unknown as Row[]) {
+    if (!onChecklist(r.projects)) continue;
     const person = people.get(r.user_id) ?? { userId: r.user_id, name: r.profiles.full_name || r.profiles.email, email: r.profiles.email, items: [] };
     const p = r.projects;
     const log = p.jobtread_job_id ? logs.filter((l) => l.jobId === p.jobtread_job_id).sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0] : undefined;

@@ -33,7 +33,7 @@ export default async function JobsPage() {
         </div>
       </div>
       {problem && <div className="st-banner err">{problem}</div>}
-      {!problem && <ImportJobs jobs={notInOnSite} />}
+      {!problem && <ImportJobs jobs={notInOnSite} unlinked={(projects ?? []).filter((p) => !p.jobtread_job_id).map((p) => ({ id: p.id, name: p.name }))} />}
       <table className="st-table">
         <thead>
           <tr>

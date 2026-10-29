@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getMe } from "@/lib/auth";
+import { jobContacts, type JobContact } from "@/lib/jobtread";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { isAdminRole, type Role } from "@/lib/types";
@@ -88,6 +89,25 @@ export async function setProjectTeam(projectId: string, staffIds: string[]): Pro
   }
   revalidatePath("/", "layout");
   return { ok: "Saved. Assigned people can now see this project." };
+}
+
+// Contacts from the linked JobTread job that aren't on the project yet, to
+// pre-fill the Invite Client form. Nothing is sent from here.
+export async function jobTreadContacts(projectId: string): Promise<{ contacts: JobContact[]; error?: string }> {
+  try {
+    await requireAdmin();
+    const admin = createAdminClient();
+    const { data: project } = await admin.from("projects").select("jobtread_job_id").eq("id", projectId).single();
+    if (!project?.jobtread_job_id) return { contacts: [], error: "not-linked" };
+    const [contacts, { data: members }] = await Promise.all([
+      jobContacts(project.jobtread_job_id),
+      admin.from("project_members").select("profiles(email)").eq("project_id", projectId),
+    ]);
+    const onProject = new Set(((members ?? []) as unknown as { profiles: { email: string } | null }[]).map((m) => m.profiles?.email.toLowerCase()));
+    return { contacts: contacts.filter((c) => !onProject.has(c.email)) };
+  } catch (e) {
+    return { contacts: [], error: (e as Error).message };
+  }
 }
 
 // Assigns (or unassigns) one Construction Management teammate to one job.

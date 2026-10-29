@@ -50,6 +50,8 @@
 .st-actions .spacer{flex:1}
 .st-opt{display:flex;gap:10px;align-items:flex-start;font-size:14px;padding:6px 0;cursor:pointer}
 .st-opt input{margin-top:3px;accent-color:var(--brand)}
+.imp-row{display:flex;align-items:center;justify-content:space-between;gap:8px 14px;flex-wrap:wrap}
+.imp-match{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--internal);background:var(--internal-soft);border:1px solid var(--internal-line);border-radius:999px;padding:3px 4px 3px 12px}
 .st-banner{border-radius:10px;padding:10px 14px;font-size:13.5px}
 .st-banner.err{background:#FBE7E5;color:#9F2A1E}
 .st-banner.note{background:var(--internal-soft);color:var(--internal)}

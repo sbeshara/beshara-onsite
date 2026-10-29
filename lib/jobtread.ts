@@ -177,3 +177,42 @@ export async function logsOn(day: string): Promise<DayLog[]> {
   });
   return r.organization.dailyLogs.nodes.filter((l) => l.job).map((l) => ({ jobId: l.job!.id, author: l.user?.name ?? "", createdAt: l.createdAt }));
 }
+
+export type JobContact = { name: string; title: string | null; email: string; primary: boolean };
+
+// The customer's contacts on a job, with emails, for pre-filling client invites.
+export async function jobContacts(jobId: string): Promise<JobContact[]> {
+  const r = await pave<{
+    job: {
+      location: {
+        contact: { id: string } | null;
+        account: {
+          contacts: { nodes: { id: string; name: string; title: string | null; customFieldValues: { nodes: { value: unknown; customField: { name: string } }[] } }[] };
+        } | null;
+      } | null;
+    };
+  }>({
+    job: {
+      $: { id: jobId },
+      location: {
+        contact: { id: {} },
+        account: {
+          contacts: {
+            $: { size: 25 },
+            nodes: { id: {}, name: {}, title: {}, customFieldValues: { $: { size: 10 }, nodes: { value: {}, customField: { name: {} } } } },
+          },
+        },
+      },
+    },
+  });
+  const loc = r.job.location;
+  return (loc?.account?.contacts.nodes ?? [])
+    .map((c) => ({
+      name: c.name,
+      title: c.title,
+      email: String(c.customFieldValues.nodes.find((v) => /e-?mail/i.test(v.customField.name))?.value ?? "").trim().toLowerCase(),
+      primary: c.id === loc?.contact?.id,
+    }))
+    .filter((c) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.email))
+    .sort((a, b) => Number(b.primary) - Number(a.primary));
+}
