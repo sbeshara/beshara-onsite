@@ -182,7 +182,7 @@ export default function BasecampImport({ connected, canConnect, redirectUri, ons
                 to Basecamp, and click <b>Register another application</b>.
               </li>
               <li>
-                Name: <b>Beshara OnSite</b>. Company: <b>Beshara Builders</b>. Website: <b>https://onsite.besharabuilders.com</b>. Tick <b>Basecamp 4</b>.
+                Name: <b>Beshara OnSite</b>. Company: <b>Beshara Builders</b>. Website: <b>https://onsite.besharabuilders.com</b>. Tick <b>Basecamp 5</b>.
               </li>
               <li>
                 Redirect URI: <code>{redirectUri}</code>
