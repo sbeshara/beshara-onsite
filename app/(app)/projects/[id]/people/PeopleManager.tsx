@@ -50,7 +50,7 @@ export default function PeopleManager({ projectId, primaryClientId, staff, assig
         <div className="box rowlist" style={{ maxWidth: 720 }}>
           {clients.map((p) => (
             <div key={p.id} className="rowitem">
-              <Avatar id={p.id} name={p.full_name || p.email} />
+              <Avatar id={p.id} name={p.full_name || p.email} url={p.avatar_url} />
               <div style={{ minWidth: 0 }}>
                 <b>{p.full_name || p.email}</b>
                 <small>

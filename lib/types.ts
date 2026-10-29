@@ -6,6 +6,7 @@ export type Profile = {
   full_name: string;
   role: Role;
   title: string | null;
+  avatar_url?: string | null; // profile photo, once uploaded
 };
 
 export type Project = {

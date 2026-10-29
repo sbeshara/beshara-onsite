@@ -12,7 +12,7 @@ export default async function TeamPage() {
   if (!isAdminRole(me.role)) redirect("/");
   const supabase = await createClient();
   const [{ data: people }, { data: members }, { data: projects }, { data: users }] = await Promise.all([
-    supabase.from("profiles").select("id, full_name, email, role, title").neq("role", "client").order("full_name"),
+    supabase.from("profiles").select("*").neq("role", "client").order("full_name"),
     supabase.from("project_members").select("user_id, project_id"),
     supabase.from("projects").select("id, name, town").order("name"),
     createAdminClient().auth.admin.listUsers({ perPage: 1000 }),

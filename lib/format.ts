@@ -69,9 +69,28 @@ export function storagePath(projectId: string, fileName: string) {
   return `${projectId}/${crypto.randomUUID()}-${safe}`;
 }
 
-// Message text as plain words, for previews, emails and phone notifications
-// (messages are written as Markdown in the editor).
+// New messages are saved as HTML from the editor; older ones are Markdown.
+export function isHtml(body: string) {
+  return /^\s*<(p|h[1-6]|ul|ol|blockquote|table|hr|div)[\s>/]/i.test(body);
+}
+
+const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
+
+// Message text as plain words, for previews, emails and phone notifications.
 export function plainText(markdown: string) {
+  if (isHtml(markdown)) {
+    return markdown
+      .replace(/<li[^>]*>/gi, "\n• ")
+      .replace(/<\/(td|th)>/gi, " ")
+      .replace(/<(br|hr)[^>]*>|<\/(p|h[1-6]|li|tr|blockquote|table|ul|ol)>/gi, "\n")
+      .replace(/<[^>]+>/g, "")
+      .replace(/&(?:(amp|lt|gt|quot|apos|nbsp)|#(\d+)|#x([0-9a-f]+));/gi, (m, name?: string, dec?: string, hex?: string) =>
+        name ? ENTITIES[name.toLowerCase()] ?? m : String.fromCodePoint(dec ? Number(dec) : parseInt(hex!, 16)),
+      )
+      .replace(/[ \t]+/g, " ")
+      .replace(/ *\n[\s]*/g, "\n")
+      .trim();
+  }
   return markdown
     .replace(/```[\s\S]*?```/g, (m) => m.replace(/```\w*\n?/g, ""))
     .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")

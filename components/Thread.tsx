@@ -70,7 +70,16 @@ export default function Thread({ chat, initialMessages, initialUrls, people, me,
     };
   }, [supabase, chat.id, chat.project_id, reload]);
 
+  // Opening a search result lands on that message; otherwise start at the newest.
+  const jumpedRef = useRef(false);
   useEffect(() => {
+    const target = !jumpedRef.current && window.location.hash.startsWith("#m-") ? document.getElementById(window.location.hash.slice(1)) : null;
+    if (target) {
+      jumpedRef.current = true;
+      target.scrollIntoView({ block: "center" });
+      target.classList.add("flash");
+      return;
+    }
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
   }, [messages.length]);
 
@@ -90,7 +99,7 @@ export default function Thread({ chat, initialMessages, initialUrls, people, me,
       });
   }, [supabase, me.id, chat.id, messages.length, readOnly, hadUnread, router]);
 
-  // Posts a message (Markdown from the editor) and its attachments.
+  // Posts a message (HTML from the editor) and its attachments.
   async function send(body: string, files: File[]): Promise<boolean> {
     if (readOnly || (!body.trim() && !files.length)) return false;
     setError("");
@@ -171,8 +180,8 @@ export default function Thread({ chat, initialMessages, initialUrls, people, me,
           return (
             <div key={m.id} style={{ display: "contents" }}>
               {showDay && <div className="day">{day}</div>}
-              <div className="msg">
-                {company ? <CompanyAvatar /> : <Avatar id={m.author_id ?? "x"} name={name} />}
+              <div className="msg" id={`m-${m.id}`}>
+                {company ? <CompanyAvatar /> : <Avatar id={m.author_id ?? "x"} name={name} url={who?.avatar_url} />}
                 <div style={{ minWidth: 0 }}>
                   <div className="who">
                     <b>{name}</b>

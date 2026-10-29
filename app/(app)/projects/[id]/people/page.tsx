@@ -11,8 +11,8 @@ export default async function PeoplePage({ params }: { params: Promise<{ id: str
   const supabase = await createClient();
   const [{ data: project }, { data: members }, { data: staff }] = await Promise.all([
     supabase.from("projects").select("id, name, primary_client_id").eq("id", id).maybeSingle(),
-    supabase.from("project_members").select("user_id, profiles(id, full_name, email, role, title)").eq("project_id", id),
-    supabase.from("profiles").select("id, full_name, email, role, title").eq("role", "construction").order("full_name"),
+    supabase.from("project_members").select("user_id, profiles(*)").eq("project_id", id),
+    supabase.from("profiles").select("*").eq("role", "construction").order("full_name"),
   ]);
   if (!project) notFound();
   const profiles = ((members ?? []) as unknown as { profiles: Profile | null }[]).map((m) => m.profiles).filter(Boolean) as Profile[];

@@ -73,7 +73,7 @@ async function TeamDashboard({ me }: { me: Profile }) {
   const weekAgo = new Date(Date.now() - 7 * 864e5).toISOString();
   const [{ data: projectsData }, { data: peopleData }, { data: latestData }, { data: filesData }, { count: weekCount }, { data: unreadData }] = await Promise.all([
     supabase.from("projects").select("id, name, town, scope, phase, project_members(user_id)").order("created_at"),
-    supabase.from("profiles").select("id, full_name, email, role, title"),
+    supabase.from("profiles").select("*"),
     supabase.rpc("latest_messages"),
     supabase.from("files").select("*").order("created_at", { ascending: false }).limit(40),
     supabase.from("files").select("id", { count: "exact", head: true }).gte("created_at", weekAgo),
@@ -115,7 +115,7 @@ async function TeamDashboard({ me }: { me: Profile }) {
                   const who = people[n.author_id!];
                   return (
                     <Link key={n.chat_id} className="need" href={`/projects/${n.project_id}/chats/${n.chat_id}`}>
-                      <Avatar id={who.id} name={who.full_name || who.email} />
+                      <Avatar id={who.id} name={who.full_name || who.email} url={who.avatar_url} />
                       <span style={{ minWidth: 0 }}>
                         <span className="t">{who.full_name} · {projectNames[n.project_id]} · {n.chat_name}</span>
                         <span className="s" style={{ display: "block" }}>{plainText(n.body) || "Sent an attachment"}</span>
@@ -149,7 +149,7 @@ async function TeamDashboard({ me }: { me: Profile }) {
                         <span className="pl"><b>{PHASES[p.phase]}</b> · step {p.phase + 1} of 5</span>
                       </span>
                       <span className="stack">
-                        {team.map((t) => <Avatar key={t.id} id={t.id} name={t.full_name || t.email} />)}
+                        {team.map((t) => <Avatar key={t.id} id={t.id} name={t.full_name || t.email} url={t.avatar_url} />)}
                       </span>
                     </Link>
                   );
@@ -195,7 +195,7 @@ async function ClientDashboard({ viewerName, projectId }: { viewerName: string; 
   }
   const [{ data: msgData }, { data: peopleData }, { data: membersData }, { data: filesData }] = await Promise.all([
     supabase.from("messages").select("id, body, created_at, author_id, posted_as, chat_id, chats!inner(name, is_internal), files(name)").eq("project_id", project.id).eq("chats.is_internal", false).order("created_at", { ascending: false }).limit(40),
-    supabase.from("profiles").select("id, full_name, email, role, title"),
+    supabase.from("profiles").select("*"),
     supabase.from("project_members").select("user_id").eq("project_id", project.id),
     supabase.from("files").select("*").eq("project_id", project.id).eq("is_internal", false).order("created_at", { ascending: false }).limit(20),
   ]);
@@ -243,7 +243,7 @@ async function ClientDashboard({ viewerName, projectId }: { viewerName: string; 
                   const name = company ? "Beshara Builders" : who.full_name;
                   return (
                     <div key={m.id} className="upd">
-                      {company ? <CompanyAvatar /> : <Avatar id={who.id} name={who.full_name || who.email} />}
+                      {company ? <CompanyAvatar /> : <Avatar id={who.id} name={who.full_name || who.email} url={who.avatar_url} />}
                       <div style={{ minWidth: 0 }}>
                         <div className="t">
                           <b style={{ color: "var(--ink)" }}>{name}</b> · {dayLabel(m.created_at)} · in{" "}
@@ -274,7 +274,7 @@ async function ClientDashboard({ viewerName, projectId }: { viewerName: string; 
             <div className="box team">
               {team.map((p) => (
                 <div key={p.id} className="member">
-                  <Avatar id={p.id} name={p.full_name || p.email} />
+                  <Avatar id={p.id} name={p.full_name || p.email} url={p.avatar_url} />
                   <div><b>{p.full_name || p.email}</b><small>{ROLE_LABEL[p.role]}</small></div>
                 </div>
               ))}

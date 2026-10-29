@@ -44,7 +44,7 @@ export default function TeamManager({ me, people, projects, assigned: initial, l
             const removable = p.id !== me.id && p.role !== "owner" && (p.role !== "admin" || owner);
             return (
               <div key={p.id} className="rowitem team-row">
-                <Avatar id={p.id} name={p.full_name || p.email} />
+                <Avatar id={p.id} name={p.full_name || p.email} url={p.avatar_url} />
                 <div style={{ minWidth: 0 }}>
                   <b>{p.full_name || p.email}</b>
                   <small>

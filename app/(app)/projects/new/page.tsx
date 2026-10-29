@@ -10,7 +10,7 @@ export default async function NewProjectPage() {
   const me = await getMe();
   if (!isAdminRole(me.role)) redirect("/");
   const supabase = await createClient();
-  const { data } = await supabase.from("profiles").select("id, full_name, email, role, title").eq("role", "construction").order("full_name");
+  const { data } = await supabase.from("profiles").select("*").eq("role", "construction").order("full_name");
   return (
     <div className="page">
       <div className="page-h">

@@ -1,4 +1,6 @@
 import Link from "next/link";
+import Avatar, { CompanyAvatar } from "@/components/Avatar";
+import ChatSearch from "@/components/ChatSearch";
 import { notFound, redirect } from "next/navigation";
 import { LockIcon, PeopleIcon } from "@/components/Icons";
 import NewChatButton from "@/components/NewChatButton";
@@ -18,7 +20,7 @@ export default async function ChatPage({ params }: { params: Promise<{ id: strin
   const [{ data: chatsData }, { data: msgData }, { data: peopleData }, { data: memberData }, { data: unreadData }] = await Promise.all([
     supabase.from("chats").select("*").eq("project_id", id).order("position").order("created_at"),
     supabase.from("messages").select("id, chat_id, author_id, body, created_at, posted_as, files(*)").eq("chat_id", chatId).order("created_at", { ascending: false }).limit(200),
-    supabase.from("profiles").select("id, full_name, email, role, title"),
+    supabase.from("profiles").select("*"),
     supabase.from("project_members").select("user_id").eq("project_id", id),
     supabase.rpc("my_unread"),
   ]);
@@ -46,47 +48,60 @@ export default async function ChatPage({ params }: { params: Promise<{ id: strin
   const shared = chats.filter((c) => !c.is_internal);
   const internal = chats.filter((c) => c.is_internal);
 
-  const today = shortDate(new Date().toISOString());
-  const when = (iso: string) => (shortDate(iso) === today ? timeLabel(iso) : `${shortDate(iso)} · ${timeLabel(iso)}`);
   const chatLink = (c: Chat) => {
     const l = latest[c.id];
-    const author = l ? (l.company ? "Beshara Builders" : (l.author_id && (people[l.author_id]?.full_name || people[l.author_id]?.email)) || "Former member") : "";
-    const text = l ? plainText(l.body) || "Sent an attachment" : "No messages yet";
+    const who = l && !l.company && l.author_id ? people[l.author_id] : undefined;
+    const author = l ? (l.company ? "Beshara Builders" : who?.full_name || who?.email || "Former member") : "";
+    const text = l ? plainText(l.body).replace(/\s+/g, " ") || "Sent an attachment" : "No messages yet";
+    const count = c.id !== chatId ? unread[c.id] ?? 0 : 0;
     return (
       <Link
         key={c.id}
-        className={`chan ${c.is_internal ? "int" : ""} ${unread[c.id] && c.id !== chatId ? "unread" : ""}`}
+        className={`chan ${c.is_internal ? "int" : ""} ${count ? "unread" : ""}`}
         href={`/projects/${id}/chats/${c.id}`}
         aria-current={c.id === chatId ? "page" : undefined}
       >
-        <span className="ic">{c.is_internal ? <LockIcon /> : <PeopleIcon />}</span>
+        {!l ? (
+          <span className="av av-none">{c.is_internal ? <LockIcon /> : <PeopleIcon />}</span>
+        ) : l.company ? (
+          <CompanyAvatar />
+        ) : (
+          <Avatar id={l.author_id ?? "x"} name={author} url={who?.avatar_url} />
+        )}
         <span className="chan-main">
           <span className="chan-top">
+            <span className="ic" title={c.is_internal ? "Internal Only" : "The client sees this"}>{c.is_internal ? <LockIcon /> : <PeopleIcon />}</span>
             <span className="chan-name">{c.name}</span>
-            {l && <time className="chan-when">{when(l.created_at)}</time>}
-            {unread[c.id] && c.id !== chatId ? <span className="udot" aria-label={`${unread[c.id]} new`} /> : null}
+            {count ? <span className="ucount" aria-label={`${count} new`}>{count > 99 ? "99+" : count}</span> : null}
           </span>
           <span className="chan-prev">
-            {author && <b>{author}: </b>}
+            {l && (
+              <>
+                <b>{author}</b> · <time className="chan-when">{shortDate(l.created_at)}, {timeLabel(l.created_at)}</time> ·{" "}
+              </>
+            )}
             {text}
           </span>
         </span>
       </Link>
     );
   };
+  const searchPeople = Object.fromEntries(Object.values(people).map((p) => [p.id, { name: p.full_name || p.email, url: p.avatar_url ?? null }]));
 
   return (
     <div className="chat">
       <div className="chans" aria-label="Chats">
-        {!previewing && <NewChatButton projectId={id} myId={me.id} isClient={me.role === "client"} />}
-        {teamView && <h3>With Client</h3>}
-        {shared.map(chatLink)}
-        {internal.length > 0 && (
-          <>
-            <h3>Internal</h3>
-            {internal.map(chatLink)}
-          </>
-        )}
+        <ChatSearch projectId={id} chatId={chatId} clientView={previewing} people={searchPeople}>
+          {!previewing && <NewChatButton projectId={id} myId={me.id} isClient={me.role === "client"} />}
+          {teamView && <h3>With Client</h3>}
+          {shared.map(chatLink)}
+          {internal.length > 0 && (
+            <>
+              <h3>Internal</h3>
+              {internal.map(chatLink)}
+            </>
+          )}
+        </ChatSearch>
       </div>
       <Thread
         key={chat.id}

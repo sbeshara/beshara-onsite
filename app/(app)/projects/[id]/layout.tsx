@@ -19,8 +19,8 @@ export default async function ProjectLayout({ children, params }: { children: Re
   const fileCountQuery = supabase.from("files").select("id", { count: "exact", head: true }).eq("project_id", id);
   const [{ data: project }, { data: members }, { data: owners }, { count: fileCount }] = await Promise.all([
     supabase.from("projects").select("id, name, town, scope, phase").eq("id", id).maybeSingle(),
-    supabase.from("project_members").select("user_id, profiles(id, full_name, email, role, title)").eq("project_id", id),
-    supabase.from("profiles").select("id, full_name, email, role, title").eq("role", "owner"),
+    supabase.from("project_members").select("user_id, profiles(*)").eq("project_id", id),
+    supabase.from("profiles").select("*").eq("role", "owner"),
     previewing ? fileCountQuery.eq("is_internal", false) : fileCountQuery,
   ]);
   if (!project) notFound();
@@ -41,7 +41,7 @@ export default async function ProjectLayout({ children, params }: { children: Re
           </div>
           <div className="people">
             <div className="stack">
-              {everyone.map((p) => <Avatar key={p.id} id={p.id} name={p.full_name || p.email} />)}
+              {everyone.map((p) => <Avatar key={p.id} id={p.id} name={p.full_name || p.email} url={p.avatar_url} />)}
             </div>
             <span className="sub">{everyone.length} {everyone.length === 1 ? "Person" : "People"}</span>
             {isAdminRole(me.role) && !previewing && (
