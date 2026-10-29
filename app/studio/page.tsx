@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getMe } from "@/lib/auth";
 import { fileUrls } from "@/lib/jobtread";
 import ReadyToSend from "@/components/ReadyToSend";
-import { addDays, lastFullWeek, readyToSend, shortDate, weekLabel, type WeeklyReport } from "@/lib/reports";
+import { nextReportFriday, readyToSend, reportWeek, shortDate, weekLabel, type WeeklyReport } from "@/lib/reports";
 import { reportFileName } from "@/lib/report-pdf";
 import { createClient } from "@/lib/supabase/server";
 import { isAdminRole } from "@/lib/types";
@@ -38,12 +38,16 @@ export default async function ReportsHome({ searchParams }: { searchParams: Prom
     supabase.from("projects").select("id, name, town, jobtread_job_id, jobtread_label").order("name"),
     readyToSend(supabase),
   ]);
-  const weeks = [...new Set([lastFullWeek(), ...(weeksData ?? []).map((w) => w.week_start as string)])].sort().reverse().slice(0, 8);
-  const week = wanted && /^\d{4}-\d{2}-\d{2}$/.test(wanted) ? wanted : weeks[0];
-  const { data: reportsData } = await supabase.from("weekly_reports").select("*").eq("week_start", week);
+  // Reports are open Friday through Monday; Tuesday to Thursday only past
+  // weeks can be looked at.
+  const open = reportWeek();
+  const weeks = [...new Set([...(open ? [open] : []), ...(weeksData ?? []).map((w) => w.week_start as string)])].sort().reverse().slice(0, 8);
+  const week = wanted && /^\d{4}-\d{2}-\d{2}$/.test(wanted) ? wanted : open;
+  const pastWeek = !!week && week !== open;
+  const { data: reportsData } = week ? await supabase.from("weekly_reports").select("*").eq("week_start", week) : { data: [] };
   const reports = Object.fromEntries(((reportsData ?? []) as WeeklyReport[]).map((r) => [r.project_id, r]));
 
-  const rows = (projectsData ?? [])
+  const rows = (week ? (projectsData ?? []) : [])
     .map((p) => {
       const r = reports[p.id] as WeeklyReport | undefined;
       const status = r
@@ -63,7 +67,7 @@ export default async function ReportsHome({ searchParams }: { searchParams: Prom
   const waiting = count("draft", "pending");
 
   const selected = rows.find((x) => x.r?.id === selectedId);
-  const href = (r?: string) => `/studio?week=${week}${r ? `&r=${r}` : ""}`;
+  const href = (r?: string) => (week ? `/studio?week=${week}${r ? `&r=${r}` : ""}` : "/studio");
   // Where to go after approving or skipping: the next job still waiting.
   const nextUp = rows.find((x) => x.r && x.r.id !== selectedId && (x.status === "draft" || x.status === "pending"));
 
@@ -86,6 +90,7 @@ export default async function ReportsHome({ searchParams }: { searchParams: Prom
         approvedBy={name(report.approved_by)}
         sentBy={name(report.sent_by)}
         canSend={admin}
+        canRedraft={!pastWeek}
         draftName={reportFileName(selected.p.name, shortDate(report.week_start), true)}
         nextHref={nextUp?.r ? href(nextUp.r.id) : href()}
         listHref={href()}
@@ -98,20 +103,26 @@ export default async function ReportsHome({ searchParams }: { searchParams: Prom
       <aside className="st-side">
         <div className="st-side-h">
           <h1>Progress Reports</h1>
-          <p>Week of {weekLabel(week)}</p>
+          <p>
+            {week ? `Week of ${weekLabel(week)}${pastWeek ? " · Past Week" : ""}` : `Closed until Friday ${shortDate(nextReportFriday())} at 3 PM`}
+          </p>
         </div>
+        {weeks.length > 0 && (
         <div className="st-weeks" aria-label="Week">
           {weeks.map((w) => (
             <Link key={w} href={`/studio?week=${w}`} className="chip" aria-pressed={w === week}>
-              {shortDate(w).replace(/\/\d+$/, "")}
+              {w === open ? "This Week" : shortDate(w).replace(/\/\d+$/, "")}
             </Link>
           ))}
         </div>
+        )}
+        {week && (
         <div className="st-sum">
           <span>{waiting} to Review</span>
           <span>{count("approved")} Ready to Send</span>
           <span>{count("sent")} Sent</span>
         </div>
+        )}
         <nav className="st-jobs" aria-label="Jobs">
           {rows.map(({ p, r, status }) => {
             const body = (
@@ -139,22 +150,35 @@ export default async function ReportsHome({ searchParams }: { searchParams: Prom
               </div>
             );
           })}
-          {!rows.length && <div className="empty">No projects yet.</div>}
+          {week && !rows.length && <div className="empty">No projects yet.</div>}
         </nav>
-        {admin && count("missing") > 0 && <GenerateButton weekStart={week} />}
-        <p className="fine">Drafts are written from JobTread daily logs every Monday at 8 AM. Next: Monday {shortDate(addDays(lastFullWeek(), 14))}.</p>
+        {admin && week && week === open && count("missing") > 0 && <GenerateButton weekStart={week} />}
+        <p className="fine">
+          Open Friday through Monday. Each job is drafted from its JobTread daily logs on Friday from 3 PM, as its Friday log comes in, and the rest
+          Saturday at 8 AM. Reports are sent on Monday.
+        </p>
       </aside>
       <section className="st-detail">
         {posted && <div className="st-banner ok">Sent the {posted} report to the client&apos;s Progress Reports chat.</div>}
         {approved && <div className="st-banner ok">Approved the {approved} report. It&apos;s in Ready to Send; nothing goes to the client until it&apos;s sent.</div>}
         {!editor && <ReadyToSend reports={ready} canSend={admin} />}
-        {editor ?? (
+        {pastWeek && <div className="st-banner note">This is a past week, kept for reference. This week&apos;s reports open Friday afternoon.</div>}
+        {!week && (
+          <div className="st-empty">
+            <h2>Progress Reports Open Friday</h2>
+            <p>
+              The next reports are drafted Friday {shortDate(nextReportFriday())} from 3 PM, reviewed over the weekend and sent on Monday.
+              {weeks.length > 0 && " Past weeks are listed on the left for reference."}
+            </p>
+          </div>
+        )}
+        {week && (editor ?? (
           <div className="st-empty">
             <h2>{waiting ? "Pick a Job to Review" : "All Caught Up"}</h2>
             <p>
               {waiting
-                ? `${waiting} report${waiting === 1 ? " is" : "s are"} waiting for the week of ${shortDate(week)}.`
-                : `Nothing waiting for the week of ${shortDate(week)}.`}
+                ? `${waiting} report${waiting === 1 ? " is" : "s are"} waiting for the week of ${shortDate(week!)}.`
+                : `Nothing waiting for the week of ${shortDate(week!)}.`}
             </p>
             {nextUp?.r && (
               <Link className="btn" href={href(nextUp.r.id)}>
@@ -162,7 +186,7 @@ export default async function ReportsHome({ searchParams }: { searchParams: Prom
               </Link>
             )}
           </div>
-        )}
+        ))}
       </section>
     </div>
   );

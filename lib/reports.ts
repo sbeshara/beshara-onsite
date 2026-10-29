@@ -56,14 +56,32 @@ export function mondayOf(iso: string) {
 }
 
 // The week a report covers: the most recent full Monday-Sunday week.
-export function lastFullWeek(now = new Date()) {
+export function lastFullWeek(now = clock()) {
   return addDays(mondayOf(nj(now).date), -7);
 }
 
-export const isMondayMorning = (now = new Date()) => {
+// "Now" for the report schedule. REPORTS_NOW pins it for testing only.
+export const clock = () => (process.env.REPORTS_NOW ? new Date(process.env.REPORTS_NOW) : new Date());
+
+// Progress reports are open Friday through Monday: drafted from Friday
+// afternoon, reviewed by PMs over the weekend, sent on Monday. Returns the
+// Monday of the week being reported, or null Tuesday to Thursday.
+export function reportWeek(now = clock()) {
   const t = nj(now);
-  return t.weekday === "Mon" && t.hour >= 8;
-};
+  const monday = mondayOf(t.date);
+  if (t.weekday === "Fri" || t.weekday === "Sat" || t.weekday === "Sun") return monday;
+  if (t.weekday === "Mon") return addDays(monday, -7);
+  return null;
+}
+// The Friday the next reports open (for "opens Friday 10/31" messages).
+export const nextReportFriday = (now = clock()) => addDays(mondayOf(nj(now).date), 4);
+
+export function scheduleSlot(now = clock()) {
+  const t = nj(now);
+  if (t.weekday === "Fri" && t.hour >= 15) return "friday" as const; // draft jobs as their Friday log comes in
+  if (t.weekday === "Sat" && t.hour === 8) return "saturday" as const; // draft the rest, email PMs missing Looking Ahead
+  return null;
+}
 
 export const shortDate = (iso: string) => {
   const [y, m, d] = iso.split("-");
@@ -77,14 +95,29 @@ export const lookAheadDates = (weekStart: string) => [4, 5, 6].map((n) => addDay
 
 type ProjectForReport = { id: string; name: string; town: string; jobtread_job_id: string | null };
 
-export async function generateReport(admin: Admin, project: ProjectForReport, weekStart: string, opts: { force?: boolean } = {}) {
+export type GenerateOpts = {
+  force?: boolean; // redraft an existing draft (the Redraft button)
+  waitForFriday?: boolean; // skip jobs with no Friday daily log yet
+  refreshUntouched?: boolean; // redraft drafts nobody has edited that still lack Looking Ahead
+  notify?: boolean; // email the PMs when Looking Ahead is missing
+};
+
+export async function generateReport(admin: Admin, project: ProjectForReport, weekStart: string, opts: GenerateOpts = {}) {
   if (!project.jobtread_job_id) return { project: project.name, result: "not linked" };
-  const { data: existing } = await admin.from("weekly_reports").select("id, status").eq("project_id", project.id).eq("week_start", weekStart).maybeSingle();
-  if (existing && (!opts.force || ["approved", "sent"].includes(existing.status))) return { project: project.name, result: "exists" };
+  const { data: existing } = await admin
+    .from("weekly_reports")
+    .select("id, status, updated_by, looking_ahead")
+    .eq("project_id", project.id)
+    .eq("week_start", weekStart)
+    .maybeSingle();
+  const stale = existing?.status === "draft" && !existing.updated_by && !(existing.looking_ahead as unknown[]).length;
+  if (existing && ["approved", "sent"].includes(existing.status)) return { project: project.name, result: "exists" };
+  if (existing && !opts.force && !(opts.refreshUntouched && stale)) return { project: project.name, result: "exists" };
 
   const base = { project_id: project.id, week_start: weekStart, generated_at: new Date().toISOString(), updated_at: new Date().toISOString() };
   try {
     const logs = await dailyLogs(project.jobtread_job_id, weekStart, addDays(weekStart, 6));
+    if (opts.waitForFriday && !logs.some((l) => l.date === addDays(weekStart, 4))) return { project: project.name, result: "waiting for Friday log" };
     const source = logs.map((l) => ({ date: l.date, author: l.author, notes: l.notes, trades: l.trades }));
     if (!logs.length || logs.every((l) => !l.notes.trim())) {
       await admin.from("weekly_reports").upsert({ ...base, status: "no_logs", completed: [], looking_ahead: [], photos: [], source_logs: source, error: null }, { onConflict: "project_id,week_start" });
@@ -104,7 +137,7 @@ export async function generateReport(admin: Admin, project: ProjectForReport, we
       )
       .select("id")
       .single();
-    if (!draft.looking_ahead.length && saved) await askPmsForLookingAhead(admin, project, weekStart, saved.id, logs.some((l) => lookAheadDates(weekStart).includes(l.date)));
+    if (opts.notify && !draft.looking_ahead.length && saved) await askPmsForLookingAhead(admin, project, weekStart, saved.id, logs.some((l) => lookAheadDates(weekStart).includes(l.date)));
     return { project: project.name, result: "drafted" };
   } catch (e) {
     const message = (e as Error).message.slice(0, 500);
@@ -142,7 +175,7 @@ async function askPmsForLookingAhead(admin: Admin, project: ProjectForReport, we
   }
 }
 
-export async function generateAll(admin: Admin, weekStart: string, opts: { force?: boolean; projectId?: string } = {}) {
+export async function generateAll(admin: Admin, weekStart: string, opts: GenerateOpts & { projectId?: string } = {}) {
   let q = admin.from("projects").select("id, name, town, jobtread_job_id").not("jobtread_job_id", "is", null);
   if (opts.projectId) q = q.eq("id", opts.projectId);
   const { data: projects } = await q;

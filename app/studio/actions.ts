@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getMe } from "@/lib/auth";
 import type { ReportLine } from "@/lib/report-pdf";
 import { listOpenJobs } from "@/lib/jobtread";
-import { generateAll, lastFullWeek, postReport, type ReportPhoto, type WeeklyReport } from "@/lib/reports";
+import { generateAll, nextReportFriday, postReport, reportWeek, shortDate, type ReportPhoto, type WeeklyReport } from "@/lib/reports";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { isAdminRole, isTeamRole } from "@/lib/types";
@@ -159,7 +159,11 @@ export async function generateNow(opts: { projectId?: string; force?: boolean; w
   try {
     if (opts.projectId) await requireProject(opts.projectId);
     else await requireAdmin();
-    const results = await generateAll(createAdminClient(), opts.weekStart ?? lastFullWeek(), opts);
+    // Reports are only drafted Friday through Monday, for that week.
+    const week = reportWeek();
+    if (!week) return { error: `Progress reports open Friday ${shortDate(nextReportFriday())} at 3 PM.` };
+    if (opts.weekStart && opts.weekStart !== week) return { error: "That week is closed. Only this week's reports can be drafted." };
+    const results = await generateAll(createAdminClient(), week, { force: opts.force, projectId: opts.projectId });
     revalidatePath("/studio", "layout");
     const drafted = results.filter((r) => r.result === "drafted").length;
     const failed = results.filter((r) => r.result.startsWith("error"));

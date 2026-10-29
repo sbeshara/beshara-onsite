@@ -16,6 +16,7 @@ type Props = {
   draftName: string;
   nextHref: string;
   canSend: boolean;
+  canRedraft: boolean;
   sentBy: string;
   listHref: string;
 };
@@ -51,7 +52,7 @@ function Lines({ label, hint, lines, setLines }: { label: string; hint: string; 
   );
 }
 
-export default function ReportEditor({ report, project, thumbs, editedBy, approvedBy, sentBy, draftName, nextHref, listHref, canSend }: Props) {
+export default function ReportEditor({ report, project, thumbs, editedBy, approvedBy, sentBy, draftName, nextHref, listHref, canSend, canRedraft }: Props) {
   const router = useRouter();
   const editable = report.status === "draft";
   const [completed, setCompleted] = useState<ReportLine[]>(report.completed);
@@ -242,7 +243,7 @@ export default function ReportEditor({ report, project, thumbs, editedBy, approv
             {pending ? "Sending…" : "Send Now"}
           </button>
         )}
-        {!["approved", "sent"].includes(report.status) && (
+        {canRedraft && !["approved", "sent"].includes(report.status) && (
           <button
             type="button"
             className="btn ghost"

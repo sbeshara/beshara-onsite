@@ -6,7 +6,7 @@ import { ChatIcon, DocIcon, GridIcon } from "@/components/Icons";
 import { todayLabel } from "@/lib/format";
 import { isWeekday, loadChecklists, njNow } from "@/lib/checklist";
 import ReadyToSend from "@/components/ReadyToSend";
-import { lastFullWeek, readyToSend } from "@/lib/reports";
+import { readyToSend, reportWeek } from "@/lib/reports";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { isAdminRole, isTeamRole } from "@/lib/types";
@@ -43,7 +43,7 @@ export default async function HQ() {
   const supabase = await createClient();
   const [{ data: unread }, { count: toReview }, { count: projects }] = await Promise.all([
     supabase.rpc("my_unread"),
-    supabase.from("weekly_reports").select("id", { count: "exact", head: true }).eq("week_start", lastFullWeek()).eq("status", "draft"),
+    supabase.from("weekly_reports").select("id", { count: "exact", head: true }).eq("week_start", reportWeek() ?? "1900-01-01").eq("status", "draft"),
     supabase.from("projects").select("id", { count: "exact", head: true }),
   ]);
   const unreadCount = ((unread ?? []) as { unread: number }[]).reduce((n, r) => n + Number(r.unread), 0);
@@ -96,7 +96,7 @@ export default async function HQ() {
           {mine && workday && mine.length ? (
             <a className="feat" href="#today">
               <GridIcon />
-              {mineOpen ? `${plural(mineOpen, "Job")} to Check Today` : "All Jobs Checked Today"}
+              {mineOpen ? `${plural(mineOpen, "Job")} to Check In Today` : "All Jobs Checked In Today"}
             </a>
           ) : (
             <span className="feat">

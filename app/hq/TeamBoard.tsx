@@ -11,7 +11,7 @@ export default function TeamBoard({ lists, site }: { lists: PersonChecklist[]; s
       <div className="ck-h">
         <h2>Team Check-Ins Today</h2>
         <span className={`ck-count ${done === total ? "all" : ""}`}>
-          {done} of {total} Jobs Checked
+          {done} of {total} Jobs Checked In
         </span>
       </div>
       {lists.length ? (
@@ -36,8 +36,8 @@ export default function TeamBoard({ lists, site }: { lists: PersonChecklist[]; s
                         <a className="ck-name" href={`${site}/projects/${i.projectId}`}>{i.name}</a>
                         <span className="ck-sub">
                           {i.done?.by === "log" && <>Daily log by {i.done.author || "the team"} · {time(i.done.at)}</>}
-                          {i.done?.by === "manual" && <>Checked by hand · {time(i.done.at)}{i.done.note ? ` · “${i.done.note}”` : ""}</>}
-                          {!i.done && "Open"}
+                          {i.done?.by === "manual" && <>Checked in · {time(i.done.at)}{i.done.note ? ` · “${i.done.note}”` : ""}</>}
+                          {!i.done && "Not checked in"}
                         </span>
                       </div>
                     </li>

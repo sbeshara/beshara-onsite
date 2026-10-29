@@ -25,7 +25,10 @@ a.feat:hover{background:rgba(255,255,255,.2)}
 .ck-list{list-style:none;margin:0;padding:0;display:grid}
 .ck-list li{display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:12px;align-items:start;padding:12px 0;border-top:1px solid var(--line)}
 .ck-list li:first-child{border-top:0}
-.ck-box{width:22px;height:22px;border-radius:6px;border:2px solid #C9A3A0;display:grid;place-items:center;font-size:13px;font-weight:800;margin-top:1px}
+.ck-box{width:24px;height:24px;border-radius:6px;border:2px solid #C9A3A0;background:var(--surface);display:grid;place-items:center;font-size:14px;font-weight:800;margin-top:1px;padding:0;color:inherit;cursor:pointer}
+button.ck-box:hover:not(:disabled){border-color:var(--brand)}
+button.ck-box:disabled{cursor:default}
+.ck-lead{margin:4px 0 0;color:var(--muted);font-size:14px}
 .ck-box.on{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
 .ck-main{display:grid;gap:3px;min-width:0}
 .ck-name{font-weight:700;color:inherit;display:inline-flex;align-items:center;gap:8px}

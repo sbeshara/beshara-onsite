@@ -97,7 +97,7 @@ const jobList = (items: CheckItem[]) =>
 const button = (label: string) =>
   `<p style="margin:18px 0 0"><a href="${HQ_URL}" style="display:inline-block;background:#455C51;color:#FFFFFF;text-decoration:none;font-weight:bold;font-size:14px;padding:11px 18px;border-radius:999px">${esc(label)}</a></p>`;
 
-const FOOTER = "A job is checked off when a daily log is posted for it in JobTread, or when you tick it on Beshara HQ. You only get these emails when a job still needs a check.";
+const FOOTER = "Tap a job's box on Beshara HQ once you've checked in on it. A daily log posted for it in JobTread checks it in for you. You only get these emails when a job hasn't been checked in.";
 
 // 10 AM: every job not checked yet today.
 function morningEmail(p: PersonChecklist, day: string) {
@@ -106,10 +106,10 @@ function morningEmail(p: PersonChecklist, day: string) {
   return {
     subject: `Today's jobs to check · ${dayLabel(day)} · ${open.length} open`,
     html: brandEmail({
-      tag: "Daily Checklist",
+      tag: "Daily Check-In",
       heading: `Good morning, ${first}`,
-      body: `<p style="margin:0 0 12px;font-size:15px;line-height:1.5">These job${open.length === 1 ? " hasn't" : "s haven't"} been checked yet for ${esc(dayLabel(day))}. Check in on each one today, even the quiet ones.</p>
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${jobList(open)}</table>${button("Open My Checklist")}`,
+      body: `<p style="margin:0 0 12px;font-size:15px;line-height:1.5">These job${open.length === 1 ? " hasn't" : "s haven't"} been checked in yet for ${esc(dayLabel(day))}. Check in on each one today, even the quiet ones.</p>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${jobList(open)}</table>${button("Open My Check-In")}`,
       footer: FOOTER,
     }),
   };
@@ -122,11 +122,11 @@ function afternoonEmail(p: PersonChecklist, day: string) {
   return {
     subject: `${open.length} job${open.length === 1 ? "" : "s"} still open today · ${open.map((i) => i.name).slice(0, 2).join(", ")}${open.length > 2 ? "…" : ""}`,
     html: brandEmail({
-      tag: "Daily Checklist",
+      tag: "Daily Check-In",
       heading: `${first}, ${open.length === 1 ? "one job is" : `${open.length} jobs are`} still open`,
-      body: `<p style="margin:0 0 12px;font-size:15px;line-height:1.5">It's 5 PM and these still have no daily log or check-off today:</p>
+      body: `<p style="margin:0 0 12px;font-size:15px;line-height:1.5">It's 5 PM and these haven't been checked in today:</p>
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${jobList(open)}</table>
-        <p style="margin:14px 0 0;font-size:14px;line-height:1.5;color:#5D6A64">If nothing happened on a site, tick it on HQ with a quick note so the team knows it was looked at.</p>${button("Check Them Off")}`,
+        <p style="margin:14px 0 0;font-size:14px;line-height:1.5;color:#5D6A64">Even if nothing happened on a site, check it in on HQ, with a quick note if it helps.</p>${button("Check In Now")}`,
       footer: FOOTER,
     }),
   };
@@ -143,9 +143,9 @@ function teamEmail(name: string, open: PersonChecklist[], day: string) {
   return {
     subject: `${count} job${count === 1 ? "" : "s"} not checked off yet today`,
     html: brandEmail({
-      tag: "Daily Checklist",
-      heading: `Hi ${name.split(" ")[0] || "there"}, ${count === 1 ? "one job hasn't" : `${count} jobs haven't`} been checked today`,
-      body: `<p style="margin:0;font-size:15px;line-height:1.5">As of 5 PM on ${esc(dayLabel(day))}, these have no daily log or check-off:</p>${sections}${button("Open Team Board")}`,
+      tag: "Daily Check-In",
+      heading: `Hi ${name.split(" ")[0] || "there"}, ${count === 1 ? "one job hasn't" : `${count} jobs haven't`} been checked in today`,
+      body: `<p style="margin:0;font-size:15px;line-height:1.5">As of 5 PM on ${esc(dayLabel(day))}, these haven't been checked in:</p>${sections}${button("Open Team Board")}`,
       footer: "You're getting this as the Principal Contractor or an Admin. Each PM also got their own reminder.",
     }),
   };

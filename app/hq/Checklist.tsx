@@ -6,81 +6,83 @@ import { checkJob, uncheckJob, type Result } from "./actions";
 
 const time = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/New_York" });
 
-// A PM's jobs for today. Daily logs in JobTread check a job off on their own;
-// anything else gets ticked here with an optional note.
+// A PM's daily check-in: one box per active job, ticked once they've thought
+// about it today. A JobTread daily log for the job ticks it automatically.
 export default function Checklist({ items, site }: { items: CheckItem[]; site: string }) {
-  const [open, setOpen] = useState<string | null>(null);
+  const [noteFor, setNoteFor] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [msg, setMsg] = useState<Result>({});
   const [pending, start] = useTransition();
-  const run = (fn: () => Promise<Result>) =>
+  const run = (fn: () => Promise<Result>, after?: () => void) =>
     start(async () => {
       const r = await fn();
-      setMsg(r);
-      if (r.ok) {
-        setOpen(null);
-        setNote("");
-      }
+      setMsg(r.error ? r : {});
+      if (r.ok) after?.();
     });
   const done = items.filter((i) => i.done).length;
 
   return (
     <section className="ck">
       <div className="ck-h">
-        <h2>Today&apos;s Jobs</h2>
+        <div>
+          <h2>Daily Check-In</h2>
+          <p className="ck-lead">Check in on every active job today, even the quiet ones.</p>
+        </div>
         <span className={`ck-count ${done === items.length ? "all" : ""}`}>
-          {done} of {items.length} Checked
+          {done} of {items.length} Checked In
         </span>
       </div>
       <ul className="ck-list">
         {items.map((i) => (
           <li key={i.projectId} className={i.done ? "done" : ""}>
-            <span className={`ck-box ${i.done ? "on" : ""}`} aria-hidden="true">
+            <button
+              type="button"
+              className={`ck-box ${i.done ? "on" : ""}`}
+              role="checkbox"
+              aria-checked={!!i.done}
+              aria-label={`Checked in on ${i.name}`}
+              disabled={pending || i.done?.by === "log"}
+              title={i.done?.by === "log" ? "Checked in by today's daily log" : undefined}
+              onClick={() => (i.done ? run(() => uncheckJob(i.projectId)) : run(() => checkJob(i.projectId, ""), () => setNoteFor(i.projectId)))}
+            >
               {i.done ? "✓" : ""}
-            </span>
+            </button>
             <div className="ck-main">
               <a className="ck-name" href={`${site}/projects/${i.projectId}`}>
                 <span className={`pdot ph${i.phase}`} aria-hidden="true" /> {i.name}
               </a>
               <span className="ck-sub">
-                {i.done?.by === "log" && <>Daily log by {i.done.author || "the team"} · {time(i.done.at)}</>}
-                {i.done?.by === "manual" && <>Checked by you · {time(i.done.at)}{i.done.note ? ` · “${i.done.note}”` : ""}</>}
-                {!i.done && (i.linked ? "No daily log yet today" : "Not linked to JobTread, so tick it when you've checked in")}
+                {i.done?.by === "log" && <>Checked in automatically · daily log by {i.done.author || "the team"} at {time(i.done.at)}</>}
+                {i.done?.by === "manual" && <>Checked in at {time(i.done.at)}{i.done.note ? ` · “${i.done.note}”` : ""}</>}
+                {!i.done && "Not checked in yet today"}
               </span>
-              {open === i.projectId && (
+              {noteFor === i.projectId && i.done?.by === "manual" && (
                 <div className="ck-note">
                   <input
                     autoFocus
                     maxLength={300}
-                    placeholder="Optional note, e.g. Called the sub, no work today"
+                    placeholder="Add a note (optional), e.g. Called the sub, no work today"
                     value={note}
                     onChange={(e) => setNote(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && run(() => checkJob(i.projectId, note))}
+                    onKeyDown={(e) => e.key === "Enter" && run(() => checkJob(i.projectId, note), () => { setNoteFor(null); setNote(""); })}
                   />
-                  <button type="button" className="btn" disabled={pending} onClick={() => run(() => checkJob(i.projectId, note))}>
-                    {pending ? "Saving…" : "Check Off"}
+                  <button type="button" className="btn" disabled={pending} onClick={() => run(() => checkJob(i.projectId, note), () => { setNoteFor(null); setNote(""); })}>
+                    Save Note
                   </button>
-                  <button type="button" className="btn ghost" disabled={pending} onClick={() => setOpen(null)}>
-                    Cancel
+                  <button type="button" className="btn ghost" disabled={pending} onClick={() => { setNoteFor(null); setNote(""); }}>
+                    Skip
                   </button>
                 </div>
               )}
             </div>
-            {!i.done && open !== i.projectId && (
-              <button type="button" className="linkbtn" onClick={() => { setOpen(i.projectId); setNote(""); setMsg({}); }}>
-                Check Off
-              </button>
-            )}
-            {i.done?.by === "manual" && (
-              <button type="button" className="linkbtn" disabled={pending} onClick={() => run(() => uncheckJob(i.projectId))}>
-                Undo
-              </button>
-            )}
           </li>
         ))}
       </ul>
       {msg.error && <p className="err">{msg.error}</p>}
-      <p className="fine">Only jobs in construction are listed. Posting a daily log in JobTread checks a job off automatically. Reminders go out at 10 AM and 5 PM, only for jobs still unchecked.</p>
+      <p className="fine">
+        Tap a box once you&apos;ve checked in on that job. Posting a daily log for it in JobTread checks it in for you. Only jobs in construction are listed;
+        reminders go out at 10 AM and 5 PM for any not checked in yet.
+      </p>
     </section>
   );
 }
