@@ -54,7 +54,7 @@ export default function Checklist({ items, site }: { items: CheckItem[]; site: s
               <span className="ck-sub">
                 {i.done?.by === "log" && <>Checked in automatically · daily log by {i.done.author || "the team"} at {time(i.done.at)}</>}
                 {i.done?.by === "manual" && <>Checked in at {time(i.done.at)}{i.done.note ? ` · “${i.done.note}”` : ""}</>}
-                {!i.done && "Not checked in yet today"}
+                {!i.done && (i.linked ? "Not checked in yet today" : "Not checked in yet today · not linked to JobTread, so tick it yourself")}
               </span>
               {noteFor === i.projectId && i.done?.by === "manual" && (
                 <div className="ck-note">

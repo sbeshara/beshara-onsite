@@ -4,7 +4,7 @@ import Link from "next/link";
 import Hero from "@/components/Hero";
 import { ChatIcon, DocIcon, GridIcon } from "@/components/Icons";
 import { todayLabel } from "@/lib/format";
-import { isWeekday, loadChecklists, njNow } from "@/lib/checklist";
+import { isWeekday, loadChecklistStatus, njNow } from "@/lib/checklist";
 import ReadyToSend from "@/components/ReadyToSend";
 import { readyToSend, reportWeek } from "@/lib/reports";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -60,7 +60,9 @@ export default async function HQ() {
   // Today's checklist: a PM's own jobs, or every PM's for the Principal Contractor and Admins.
   const today = njNow();
   const workday = isWeekday(today.weekday);
-  const lists = workday ? await loadChecklists(createAdminClient(), today.day, isAdminRole(me.role) ? undefined : me.id) : [];
+  const { people: lists, jobtreadOk } = workday
+    ? await loadChecklistStatus(createAdminClient(), today.day, isAdminRole(me.role) ? undefined : me.id)
+    : { people: [], jobtreadOk: true };
   const mine = me.role === "construction" ? (lists[0]?.items ?? []) : null;
   const mineOpen = mine ? mine.filter((i) => !i.done).length : 0;
   const apps = TEAM_APPS.filter((a) => !a.roles || a.roles.includes(me.role));
@@ -106,6 +108,9 @@ export default async function HQ() {
           )}
         </Hero>
         {isAdminRole(me.role) && <ReadyToSend reports={ready} canSend />}
+        {workday && !jobtreadOk && (
+          <p className="hq-warn" role="status">Couldn&apos;t reach JobTread just now, so today&apos;s daily logs may not show as checked in. Reload in a minute.</p>
+        )}
         {workday && mine && mine.length > 0 && (
           <div id="today">
             <Checklist items={mine} site={site} />

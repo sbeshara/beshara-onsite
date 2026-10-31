@@ -37,7 +37,7 @@ export default function TeamBoard({ lists, site }: { lists: PersonChecklist[]; s
                         <span className="ck-sub">
                           {i.done?.by === "log" && <>Daily log by {i.done.author || "the team"} · {time(i.done.at)}</>}
                           {i.done?.by === "manual" && <>Checked in · {time(i.done.at)}{i.done.note ? ` · “${i.done.note}”` : ""}</>}
-                          {!i.done && "Not checked in"}
+                          {!i.done && (i.linked ? "Not checked in" : "Not checked in · not linked to JobTread")}
                         </span>
                       </div>
                     </li>

@@ -42,14 +42,14 @@ async function organizationId() {
   return orgId;
 }
 
-export type JobOption = { id: string; label: string; number: string; client: string | null; town: string | null };
+export type JobOption = { id: string; label: string; number: string; client: string | null; town: string | null; accountId: string | null };
 
 // Open jobs whose "Status" custom field is Construction, newest first,
 // labelled the way the office knows them.
 export async function listOpenJobs(): Promise<JobOption[]> {
   const org = await organizationId();
   const r = await pave<{
-    organization: { jobs: { nodes: { id: string; name: string; number: string; location: { name: string; address: string | null; account: { name: string } | null } | null }[] } };
+    organization: { jobs: { nodes: { id: string; name: string; number: string; location: { name: string; address: string | null; account: { id: string; name: string } | null } | null }[] } };
   }>({
     organization: {
       $: { id: org },
@@ -66,7 +66,7 @@ export async function listOpenJobs(): Promise<JobOption[]> {
           size: 100,
           sortBy: [{ field: "createdAt", order: "desc" }],
         },
-        nodes: { id: {}, name: {}, number: {}, location: { name: {}, address: {}, account: { name: {} } } },
+        nodes: { id: {}, name: {}, number: {}, location: { name: {}, address: {}, account: { id: {}, name: {} } } },
       },
     },
   });
@@ -74,7 +74,14 @@ export async function listOpenJobs(): Promise<JobOption[]> {
     const who = j.location?.account?.name;
     const town = j.location?.address?.split(",").slice(-3, -2)[0]?.trim();
     const name = j.name && !/^Job \d+$/.test(j.name) ? j.name : null;
-    return { id: j.id, label: [j.number, who, name, town].filter(Boolean).join(" · "), number: j.number, client: who ?? name, town: town ?? null };
+    return {
+      id: j.id,
+      label: [j.number, who, name, town].filter(Boolean).join(" · "),
+      number: j.number,
+      client: who ?? name,
+      town: town ?? null,
+      accountId: j.location?.account?.id ?? null,
+    };
   });
 }
 
@@ -165,6 +172,19 @@ export async function fileUrls(ids: string[], size?: number): Promise<Record<str
 }
 
 export type DayLog = { jobId: string; author: string; createdAt: string };
+
+// The customer (account) each of these jobs belongs to.
+export async function jobAccounts(jobIds: string[]): Promise<Map<string, string>> {
+  if (!jobIds.length) return new Map();
+  const org = await organizationId();
+  const r = await pave<{ organization: { jobs: { nodes: { id: string; location: { account: { id: string } | null } | null }[] } } }>({
+    organization: {
+      $: { id: org },
+      jobs: { $: { where: ["id", "in", jobIds.slice(0, 100)], size: 100 }, nodes: { id: {}, location: { account: { id: {} } } } },
+    },
+  });
+  return new Map(r.organization.jobs.nodes.filter((j) => j.location?.account).map((j) => [j.id, j.location!.account!.id]));
+}
 
 // Every daily log dated `day` across the company (one request).
 export async function logsOn(day: string): Promise<DayLog[]> {
