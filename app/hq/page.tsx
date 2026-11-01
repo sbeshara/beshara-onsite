@@ -43,7 +43,7 @@ export default async function HQ() {
   const supabase = await createClient();
   const [{ data: unread }, { count: toReview }, { count: projects }] = await Promise.all([
     supabase.rpc("my_unread"),
-    supabase.from("weekly_reports").select("id", { count: "exact", head: true }).eq("week_start", reportWeek() ?? "1900-01-01").eq("status", "draft"),
+    supabase.from("weekly_reports").select("id", { count: "exact", head: true }).eq("week_start", reportWeek(undefined, { admin: isAdminRole(me.role) }) ?? "1900-01-01").eq("status", "draft"),
     supabase.from("projects").select("id", { count: "exact", head: true }),
   ]);
   const unreadCount = ((unread ?? []) as { unread: number }[]).reduce((n, r) => n + Number(r.unread), 0);
@@ -98,7 +98,7 @@ export default async function HQ() {
           {mine && workday && mine.length ? (
             <a className="feat" href="#today">
               <GridIcon />
-              {mineOpen ? `${plural(mineOpen, "Job")} to Check In Today` : "All Jobs Checked In Today"}
+              {mineOpen ? `${plural(mineOpen, "Daily Log")} Missing Today` : "All Daily Logs In Today"}
             </a>
           ) : (
             <span className="feat">

@@ -5,7 +5,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export const maxDuration = 300;
 
 // Called hourly on Fridays and Saturdays by the database scheduler.
-//   Friday from 3 PM: drafts each linked job once its Friday daily log is in.
+//   Friday from 5 PM: drafts every linked job from the logs so far (Looking
+//                     Ahead flagged as missing until the Friday log is in), and
+//                     redrafts untouched drafts as Friday logs come in.
 //   Saturday 8 AM:    drafts the rest, refreshes untouched drafts still missing
 //                     Looking Ahead, and emails their PMs.
 // ?slot=friday|saturday runs that step now for the current report week.
@@ -21,7 +23,7 @@ export async function POST(request: NextRequest) {
   if (!slot || !week) return NextResponse.json({ ok: true, skipped: "outside the Friday-Saturday drafting hours" });
   const results =
     slot === "friday"
-      ? await generateAll(admin, week, { waitForFriday: true })
+      ? await generateAll(admin, week, { refreshUntouched: true })
       : await generateAll(admin, week, { refreshUntouched: true, notify: true });
   return NextResponse.json({ ok: true, slot, week, results });
 }

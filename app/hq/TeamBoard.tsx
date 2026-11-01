@@ -11,7 +11,7 @@ export default function TeamBoard({ lists, site }: { lists: PersonChecklist[]; s
       <div className="ck-h">
         <h2>Team Check-Ins Today</h2>
         <span className={`ck-count ${done === total ? "all" : ""}`}>
-          {done} of {total} Jobs Checked In
+          {done} of {total} Jobs Logged
         </span>
       </div>
       {lists.length ? (
@@ -29,15 +29,13 @@ export default function TeamBoard({ lists, site }: { lists: PersonChecklist[]; s
                 <ul className="ck-list compact">
                   {p.items.map((i) => (
                     <li key={i.projectId} className={i.done ? "done" : ""}>
-                      <span className={`ck-box ${i.done ? "on" : ""}`} aria-hidden="true">
-                        {i.done ? "✓" : ""}
+                      <span className={`ck-dot ${i.done ? "on" : "miss"}`} aria-hidden="true">
+                        {i.done ? "✓" : "!"}
                       </span>
                       <div className="ck-main">
                         <a className="ck-name" href={`${site}/projects/${i.projectId}`}>{i.name}</a>
                         <span className="ck-sub">
-                          {i.done?.by === "log" && <>Daily log by {i.done.author || "the team"} · {time(i.done.at)}</>}
-                          {i.done?.by === "manual" && <>Checked in · {time(i.done.at)}{i.done.note ? ` · “${i.done.note}”` : ""}</>}
-                          {!i.done && (i.linked ? "Not checked in" : "Not checked in · not linked to JobTread")}
+                          {i.done ? <>Daily log by {i.done.author || "the team"} · {time(i.done.at)}</> : i.linked ? "Missing" : "Missing · not linked to JobTread"}
                         </span>
                       </div>
                     </li>

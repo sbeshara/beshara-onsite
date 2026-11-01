@@ -1,7 +1,7 @@
 import "server-only";
 import { HQ_URL } from "./apps";
 import { TZ } from "./format";
-import { jobAccounts, listOpenJobs, logsOn } from "./jobtread";
+import { jobsById, listOpenJobs, logsOn } from "./jobtread";
 import { brandEmail, escapeHtml as esc, sendEmail } from "./notify";
 import { createAdminClient } from "./supabase/admin";
 
@@ -10,8 +10,8 @@ type Admin = ReturnType<typeof createAdminClient>;
 // The daily job checklist for Construction Management. Only jobs in
 // construction are on it: a job linked to JobTread while its Status there is
 // Construction, an unlinked job while its OnSite phase is Construction. A job
-// is done for the day when JobTread has a daily log for it, or when the PM
-// ticks it by hand.
+// is done for the day only when JobTread has a daily log for it; there's no
+// ticking it by hand.
 //
 // Some customers have more than one JobTread job (e.g. the build and a
 // separate invoicing job). If a project is linked to one that isn't in
@@ -25,7 +25,7 @@ export type CheckItem = {
   town: string;
   phase: number;
   linked: boolean; // has a JobTread job, so daily logs can check it off
-  done: null | { by: "log"; author: string; at: string } | { by: "manual"; note: string; at: string };
+  done: null | { by: "log"; author: string; at: string };
 };
 export type PersonChecklist = { userId: string; name: string; email: string; items: CheckItem[] };
 
@@ -54,9 +54,8 @@ export async function loadChecklistStatus(admin: Admin, day: string, onlyUser?: 
     .eq("profiles.role", "construction");
   if (onlyUser) q = q.eq("user_id", onlyUser);
   let jobtreadOk = true;
-  const [{ data: rows }, { data: checks }, logs, open] = await Promise.all([
+  const [{ data: rows }, logs, open] = await Promise.all([
     q,
-    admin.from("daily_checks").select("project_id, user_id, note, checked_at").eq("day", day),
     logsOn(day).catch(() => ((jobtreadOk = false), [])),
     // JobTread jobs whose Status is Construction (null if JobTread can't be reached).
     listOpenJobs().catch(() => ((jobtreadOk = false), null)),
@@ -71,7 +70,9 @@ export async function loadChecklistStatus(admin: Admin, day: string, onlyUser?: 
         .filter((id): id is string => !!id && !!inConstruction && !inConstruction.has(id)),
     ),
   ];
-  const accountOf = await jobAccounts(linkedElsewhere).catch(() => new Map<string, string>());
+  const accountOf = new Map(
+    [...(await jobsById(linkedElsewhere).catch(() => new Map()))].filter(([, j]) => j.accountId).map(([id, j]) => [id, j.accountId as string]),
+  );
   // The JobTread jobs whose daily logs count for a project.
   const jobsFor = (p: { jobtread_job_id: string | null }) => {
     const id = p.jobtread_job_id;
@@ -94,14 +95,13 @@ export async function loadChecklistStatus(admin: Admin, day: string, onlyUser?: 
     const p = r.projects;
     const jobs = jobsFor(p);
     const log = logs.filter((l) => jobs.includes(l.jobId)).sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0];
-    const tick = (checks ?? []).find((c) => c.project_id === p.id && c.user_id === r.user_id);
     person.items.push({
       projectId: p.id,
       name: p.name,
       town: p.town,
       phase: p.phase,
       linked: !!p.jobtread_job_id,
-      done: log ? { by: "log", author: log.author, at: log.createdAt } : tick ? { by: "manual", note: tick.note, at: tick.checked_at } : null,
+      done: log ? { by: "log", author: log.author, at: log.createdAt } : null,
     });
     people.set(r.user_id, person);
   }
@@ -119,9 +119,9 @@ const jobList = (items: CheckItem[]) =>
     .map(
       (i) => `<tr><td style="padding:10px 0;border-top:1px solid #DCE3DF;font-size:14.5px">
         <b>${esc(i.name)}</b>${i.town ? ` <span style="color:#5D6A64">· ${esc(i.town)}</span>` : ""}${
-          i.linked || i.done ? "" : `<br><span style="font-size:12.5px;color:#9C7740">Not linked to JobTread, so a daily log can't check it off. Tick it on HQ.</span>`
+          i.linked || i.done ? "" : `<br><span style="font-size:12.5px;color:#9C7740">Not linked to JobTread, so its daily log can't be found. Ask Julia to link it.</span>`
         }
-        <span style="float:right;font-size:13px;color:${i.done ? "#455C51" : "#9F2A1E"};font-weight:bold">${i.done ? "Done" : "Open"}</span>
+        <span style="float:right;font-size:13px;color:${i.done ? "#455C51" : "#9F2A1E"};font-weight:bold">${i.done ? "Logged" : "Missing"}</span>
       </td></tr>`,
     )
     .join("");
@@ -129,18 +129,18 @@ const jobList = (items: CheckItem[]) =>
 const button = (label: string) =>
   `<p style="margin:18px 0 0"><a href="${HQ_URL}" style="display:inline-block;background:#455C51;color:#FFFFFF;text-decoration:none;font-weight:bold;font-size:14px;padding:11px 18px;border-radius:999px">${esc(label)}</a></p>`;
 
-const FOOTER = "Tap a job's box on Beshara HQ once you've checked in on it. A daily log dated today in JobTread checks it in for you, and HQ shows it right away. You only get these emails when a job hasn't been checked in.";
+const FOOTER = "A job checks off on its own once JobTread has its daily log for today, and Beshara HQ shows it right away. You only get these emails while a job's log is missing.";
 
 // 10 AM: every job not checked yet today.
 function morningEmail(p: PersonChecklist, day: string) {
   const first = p.name.split(" ")[0] || "there";
   const open = p.items.filter((i) => !i.done);
   return {
-    subject: `Today's jobs to check · ${dayLabel(day)} · ${open.length} open`,
+    subject: `Today's daily logs · ${dayLabel(day)} · ${open.length} to write`,
     html: brandEmail({
       tag: "Daily Check-In",
       heading: `Good morning, ${first}`,
-      body: `<p style="margin:0 0 12px;font-size:15px;line-height:1.5">Here ${open.length === 1 ? "is the job" : "are the jobs"} to check in on today, ${esc(dayLabel(day))}. Your daily log in JobTread checks each one off, or tick it on HQ, even the quiet ones.</p>
+      body: `<p style="margin:0 0 12px;font-size:15px;line-height:1.5">Here ${open.length === 1 ? "is the job" : "are the jobs"} that need${open.length === 1 ? "s" : ""} a daily log in JobTread today, ${esc(dayLabel(day))}, even the quiet ones. Each checks off on its own once the log is in.</p>
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${jobList(open)}</table>${button("Open My Check-In")}`,
       footer: FOOTER,
     }),
@@ -152,13 +152,13 @@ function afternoonEmail(p: PersonChecklist, day: string) {
   const open = p.items.filter((i) => !i.done);
   const first = p.name.split(" ")[0] || "there";
   return {
-    subject: `${open.length} job${open.length === 1 ? "" : "s"} still open today · ${open.map((i) => i.name).slice(0, 2).join(", ")}${open.length > 2 ? "…" : ""}`,
+    subject: `${open.length} daily log${open.length === 1 ? "" : "s"} missing today · ${open.map((i) => i.name).slice(0, 2).join(", ")}${open.length > 2 ? "…" : ""}`,
     html: brandEmail({
       tag: "Daily Check-In",
-      heading: `${first}, ${open.length === 1 ? "one job is" : `${open.length} jobs are`} still open`,
-      body: `<p style="margin:0 0 12px;font-size:15px;line-height:1.5">It's 5 PM and these haven't been checked in today:</p>
+      heading: `${first}, ${open.length === 1 ? "one daily log is" : `${open.length} daily logs are`} still missing`,
+      body: `<p style="margin:0 0 12px;font-size:15px;line-height:1.5">It's 5 PM and these are still missing today's daily log in JobTread:</p>
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${jobList(open)}</table>
-        <p style="margin:14px 0 0;font-size:14px;line-height:1.5;color:#5D6A64">Even if nothing happened on a site, check it in on HQ, with a quick note if it helps.</p>${button("Check In Now")}`,
+        <p style="margin:14px 0 0;font-size:14px;line-height:1.5;color:#5D6A64">Even if nothing happened on a site, write a short log saying so.</p>${button("Open My Check-In")}`,
       footer: FOOTER,
     }),
   };
@@ -173,11 +173,11 @@ function teamEmail(name: string, open: PersonChecklist[], day: string) {
     )
     .join("");
   return {
-    subject: `${count} job${count === 1 ? "" : "s"} not checked off yet today`,
+    subject: `${count} daily log${count === 1 ? "" : "s"} missing today`,
     html: brandEmail({
       tag: "Daily Check-In",
-      heading: `Hi ${name.split(" ")[0] || "there"}, ${count === 1 ? "one job hasn't" : `${count} jobs haven't`} been checked in today`,
-      body: `<p style="margin:0;font-size:15px;line-height:1.5">As of 5 PM on ${esc(dayLabel(day))}, these haven't been checked in:</p>${sections}${
+      heading: `Hi ${name.split(" ")[0] || "there"}, ${count === 1 ? "one job is" : `${count} jobs are`} missing today's daily log`,
+      body: `<p style="margin:0;font-size:15px;line-height:1.5">As of 5 PM on ${esc(dayLabel(day))}, these are missing today's daily log in JobTread:</p>${sections}${
         open.some((p) => p.items.some((i) => !i.done && !i.linked))
           ? `<p style="margin:14px 0 0;font-size:14px;line-height:1.5;color:#5D6A64">Jobs marked "Not linked to JobTread" can be linked on the Jobs page in Beshara Reports, so their daily logs check them off.</p>`
           : ""

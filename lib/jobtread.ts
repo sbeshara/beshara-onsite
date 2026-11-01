@@ -42,15 +42,47 @@ async function organizationId() {
   return orgId;
 }
 
-export type JobOption = { id: string; label: string; number: string; client: string | null; town: string | null; accountId: string | null };
+export type JobOption = { id: string; label: string; number: string; client: string | null; town: string | null; accountId: string | null; status: string | null };
 
-// Open jobs whose "Status" custom field is Construction, newest first,
-// labelled the way the office knows them.
-export async function listOpenJobs(): Promise<JobOption[]> {
+// The JobTread Statuses OnSite works with. Anything else (New Lead, On Hold,
+// Complete, the separate "Internal - Invoices" jobs, …) is left out.
+export const LINKABLE_STATUSES = ["Construction", "Preconstruction", "Approved"];
+
+type JobNode = {
+  id: string;
+  name: string;
+  number: string;
+  location: { name: string; address: string | null; account: { id: string; name: string } | null } | null;
+  customFieldValues?: { nodes: { value: string }[] };
+};
+const JOB_FIELDS = {
+  id: {},
+  name: {},
+  number: {},
+  location: { name: {}, address: {}, account: { id: {}, name: {} } },
+  customFieldValues: { $: { where: [["customField", "name"], "Status"], size: 1 }, nodes: { value: {} } },
+};
+
+// Labelled the way the office knows them: number · customer · name · town.
+function jobOption(j: JobNode): JobOption {
+  const who = j.location?.account?.name;
+  const town = j.location?.address?.split(",").slice(-3, -2)[0]?.trim();
+  const name = j.name && !/^Job \d+$/.test(j.name) ? j.name : null;
+  return {
+    id: j.id,
+    label: [j.number, who, name, town].filter(Boolean).join(" · "),
+    number: j.number,
+    client: who ?? name,
+    town: town ?? null,
+    accountId: j.location?.account?.id ?? null,
+    status: j.customFieldValues?.nodes[0]?.value ?? null,
+  };
+}
+
+// Open jobs whose "Status" custom field is one of `statuses`, newest first.
+export async function listJobs(statuses: string[]): Promise<JobOption[]> {
   const org = await organizationId();
-  const r = await pave<{
-    organization: { jobs: { nodes: { id: string; name: string; number: string; location: { name: string; address: string | null; account: { id: string; name: string } | null } | null }[] } };
-  }>({
+  const r = await pave<{ organization: { jobs: { nodes: JobNode[] } } }>({
     organization: {
       $: { id: org },
       jobs: {
@@ -58,7 +90,7 @@ export async function listOpenJobs(): Promise<JobOption[]> {
           with: {
             status: {
               _: "customFieldValues",
-              $: { where: { and: [[["customField", "name"], "Status"], ["value", "Construction"]] } },
+              $: { where: { and: [[["customField", "name"], "Status"], ["value", "in", statuses]] } },
               count: {},
             },
           },
@@ -66,24 +98,15 @@ export async function listOpenJobs(): Promise<JobOption[]> {
           size: 100,
           sortBy: [{ field: "createdAt", order: "desc" }],
         },
-        nodes: { id: {}, name: {}, number: {}, location: { name: {}, address: {}, account: { id: {}, name: {} } } },
+        nodes: JOB_FIELDS,
       },
     },
   });
-  return r.organization.jobs.nodes.map((j) => {
-    const who = j.location?.account?.name;
-    const town = j.location?.address?.split(",").slice(-3, -2)[0]?.trim();
-    const name = j.name && !/^Job \d+$/.test(j.name) ? j.name : null;
-    return {
-      id: j.id,
-      label: [j.number, who, name, town].filter(Boolean).join(" · "),
-      number: j.number,
-      client: who ?? name,
-      town: town ?? null,
-      accountId: j.location?.account?.id ?? null,
-    };
-  });
+  return r.organization.jobs.nodes.map(jobOption);
 }
+
+// Jobs in construction (the Daily Check-In and weekly reports).
+export const listOpenJobs = () => listJobs(["Construction"]);
 
 export type DailyLog = {
   id: string;
@@ -173,17 +196,14 @@ export async function fileUrls(ids: string[], size?: number): Promise<Record<str
 
 export type DayLog = { jobId: string; author: string; createdAt: string };
 
-// The customer (account) each of these jobs belongs to.
-export async function jobAccounts(jobIds: string[]): Promise<Map<string, string>> {
+// Specific jobs by ID, whatever their Status (e.g. to check what a project is linked to).
+export async function jobsById(jobIds: string[]): Promise<Map<string, JobOption>> {
   if (!jobIds.length) return new Map();
   const org = await organizationId();
-  const r = await pave<{ organization: { jobs: { nodes: { id: string; location: { account: { id: string } | null } | null }[] } } }>({
-    organization: {
-      $: { id: org },
-      jobs: { $: { where: ["id", "in", jobIds.slice(0, 100)], size: 100 }, nodes: { id: {}, location: { account: { id: {} } } } },
-    },
+  const r = await pave<{ organization: { jobs: { nodes: JobNode[] } } }>({
+    organization: { $: { id: org }, jobs: { $: { where: ["id", "in", jobIds.slice(0, 100)], size: 100 }, nodes: JOB_FIELDS } },
   });
-  return new Map(r.organization.jobs.nodes.filter((j) => j.location?.account).map((j) => [j.id, j.location!.account!.id]));
+  return new Map(r.organization.jobs.nodes.map((j) => [j.id, jobOption(j)]));
 }
 
 // Every daily log dated `day` across the company (one request).

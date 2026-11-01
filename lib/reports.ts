@@ -63,22 +63,28 @@ export function lastFullWeek(now = clock()) {
 // "Now" for the report schedule. REPORTS_NOW pins it for testing only.
 export const clock = () => (process.env.REPORTS_NOW ? new Date(process.env.REPORTS_NOW) : new Date());
 
-// Progress reports are open Friday through Monday: drafted from Friday
-// afternoon, reviewed by PMs over the weekend, sent on Monday. Returns the
-// Monday of the week being reported, or null Tuesday to Thursday.
-export function reportWeek(now = clock()) {
+// Progress reports open Friday at 5 PM: drafted from whatever daily logs are
+// in, reviewed by PMs over the weekend until Monday 10 AM. The Principal
+// Contractor and Admins can keep approving and sending through Monday.
+// Returns the Monday of the week being reported, or null while closed.
+export const OPENS = "Friday at 5 PM";
+export function reportWeek(now = clock(), opts: { admin?: boolean } = {}) {
   const t = nj(now);
   const monday = mondayOf(t.date);
-  if (t.weekday === "Fri" || t.weekday === "Sat" || t.weekday === "Sun") return monday;
-  if (t.weekday === "Mon") return addDays(monday, -7);
+  if ((t.weekday === "Fri" && t.hour >= 17) || t.weekday === "Sat" || t.weekday === "Sun") return monday;
+  if (t.weekday === "Mon" && (t.hour < 10 || opts.admin)) return addDays(monday, -7);
   return null;
 }
 // The Friday the next reports open (for "opens Friday 10/31" messages).
-export const nextReportFriday = (now = clock()) => addDays(mondayOf(nj(now).date), 4);
+export const nextReportFriday = (now = clock()) => {
+  const t = nj(now);
+  const friday = addDays(mondayOf(t.date), 4);
+  return t.weekday === "Sat" || t.weekday === "Sun" ? addDays(friday, 7) : friday;
+};
 
 export function scheduleSlot(now = clock()) {
   const t = nj(now);
-  if (t.weekday === "Fri" && t.hour >= 15) return "friday" as const; // draft jobs as their Friday log comes in
+  if (t.weekday === "Fri" && t.hour >= 17) return "friday" as const; // draft every job with what's in, refresh as Friday logs come in
   if (t.weekday === "Sat" && t.hour === 8) return "saturday" as const; // draft the rest, email PMs missing Looking Ahead
   return null;
 }
@@ -117,6 +123,12 @@ export async function generateReport(admin: Admin, project: ProjectForReport, we
   const base = { project_id: project.id, week_start: weekStart, generated_at: new Date().toISOString(), updated_at: new Date().toISOString() };
   try {
     const logs = await dailyLogs(project.jobtread_job_id, weekStart, addDays(weekStart, 6));
+    // Redrafting an untouched draft only helps once a Friday, Saturday or Sunday
+    // log is in; until then just ask the PMs for Looking Ahead (Saturday 8 AM).
+    if (existing && !opts.force && !logs.some((l) => lookAheadDates(weekStart).includes(l.date))) {
+      if (opts.notify) await askPmsForLookingAhead(admin, project, weekStart, existing.id, false);
+      return { project: project.name, result: "waiting for Friday log" };
+    }
     if (opts.waitForFriday && !logs.some((l) => l.date === addDays(weekStart, 4))) return { project: project.name, result: "waiting for Friday log" };
     const source = logs.map((l) => ({ date: l.date, author: l.author, notes: l.notes, trades: l.trades }));
     if (!logs.length || logs.every((l) => !l.notes.trim())) {

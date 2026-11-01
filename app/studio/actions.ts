@@ -3,8 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { getMe } from "@/lib/auth";
 import type { ReportLine } from "@/lib/report-pdf";
-import { listOpenJobs } from "@/lib/jobtread";
-import { generateAll, nextReportFriday, postReport, reportWeek, shortDate, type ReportPhoto, type WeeklyReport } from "@/lib/reports";
+import { LINKABLE_STATUSES, listJobs } from "@/lib/jobtread";
+import { generateAll, nextReportFriday, OPENS, postReport, reportWeek, shortDate, type ReportPhoto, type WeeklyReport } from "@/lib/reports";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { isAdminRole, isTeamRole } from "@/lib/types";
@@ -30,14 +30,22 @@ async function requireAdmin() {
   return me;
 }
 
+// PMs can work on a week's reports from Friday 5 PM until Monday 10 AM; the
+// Principal Contractor and Admins through the end of Monday.
+const closedMessage = () => `Progress reports are closed. They open ${OPENS.replace("Friday", `Friday ${shortDate(nextReportFriday())}`)}.`;
+function checkWindow(role: Parameters<typeof isAdminRole>[0], weekStart: string) {
+  if (reportWeek(undefined, { admin: isAdminRole(role) }) !== weekStart) throw new Error(closedMessage());
+}
+
 // PMs, Admins and the Principal Contractor can review, edit and approve the
 // reports for the jobs they're on. Row-level security decides which those are.
 async function requireReviewer(reportId: string) {
   const me = await getMe();
   if (!isTeamRole(me.role)) throw new Error("Beshara Reports is for the Beshara team.");
   const supabase = await createClient();
-  const { data } = await supabase.from("weekly_reports").select("id, project_id, status").eq("id", reportId).maybeSingle();
+  const { data } = await supabase.from("weekly_reports").select("id, project_id, status, week_start").eq("id", reportId).maybeSingle();
   if (!data) throw new Error("You don't have access to this report.");
+  checkWindow(me.role, data.week_start);
   return { me, report: data };
 }
 
@@ -51,8 +59,12 @@ async function requireProject(projectId: string) {
 
 // Saves edits. Called as people type, so it doesn't refresh the page.
 export async function saveReport(id: string, edits: Edits): Promise<Result> {
-  const me = await getMe();
-  if (!isTeamRole(me.role)) return { error: "Beshara Reports is for the Beshara team." };
+  let me;
+  try {
+    ({ me } = await requireReviewer(id));
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
   const supabase = await createClient();
   const { error, count } = await supabase
     .from("weekly_reports")
@@ -157,11 +169,10 @@ export async function setReportStatus(id: string, status: "skipped" | "draft"): 
 // Drafts now instead of waiting for Monday. force=true rewrites an existing draft.
 export async function generateNow(opts: { projectId?: string; force?: boolean; weekStart?: string } = {}): Promise<Result> {
   try {
-    if (opts.projectId) await requireProject(opts.projectId);
-    else await requireAdmin();
-    // Reports are only drafted Friday through Monday, for that week.
-    const week = reportWeek();
-    if (!week) return { error: `Progress reports open Friday ${shortDate(nextReportFriday())} at 3 PM.` };
+    const me = opts.projectId ? await requireProject(opts.projectId) : await requireAdmin();
+    // Reports are only drafted while they're open, for that week.
+    const week = reportWeek(undefined, { admin: isAdminRole(me.role) });
+    if (!week) return { error: closedMessage() };
     if (opts.weekStart && opts.weekStart !== week) return { error: "That week is closed. Only this week's reports can be drafted." };
     const results = await generateAll(createAdminClient(), week, { force: opts.force, projectId: opts.projectId });
     revalidatePath("/studio", "layout");
@@ -195,13 +206,13 @@ export async function importJobs(jobIds: string[]): Promise<Result> {
     const admin = createAdminClient();
     const { data: linked } = await admin.from("projects").select("jobtread_job_id").not("jobtread_job_id", "is", null);
     const taken = new Set((linked ?? []).map((p) => p.jobtread_job_id));
-    const jobs = (await listOpenJobs()).filter((j) => jobIds.includes(j.id) && !taken.has(j.id));
+    const jobs = (await listJobs(LINKABLE_STATUSES)).filter((j) => jobIds.includes(j.id) && !taken.has(j.id));
     if (!jobs.length) return { error: "Those jobs are already in OnSite." };
     const { error } = await admin.from("projects").insert(
       jobs.map((j) => ({
         name: (j.client ?? `Job ${j.number}`).slice(0, 120),
         town: j.town ?? "",
-        phase: 2, // Construction
+        phase: j.status === "Construction" ? 2 : 0, // OnSite's Construction or Preconstruction phase
         created_by: me.id,
         jobtread_job_id: j.id,
         jobtread_label: j.label,

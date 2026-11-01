@@ -52,3 +52,9 @@ button.ck-box:disabled{cursor:default}
   .hq-b{font-size:13px}
 }
 .hq-warn{margin:0;padding:10px 14px;border-radius:10px;background:#FDF3E3;color:#8a4b00;font-size:14px}
+.ck-missing{align-self:center;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;border-radius:999px;padding:3px 9px;background:#FBE7E5;color:#9F2A1E;border:1px solid #F0C4BE;white-space:nowrap}
+/* Daily Check-In status: a round mark (not a box to tick) */
+.ck-dot{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:800;margin-top:1px;border:2px solid}
+.ck-dot.on{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
+.ck-dot.miss{background:#FBE7E5;border-color:#F0C4BE;color:#9F2A1E}
+.ck-list.compact .ck-dot{width:18px;height:18px;font-size:10px}

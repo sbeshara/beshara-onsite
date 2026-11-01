@@ -18,7 +18,7 @@ function matchFor(job: JobOption, projects: Unlinked[]) {
   }) ?? null;
 }
 
-// Construction jobs that aren't in OnSite yet; tick and add them in one go.
+// Jobs in Construction, Preconstruction or Approved that aren't in OnSite yet; tick and add them in one go.
 export default function ImportJobs({ jobs, unlinked }: { jobs: JobOption[]; unlinked: Unlinked[] }) {
   const [picked, setPicked] = useState<string[]>(
     jobs.filter((j) => !/^test$/i.test(j.client ?? "") && !matchFor(j, unlinked)).map((j) => j.id),
@@ -26,15 +26,17 @@ export default function ImportJobs({ jobs, unlinked }: { jobs: JobOption[]; unli
   const [msg, setMsg] = useState<Result>({});
   const [pending, start] = useTransition();
   const toggle = (id: string) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+  // Only jobs still on the list count (one may have just been linked or added).
+  const chosen = picked.filter((id) => jobs.some((j) => j.id === id));
 
   // Stays mounted after the last job is added so the confirmation still shows.
   if (!jobs.length) return msg.ok ? <div className="st-banner ok">{msg.ok}</div> : null;
 
   return (
     <section className="st-panel">
-      <h2>Construction Jobs Not in OnSite Yet · {jobs.length}</h2>
+      <h2>JobTread Jobs Not in OnSite Yet · {jobs.length}</h2>
       <p className="fine" style={{ margin: 0 }}>
-        Each one becomes an OnSite project with its four starter chats, set to the Construction phase and linked here. Then open the project and
+        Each one becomes an OnSite project with its four starter chats, set to the Construction phase (or Preconstruction for Approved and Preconstruction jobs) and linked here. Then open the project and
         invite the client from Team &amp; Clients.
       </p>
       <div style={{ display: "grid", gap: 2 }}>
@@ -45,7 +47,7 @@ export default function ImportJobs({ jobs, unlinked }: { jobs: JobOption[]; unli
               <label className="st-opt">
                 <input type="checkbox" checked={picked.includes(j.id)} onChange={() => toggle(j.id)} disabled={pending} />
                 <span>
-                  <b>{j.client ?? `Job ${j.number}`}</b> · JobTread {j.number}
+                  <b>{j.client ?? `Job ${j.number}`}</b> · JobTread {j.number}{j.status ? ` · ${j.status}` : ""}
                   {j.town ? ` · ${j.town}` : ""}
                 </span>
               </label>
@@ -69,8 +71,8 @@ export default function ImportJobs({ jobs, unlinked }: { jobs: JobOption[]; unli
         })}
       </div>
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-        <button type="button" className="btn" disabled={pending || !picked.length} onClick={() => start(async () => setMsg(await importJobs(picked)))}>
-          {pending ? "Adding…" : `Add ${picked.length} to OnSite`}
+        <button type="button" className="btn" disabled={pending || !chosen.length} onClick={() => start(async () => setMsg(await importJobs(chosen)))}>
+          {pending ? "Adding…" : `Add ${chosen.length} to OnSite`}
         </button>
         {msg.error && <span className="err">{msg.error}</span>}
         {msg.ok && <span className="ok">{msg.ok}</span>}
