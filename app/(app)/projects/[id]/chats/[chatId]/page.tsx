@@ -45,13 +45,12 @@ export default async function ChatPage({ params }: { params: Promise<{ id: strin
   const clientNames = (memberData ?? []).map((m) => people[m.user_id]).filter((p) => p?.role === "client").map((p) => p.full_name || p.email);
   const urls = await signUrls(supabase, messages.flatMap((m) => (m.files ?? []).map((f) => f.storage_path)));
   const teamView = me.role !== "client" && !previewing;
-  const everyday = chats.filter((c) => !c.source_id);
-  const shared = everyday.filter((c) => !c.is_internal);
-  const internal = everyday.filter((c) => c.is_internal);
-  // Posts brought over from Basecamp, most recent activity first.
-  const imported = chats
-    .filter((c) => c.source_id)
-    .sort((a, b) => (latest[b.id]?.created_at ?? "").localeCompare(latest[a.id]?.created_at ?? ""));
+  // One list, newest message first (Basecamp posts included); the everyday
+  // Internal Only chat stays pinned at the bottom.
+  const pinned = chats.find((c) => c.is_internal && !c.source_id);
+  const listed = chats
+    .filter((c) => c !== pinned)
+    .sort((a, b) => (latest[b.id]?.created_at ?? "").localeCompare(latest[a.id]?.created_at ?? "") || a.position - b.position);
 
   const chatLink = (c: Chat) => {
     const l = latest[c.id];
@@ -77,6 +76,7 @@ export default async function ChatPage({ params }: { params: Promise<{ id: strin
           <span className="chan-top">
             <span className="ic" title={c.is_internal ? "Internal Only" : "The client sees this"}>{c.is_internal ? <LockIcon /> : <PeopleIcon />}</span>
             <span className="chan-name">{c.name}</span>
+            {c.source_id && <span className="tag-bc">Basecamp</span>}
             {count ? <span className="ucount" aria-label={`${count} new`}>{count > 99 ? "99+" : count}</span> : null}
           </span>
           <span className="chan-prev">
@@ -98,20 +98,8 @@ export default async function ChatPage({ params }: { params: Promise<{ id: strin
       <div className="chans" aria-label="Chats">
         <ChatSearch projectId={id} chatId={chatId} clientView={previewing} people={searchPeople}>
           {!previewing && <NewChatButton projectId={id} myId={me.id} isClient={me.role === "client"} />}
-          {teamView && <h3>With Client</h3>}
-          {shared.map(chatLink)}
-          {internal.length > 0 && (
-            <>
-              <h3>Internal</h3>
-              {internal.map(chatLink)}
-            </>
-          )}
-          {imported.length > 0 && (
-            <>
-              <h3>From Basecamp · {imported.length}</h3>
-              {imported.map(chatLink)}
-            </>
-          )}
+          <div className="chans-list">{listed.map(chatLink)}</div>
+          {pinned && teamView && <div className="chans-pin">{chatLink(pinned)}</div>}
         </ChatSearch>
       </div>
       <Thread

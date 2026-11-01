@@ -210,7 +210,7 @@ export default function Composer({ placeholder, hint, error, internal, onPost, d
     <div className={`compose rich ${internal ? "int" : ""}`}>
       <div className="editbox">
         {editor && <Toolbar editor={editor} />}
-        <EditorContent editor={editor} />
+        <EditorContent editor={editor} className="editor-wrap" />
         {files.length > 0 && (
           <div className="pending">
             {files.map((f, i) => (

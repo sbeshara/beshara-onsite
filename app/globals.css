@@ -61,7 +61,7 @@ h1,h2,h3{margin:0}
 .panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);min-height:0}
 
 /* Rail */
-.rail{display:flex;flex-direction:column;overflow:auto;padding:0}
+.rail{display:flex;flex-direction:column;overflow:hidden;padding:0}
 .rail h2{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);padding:14px 16px 6px}
 .navi{display:flex;align-items:center;gap:10px;border:0;background:none;text-align:left;padding:9px 16px;font-weight:600;border-left:3px solid transparent}
 .navi:hover,.proj:hover{background:var(--sunk)}
@@ -75,8 +75,16 @@ h1,h2,h3{margin:0}
 .ph0{--ph:#8C9A92}.ph1{--ph:#7B6BA8}.ph2{--ph:#3F7A5A}.ph3{--ph:#C0643A}.ph4{--ph:#4F6D8A}
 .rail-sec{display:flex;flex-direction:column;padding:6px 0;border-bottom:1px solid var(--line)}
 .rail-sec:last-child{border-bottom:0}
-.rail-projects{flex:1 0 auto}
-.rail-tools{margin-top:auto;border-top:1px solid var(--line);border-bottom:0;background:var(--sunk)}
+.rail-projects{flex:1 1 auto;min-height:0;padding-bottom:0}
+.rail-scroll{flex:1 1 auto;min-height:0;overflow:auto;padding-bottom:6px}
+.pgroup summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;margin:8px 10px 2px;padding:6px 10px;border-radius:8px;background:color-mix(in srgb,var(--ph) 16%,var(--surface));color:color-mix(in srgb,var(--ph) 75%,#000);font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+.pgroup summary::-webkit-details-marker{display:none}
+.pgroup summary::before{content:"";width:0;height:0;border-left:5px solid currentColor;border-top:4px solid transparent;border-bottom:4px solid transparent;transition:transform .15s}
+.pgroup[open] summary::before{transform:rotate(90deg)}
+.pg-count{margin-left:auto;font-size:11px;background:var(--surface);border-radius:999px;padding:0 7px;letter-spacing:0}
+.pgroup .proj{border-left-color:color-mix(in srgb,var(--ph) 35%,transparent)}
+.pgroup .proj[aria-current="page"]{border-left-color:var(--brand)}
+.rail-tools{flex:none;margin-top:auto;border-top:1px solid var(--line);border-bottom:0;background:var(--sunk)}
 .rail-h{display:flex;align-items:center;justify-content:space-between;padding-right:16px}
 .rail-count{font-size:11px;font-weight:700;color:var(--muted);background:var(--sunk);border:1px solid var(--line);border-radius:999px;padding:1px 8px}
 .navi-ext{color:var(--muted);font-weight:500}
@@ -178,11 +186,13 @@ button.pstep:hover{color:var(--ink)}
 .rolechip{font-size:11px;font-weight:700;color:var(--muted);margin-left:auto}
 .tabs{display:flex;gap:4px;padding:0 14px;border-bottom:1px solid var(--line)}
 .tab{border:0;background:none;padding:11px 10px;font-weight:600;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;display:flex;align-items:center;gap:6px}
-.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--brand)}
+.tab[aria-selected="true"],.tab[aria-current="page"]{color:var(--ink);border-bottom-color:var(--brand)}
 .count{font-size:11px;font-weight:700;background:var(--sunk);border:1px solid var(--line);border-radius:10px;padding:0 6px;color:var(--muted)}
 
-.chat{display:grid;grid-template-columns:380px minmax(0,1fr);min-height:0}
-.chans{border-right:1px solid var(--line);overflow:auto;padding:10px 8px;display:flex;flex-direction:column;gap:2px}
+.chat{display:grid;grid-template-columns:440px minmax(0,1fr);min-height:0}
+.chans{border-right:1px solid var(--line);overflow:hidden;padding:10px 8px;display:flex;flex-direction:column;gap:2px;min-height:0}
+.chans-list,.shits{flex:1 1 auto;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:2px}
+.chans-pin{flex:none;border-top:1px solid var(--line);margin-top:4px;padding-top:6px}
 .chans h3{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:10px 8px 4px}
 .chan{display:flex;align-items:flex-start;gap:9px;border:0;border-left:3px solid transparent;background:none;text-align:left;padding:10px 10px;border-radius:8px}
 .chan .ic{margin-top:0}
@@ -196,12 +206,16 @@ button.pstep:hover{color:var(--ink)}
 .chan-meta{font-size:12.5px;color:var(--muted)}
 .chan-meta b{color:var(--ink,inherit);font-weight:600}
 .chan-when{white-space:nowrap}
-.chan-prev{font-size:13px;color:var(--muted);font-weight:400;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.chan-prev{font-size:13px;color:var(--muted);font-weight:400;line-height:1.35;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
 .chan-prev b{font-weight:600;color:var(--ink,inherit)}
 .chan.unread .chan-prev{color:inherit}
 .chan-top .udot{margin-left:0}
 /* Rich message editor (Basecamp-style) */
-.compose.rich{gap:8px}
+/* The writing box never pushes Attach/Post off screen: it takes at most part of
+   the chat and scrolls inside itself. */
+.compose.rich{gap:8px;max-height:min(70%,560px);min-height:0;grid-template-rows:minmax(0,1fr) auto}
+.compose.rich .editbox{display:flex;flex-direction:column;min-height:0}
+.editor-wrap{flex:1 1 auto;min-height:0;overflow:auto}
 .editbox{border:1px solid var(--line);border-radius:12px;background:var(--surface);overflow:hidden}
 .compose.int .editbox{border-color:var(--internal-line)}
 .editbox:focus-within{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-soft)}
@@ -211,7 +225,7 @@ button.pstep:hover{color:var(--ink)}
 .tb[aria-pressed="true"]{background:var(--brand-soft);color:var(--brand)}
 .tb .tt{font-weight:700;font-size:14px}.tb .tt small{font-size:10px}
 .toolbar .sep{width:1px;height:18px;background:var(--line);margin:0 4px}
-.editor{min-height:170px;max-height:55vh;overflow:auto;padding:12px 14px;outline:none;font-size:15px;line-height:1.5}
+.editor{min-height:160px;padding:12px 14px;outline:none;font-size:15px;line-height:1.5}
 .editor p.is-editor-empty:first-child::before{content:attr(data-placeholder);color:var(--muted);float:left;height:0;pointer-events:none}
 .pending{display:flex;flex-wrap:wrap;gap:6px;padding:0 12px 10px}
 .pfile{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;background:var(--sunk);border:1px solid var(--line);border-radius:999px;padding:3px 4px 3px 10px;max-width:100%}
@@ -542,7 +556,6 @@ a.userchip:hover b{text-decoration:underline}
 .csearch{display:flex;align-items:center;gap:8px;margin:0 2px 8px;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--muted)}
 .csearch input{border:0;outline:none;background:none;flex:1;min-width:0;padding:9px 0;font:inherit;font-size:14px;color:var(--ink,inherit)}
 .csearch:focus-within{border-color:var(--brand)}
-.shits{display:flex;flex-direction:column;gap:2px}
 .shits h3{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:4px 8px 4px}
 .shit{cursor:pointer;width:100%;font:inherit;color:inherit}
 .shit mark{background:#fff3a3;color:inherit;border-radius:2px;padding:0 1px}
@@ -591,3 +604,15 @@ a.userchip:hover b{text-decoration:underline}
 .tc-clients li{font-size:13.5px}
 .tc-clients small{display:block;color:var(--muted);font-size:12px}
 .tc-clients small.tc-warn{color:#8a4b00}
+@media (max-width:1280px) and (min-width:821px){.chat{grid-template-columns:360px minmax(0,1fr)}}
+.chan-top .tag-bc{flex:none}
+/* Team & Access: By Job */
+.team-tabs{padding:0;max-width:1200px}
+.byjob{display:grid;grid-template-columns:320px minmax(0,1fr);gap:20px;align-items:start}
+.byjob-list{padding:4px 0 8px;position:sticky;top:0;max-height:calc(100vh - 220px);overflow:auto}
+.byjob-h{display:flex;align-items:center;gap:8px;margin:8px 10px 2px;padding:6px 10px;border-radius:8px;background:color-mix(in srgb,var(--ph) 16%,var(--surface));color:color-mix(in srgb,var(--ph) 75%,#000);font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+.byjob-warn{color:#9F2A1E;font-weight:600}
+.byjob-detail{display:grid;gap:22px;min-width:0}
+.byjob-title{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.byjob-title h2{font-family:var(--f-display);font-weight:500;font-size:26px;margin-right:auto}
+@media (max-width:900px){.byjob{grid-template-columns:minmax(0,1fr)}.byjob-list{position:static;max-height:320px}}
