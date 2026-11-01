@@ -1,14 +1,15 @@
 import { redirect } from "next/navigation";
 import { getMe } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { isAdminRole, type Profile } from "@/lib/types";
+import { allowed } from "@/lib/permissions";
+import type { Profile } from "@/lib/types";
 import NewProjectForm from "./NewProjectForm";
 
 export const metadata = { title: "New Project · Beshara OnSite" };
 
 export default async function NewProjectPage() {
   const me = await getMe();
-  if (!isAdminRole(me.role)) redirect("/");
+  if (!(await allowed(me.role, "pm_create_projects"))) redirect("/");
   const supabase = await createClient();
   const { data } = await supabase.from("profiles").select("*").eq("role", "construction").order("full_name");
   return (

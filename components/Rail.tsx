@@ -13,7 +13,19 @@ const GROUP_ORDER = [2, 3, 1, 0, 4];
 // Side menu: Dashboard, then Projects (grouped by phase for the team), then
 // the team's tools, which stay pinned at the bottom while projects scroll.
 // The logo in the header goes to Beshara HQ.
-export default function Rail({ projects, isClient, isAdmin, unread }: { projects: P[]; isClient: boolean; isAdmin: boolean; unread: string[] }) {
+export default function Rail({
+  projects,
+  isClient,
+  isAdmin,
+  canCreate = isAdmin,
+  unread,
+}: {
+  projects: P[];
+  isClient: boolean;
+  isAdmin: boolean;
+  canCreate?: boolean;
+  unread: string[];
+}) {
   const path = usePathname();
   const heading = isClient ? (projects.length > 1 ? "Your Projects" : "Your Project") : isAdmin ? "All Projects" : "Your Projects";
   const grouped = !isClient && projects.length > 3;
@@ -58,7 +70,7 @@ export default function Rail({ projects, isClient, isAdmin, unread }: { projects
               })
             : projects.map((p) => link(p, true))}
           {projects.length === 0 && <p className="upl" style={{ padding: "4px 16px" }}>No projects yet.</p>}
-          {isAdmin && (
+          {canCreate && (
             <Link className="navi newp" href="/projects/new" aria-current={path === "/projects/new" ? "page" : undefined}>
               + New Project
             </Link>

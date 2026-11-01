@@ -71,6 +71,11 @@ export default function TeamManager({ me, people, projects, assigned: initial, l
                     <span className="pill">{ROLE_LABEL[p.role]}</span>
                   )}
                   {p.id !== me.id && (
+                    <a className="linkbtn" href={`/view-as?user=${p.id}`} title={`See OnSite and HQ the way ${p.full_name || p.email} does (read-only)`}>
+                      View As
+                    </a>
+                  )}
+                  {p.id !== me.id && (
                     <button type="button" className="linkbtn" disabled={pending} onClick={() => run(() => resendInvite(p.id))}>
                       {lastSignIn[p.id] ? "Send Password Link" : "Resend Invite"}
                     </button>

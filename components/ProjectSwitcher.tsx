@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 type P = { id: string; name: string; town: string };
 
 // Phone-width navigation: the side menu becomes this dropdown.
-export default function ProjectSwitcher({ projects, isClient, isAdmin }: { projects: P[]; isClient: boolean; isAdmin: boolean }) {
+export default function ProjectSwitcher({ projects, isClient, isAdmin, canCreate = isAdmin }: { projects: P[]; isClient: boolean; isAdmin: boolean; canCreate?: boolean }) {
   const router = useRouter();
   const path = usePathname();
   const current =
@@ -31,7 +31,7 @@ export default function ProjectSwitcher({ projects, isClient, isAdmin }: { proje
             {p.town ? ` · ${p.town}` : ""}
           </option>
         ))}
-        {isAdmin && <option value="/projects/new">+ New Project</option>}
+        {canCreate && <option value="/projects/new">+ New Project</option>}
       </optgroup>
       <optgroup label="Manage">
         {isAdmin && <option value="/team">Team &amp; Access</option>}

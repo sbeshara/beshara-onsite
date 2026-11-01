@@ -6,6 +6,7 @@ import PhaseControl from "@/components/PhaseControl";
 import ProjectTabs from "@/components/ProjectTabs";
 import { getMe } from "@/lib/auth";
 import { getPreview } from "@/lib/preview";
+import { canViewProject, projectViewer } from "@/lib/viewas";
 import { createClient } from "@/lib/supabase/server";
 import { isAdminRole, isTeamRole, type Profile } from "@/lib/types";
 
@@ -14,14 +15,15 @@ export default async function ProjectLayout({ children, params }: { children: Re
   const me = await getMe();
   const preview = await getPreview();
   if (preview && preview !== id) redirect(`/projects/${preview}`);
-  const previewing = preview === id;
+  const v = await projectViewer(id);
+  if (v.viewAs && !canViewProject(v.viewAs, id)) redirect("/");
   const supabase = await createClient();
   const fileCountQuery = supabase.from("files").select("id", { count: "exact", head: true }).eq("project_id", id);
   const [{ data: project }, { data: members }, { data: owners }, { count: fileCount }] = await Promise.all([
     supabase.from("projects").select("id, name, town, scope, phase").eq("id", id).maybeSingle(),
     supabase.from("project_members").select("user_id, profiles(*)").eq("project_id", id),
     supabase.from("profiles").select("*").eq("role", "owner"),
-    previewing ? fileCountQuery.eq("is_internal", false) : fileCountQuery,
+    v.clientOnly ? fileCountQuery.eq("is_internal", false) : fileCountQuery,
   ]);
   if (!project) notFound();
   const memberProfiles = ((members ?? []) as unknown as { profiles: Profile | null }[]).map((m) => m.profiles).filter(Boolean) as Profile[];
@@ -44,7 +46,7 @@ export default async function ProjectLayout({ children, params }: { children: Re
               {everyone.map((p) => <Avatar key={p.id} id={p.id} name={p.full_name || p.email} url={p.avatar_url} />)}
             </div>
             <span className="sub">{everyone.length} {everyone.length === 1 ? "Person" : "People"}</span>
-            {isAdminRole(me.role) && !previewing && (
+            {isAdminRole(me.role) && !v.readOnly && (
               <>
                 <InviteClientButton projectId={id} projectName={project.name} />
                 <a className="linkbtn" href={`/preview?project=${id}`}>View as Client</a>
@@ -53,8 +55,8 @@ export default async function ProjectLayout({ children, params }: { children: Re
             )}
           </div>
         </div>
-        <PhaseControl projectId={id} phase={project.phase} canEdit={isTeamRole(me.role) && !previewing} />
-        {isAdminRole(me.role) && !previewing && (
+        <PhaseControl projectId={id} phase={project.phase} canEdit={isTeamRole(me.role) && !v.readOnly} />
+        {isAdminRole(me.role) && !v.readOnly && (
           <InviteClientButton projectId={id} projectName={project.name} reminder hasClient={memberProfiles.some((p) => p.role === "client")} />
         )}
       </div>

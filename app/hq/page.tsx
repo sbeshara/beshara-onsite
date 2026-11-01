@@ -11,6 +11,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { isAdminRole, isTeamRole } from "@/lib/types";
 import { ROLE_LABEL } from "@/lib/constants";
+import { getViewAs } from "@/lib/viewas";
+import { allowed } from "@/lib/permissions";
 import Checklist from "./Checklist";
 import TeamBoard from "./TeamBoard";
 import "./hq.css";
@@ -28,7 +30,11 @@ const ICONS: Record<TeamApp["icon"], React.ReactNode> = {
 
 // Beshara HQ: the team's home screen, one tile per app.
 export default async function HQ() {
-  const me = await getMe();
+  const real = await getMe();
+  // "View as" someone: their HQ, read-only.
+  const viewAs = await getViewAs();
+  const me = viewAs?.profile ?? real;
+  const only = viewAs?.projectIds ? (viewAs.projectIds.length ? viewAs.projectIds : ["00000000-0000-0000-0000-000000000000"]) : null;
   const site = process.env.NEXT_PUBLIC_SITE_URL ?? "https://onsite.besharabuilders.com";
   if (!isTeamRole(me.role)) {
     return (
@@ -41,13 +47,21 @@ export default async function HQ() {
   }
 
   const supabase = await createClient();
+  let reviewQ = supabase.from("weekly_reports").select("id", { count: "exact", head: true }).eq("week_start", reportWeek(undefined, { admin: isAdminRole(me.role) }) ?? "1900-01-01").eq("status", "draft");
+  let projectsQ = supabase.from("projects").select("id", { count: "exact", head: true });
+  if (only) {
+    reviewQ = reviewQ.in("project_id", only);
+    projectsQ = projectsQ.in("id", only);
+  }
   const [{ data: unread }, { count: toReview }, { count: projects }] = await Promise.all([
-    supabase.rpc("my_unread"),
-    supabase.from("weekly_reports").select("id", { count: "exact", head: true }).eq("week_start", reportWeek(undefined, { admin: isAdminRole(me.role) }) ?? "1900-01-01").eq("status", "draft"),
-    supabase.from("projects").select("id", { count: "exact", head: true }),
+    viewAs ? Promise.resolve({ data: [] }) : supabase.rpc("my_unread"),
+    reviewQ,
+    projectsQ,
   ]);
   const unreadCount = ((unread ?? []) as { unread: number }[]).reduce((n, r) => n + Number(r.unread), 0);
-  const ready = isAdminRole(me.role) ? await readyToSend(supabase) : [];
+  // Admins see every report ready to send; PMs see their own when they're allowed to send.
+  const canSend = await allowed(me.role, "pm_send_reports");
+  const ready = canSend ? await readyToSend(supabase, only) : [];
   const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
   const stats: Record<string, { text: string; hot: boolean }> = {
     onsite: unreadCount ? { text: `${plural(unreadCount, "Unread Message")}`, hot: true } : { text: "All Caught Up", hot: false },
@@ -74,12 +88,20 @@ export default async function HQ() {
         <Link href="/" className="logo" aria-label="Beshara HQ" />
         <span className="hub">HQ</span>
         <Link href="/account" className="userchip" title="Your account">
-          <b>{me.full_name || me.email}</b>
-          <small>{ROLE_LABEL[me.role]}</small>
+          <b>{real.full_name || real.email}</b>
+          <small>{ROLE_LABEL[real.role]}</small>
         </Link>
         <form action="/auth/signout" method="post">
           <button className="signout" type="submit">Sign Out</button>
         </form>
+        {viewAs && (
+          <div className="previewbar" role="status">
+            <span>
+              Viewing as <b>{me.full_name || me.email}</b> ({ROLE_LABEL[me.role]}): their HQ, read-only.
+            </span>
+            <a className="linkbtn" href={`${site}/view-as/exit`}>Exit View As</a>
+          </div>
+        )}
       </header>
       <main className="hq-main">
         <Hero
@@ -107,7 +129,7 @@ export default async function HQ() {
             </span>
           )}
         </Hero>
-        {isAdminRole(me.role) && <ReadyToSend reports={ready} canSend />}
+        {canSend && (isAdminRole(me.role) || ready.length > 0) && <ReadyToSend reports={ready} canSend={!viewAs} />}
         {workday && !jobtreadOk && (
           <p className="hq-warn" role="status">Couldn&apos;t reach JobTread just now, so today&apos;s daily logs may not show as checked in. Reload in a minute.</p>
         )}

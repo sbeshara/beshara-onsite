@@ -4,6 +4,7 @@ import Hero from "@/components/Hero";
 import NotifyPrompt from "@/components/NotifyPrompt";
 import { getMe } from "@/lib/auth";
 import { getPreview } from "@/lib/preview";
+import { getViewAs } from "@/lib/viewas";
 import { PHASES, ROLE_LABEL } from "@/lib/constants";
 import { dayLabel, fileExt, isImage, plainText, plural, shortDate, todayLabel } from "@/lib/format";
 import { signUrls } from "@/lib/storage";
@@ -65,19 +66,35 @@ export default async function Dashboard() {
   const me = await getMe();
   const preview = await getPreview();
   if (preview) return <ClientDashboard viewerName="" projectId={preview} />;
+  // Viewing as someone: their dashboard, limited to their projects.
+  const viewAs = await getViewAs();
+  if (viewAs?.isClient) return <ClientDashboard viewerName={viewAs.profile.full_name} projectId={viewAs.projectIds?.[0] ?? NO_PROJECT} />;
+  if (viewAs) return <TeamDashboard me={viewAs.profile} only={viewAs.projectIds} />;
   return me.role === "client" ? <ClientDashboard viewerName={me.full_name} /> : <TeamDashboard me={me} />;
 }
 
-async function TeamDashboard({ me }: { me: Profile }) {
+const NO_PROJECT = "00000000-0000-0000-0000-000000000000";
+
+// `only` limits it to these projects (when viewing as a PM).
+async function TeamDashboard({ me, only = null }: { me: Profile; only?: string[] | null }) {
   const supabase = await createClient();
   const weekAgo = new Date(Date.now() - 7 * 864e5).toISOString();
+  const ids = only ? (only.length ? only : [NO_PROJECT]) : null;
+  let projectsQ = supabase.from("projects").select("id, name, town, scope, phase, project_members(user_id)").order("created_at");
+  let filesQ = supabase.from("files").select("*").order("created_at", { ascending: false }).limit(40);
+  let weekQ = supabase.from("files").select("id", { count: "exact", head: true }).gte("created_at", weekAgo);
+  if (ids) {
+    projectsQ = projectsQ.in("id", ids);
+    filesQ = filesQ.in("project_id", ids);
+    weekQ = weekQ.in("project_id", ids);
+  }
   const [{ data: projectsData }, { data: peopleData }, { data: latestData }, { data: filesData }, { count: weekCount }, { data: unreadData }] = await Promise.all([
-    supabase.from("projects").select("id, name, town, scope, phase, project_members(user_id)").order("created_at"),
+    projectsQ,
     supabase.from("profiles").select("*"),
     supabase.rpc("latest_messages"),
-    supabase.from("files").select("*").order("created_at", { ascending: false }).limit(40),
-    supabase.from("files").select("id", { count: "exact", head: true }).gte("created_at", weekAgo),
-    supabase.rpc("my_unread"),
+    filesQ,
+    weekQ,
+    ids ? Promise.resolve({ data: [] }) : supabase.rpc("my_unread"),
   ]);
   const unreadProjects = new Set(((unreadData ?? []) as { project_id: string }[]).map((u) => u.project_id));
   const projects = (projectsData ?? []) as ProjectRow[];
@@ -85,6 +102,7 @@ async function TeamDashboard({ me }: { me: Profile }) {
   const owners = Object.values(people).filter((p) => p.role === "owner");
   const projectNames = Object.fromEntries(projects.map((p) => [p.id, p.name]));
   const needs = ((latestData ?? []) as Latest[])
+    .filter((l) => !ids || ids.includes(l.project_id))
     .filter((l) => !l.is_internal && !l.imported && l.author_id && people[l.author_id]?.role === "client")
     .sort((a, b) => a.created_at.localeCompare(b.created_at));
   const files = (filesData ?? []) as FileRow[];

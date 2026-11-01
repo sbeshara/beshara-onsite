@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getMe } from "@/lib/auth";
 import { jobsById, LINKABLE_STATUSES, listJobs, type JobOption } from "@/lib/jobtread";
 import { createClient } from "@/lib/supabase/server";
+import { allowed } from "@/lib/permissions";
 import { isAdminRole } from "@/lib/types";
 import ImportJobs from "./ImportJobs";
 import JobLinker from "./JobLinker";
@@ -11,7 +12,9 @@ export const metadata = { title: "JobTread Jobs · Beshara Reports" };
 
 export default async function JobsPage() {
   const me = await getMe();
-  if (!isAdminRole(me.role)) redirect("/studio");
+  // PMs allowed to create projects get the import list only; linking stays with Admins.
+  if (!(await allowed(me.role, "pm_create_projects"))) redirect("/studio");
+  const admin = isAdminRole(me.role);
   const supabase = await createClient();
   const { data: projects } = await supabase.from("projects").select("id, name, town, jobtread_job_id, jobtread_label").order("name");
   let jobs: JobOption[] = [];
@@ -30,7 +33,7 @@ export default async function JobsPage() {
   // Link Check: projects linked to a job that isn't Construction, Preconstruction
   // or Approved (often the customer's separate "Internal - Invoices" job).
   const issues: LinkIssue[] = [];
-  if (!problem) {
+  if (!problem && admin) {
     const ok = new Set(jobs.map((j) => j.id));
     const offIds = (projects ?? []).map((p) => p.jobtread_job_id as string | null).filter((id): id is string => !!id && !ok.has(id));
     const off = await jobsById([...new Set(offIds)]).catch(() => new Map<string, JobOption>());
@@ -66,8 +69,9 @@ export default async function JobsPage() {
         </div>
       </div>
       {problem && <div className="st-banner err">{problem}</div>}
-      {!problem && <LinkCheck issues={issues} />}
+      {!problem && admin && <LinkCheck issues={issues} />}
       {!problem && <ImportJobs jobs={notInOnSite} unlinked={(projects ?? []).filter((p) => !p.jobtread_job_id).map((p) => ({ id: p.id, name: p.name }))} />}
+      {admin && (
       <table className="st-table">
         <thead>
           <tr>
@@ -89,6 +93,7 @@ export default async function JobsPage() {
           ))}
         </tbody>
       </table>
+      )}
     </>
   );
 }

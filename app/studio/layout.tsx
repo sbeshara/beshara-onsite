@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { HQ_URL } from "@/lib/apps";
 import { getMe } from "@/lib/auth";
-import { isAdminRole, isTeamRole } from "@/lib/types";
+import { allowed } from "@/lib/permissions";
+import { isTeamRole } from "@/lib/types";
 import "./studio.css";
 
 export const metadata = { title: "Beshara Reports" };
@@ -26,7 +27,7 @@ export default async function StudioLayout({ children }: { children: React.React
         <span className="hub">Reports</span>
         <nav className="st-nav">
           <Link href="/studio">Progress Reports</Link>
-          {isAdminRole(me.role) && <Link href="/studio/jobs">JobTread Jobs</Link>}
+          {(await allowed(me.role, "pm_create_projects")) && <Link href="/studio/jobs">JobTread Jobs</Link>}
           <a href={site}>OnSite ↗</a>
         </nav>
         <span className="st-me">{me.full_name || me.email}</span>

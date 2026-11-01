@@ -8,6 +8,8 @@ import { loadProjectPeople } from "@/lib/project-people";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { isAdminRole, type Profile } from "@/lib/types";
+import { getPermissions, PERMISSIONS } from "@/lib/permissions";
+import PermissionsPanel from "./PermissionsPanel";
 import TeamManager from "./TeamManager";
 
 export const metadata = { title: "Team & Access · Beshara OnSite" };
@@ -20,6 +22,7 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
   if (!isAdminRole(me.role)) redirect("/");
   const { view, job } = await searchParams;
   const byJob = view === "jobs";
+  const perms = view === "permissions";
   const supabase = await createClient();
   const [{ data: people }, { data: members }, { data: projects }, { data: users }] = await Promise.all([
     supabase.from("profiles").select("*").neq("role", "client").order("full_name"),
@@ -36,14 +39,44 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
 
   const tabs = (
     <nav className="tabs team-tabs" aria-label="View">
-      <Link className="tab" href="/team" aria-current={!byJob ? "page" : undefined}>
+      <Link className="tab" href="/team" aria-current={!byJob && !perms ? "page" : undefined}>
         By Person
       </Link>
       <Link className="tab" href="/team?view=jobs" aria-current={byJob ? "page" : undefined}>
         By Job
       </Link>
+      <Link className="tab" href="/team?view=permissions" aria-current={perms ? "page" : undefined}>
+        Permissions
+      </Link>
     </nav>
   );
+
+  if (perms) {
+    const now = await getPermissions();
+    const ROLE_NAME = { construction: "Construction Management", client: "Clients" } as const;
+    return (
+      <div className="page">
+        <div className="page-h">
+          <h1>Team &amp; Access</h1>
+          <p>Switch these on or off for everyone in that role. Changes apply right away.</p>
+        </div>
+        {tabs}
+        <PermissionsPanel
+          canEdit={me.role === "owner"}
+          perms={PERMISSIONS.map((p) => ({ key: p.key, role: ROLE_NAME[p.role], label: p.label, detail: p.detail, on: now[p.key] }))}
+        />
+        <section className="perm-fixed">
+          <div className="sec-h"><h2>What Each Role Can Always Do</h2></div>
+          <div className="box rowlist">
+            <div className="rowitem perm-row"><span className="perm-role">Principal Contractor</span><span>Everything, including roles, permissions and removing Admins.</span><span /></div>
+            <div className="rowitem perm-row"><span className="perm-role">Admin</span><span>Every job: create projects, invite clients and the team, link JobTread jobs, approve and send reports, Basecamp import, View As.</span><span /></div>
+            <div className="rowitem perm-row"><span className="perm-role">Construction Management</span><span>Only their assigned jobs: chats (including Internal Only), files, the project phase, Daily Check-In, and editing and approving their jobs&apos; progress reports.</span><span /></div>
+            <div className="rowitem perm-row"><span className="perm-role">Clients</span><span>Only their project: client chats and files shared with them. Never internal chats or team-only files.</span><span /></div>
+          </div>
+        </section>
+      </div>
+    );
+  }
 
   if (!byJob) {
     return (

@@ -1,6 +1,6 @@
 import FilesView from "@/components/FilesView";
 import { getMe } from "@/lib/auth";
-import { getPreview } from "@/lib/preview";
+import { projectViewer } from "@/lib/viewas";
 import { signUrls } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 import type { FileRow, Profile } from "@/lib/types";
@@ -10,7 +10,8 @@ type Row = FileRow & { messages: { chat_id: string } | null };
 export default async function FilesPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const me = await getMe();
-  const previewing = (await getPreview()) === id;
+  const v = await projectViewer(id);
+  const previewing = v.clientOnly;
   const supabase = await createClient();
   const [{ data: filesData }, { data: chatsData }, { data: peopleData }] = await Promise.all([
     supabase.from("files").select("*, messages(chat_id)").eq("project_id", id).order("created_at", { ascending: false }),
@@ -28,10 +29,10 @@ export default async function FilesPage({ params }: { params: Promise<{ id: stri
       chats={((chatsData ?? []) as { id: string; name: string; is_internal: boolean; source_id?: string | null }[])
         .filter((c) => !previewing || !c.is_internal)
         .map((c) => ({ id: c.id, name: c.name, is_internal: c.is_internal, imported: !!c.source_id }))}
-      readOnly={previewing}
+      readOnly={v.readOnly}
       urls={urls}
       names={names}
-      me={{ id: me.id, role: previewing ? "client" : me.role }}
+      me={{ id: v.userId, role: v.role }}
     />
   );
 }

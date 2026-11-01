@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getMe } from "@/lib/auth";
 import { fileUrls } from "@/lib/jobtread";
 import ReadyToSend from "@/components/ReadyToSend";
+import { allowed } from "@/lib/permissions";
 import { nextReportFriday, readyToSend, reportWeek, shortDate, weekLabel, type WeeklyReport } from "@/lib/reports";
 import { reportFileName } from "@/lib/report-pdf";
 import { createClient } from "@/lib/supabase/server";
@@ -30,6 +31,8 @@ type Search = { week?: string; r?: string; posted?: string; approved?: string };
 export default async function ReportsHome({ searchParams }: { searchParams: Promise<Search> }) {
   const me = await getMe();
   const admin = isAdminRole(me.role);
+  // Admins send reports; PMs too (for their jobs) when that's switched on.
+  const canSend = await allowed(me.role, "pm_send_reports");
   const supabase = await createClient();
   const { week: wanted, r: selectedId, posted, approved } = await searchParams;
 
@@ -89,7 +92,7 @@ export default async function ReportsHome({ searchParams }: { searchParams: Prom
         editedBy={name(report.updated_by)}
         approvedBy={name(report.approved_by)}
         sentBy={name(report.sent_by)}
-        canSend={admin}
+        canSend={canSend}
         canRedraft={!pastWeek}
         draftName={reportFileName(selected.p.name, shortDate(report.week_start), true)}
         nextHref={nextUp?.r ? href(nextUp.r.id) : href()}
@@ -161,7 +164,7 @@ export default async function ReportsHome({ searchParams }: { searchParams: Prom
       <section className="st-detail">
         {posted && <div className="st-banner ok">Sent the {posted} report to the client&apos;s Progress Reports chat.</div>}
         {approved && <div className="st-banner ok">Approved the {approved} report. It&apos;s in Ready to Send; nothing goes to the client until it&apos;s sent.</div>}
-        {!editor && <ReadyToSend reports={ready} canSend={admin} />}
+        {!editor && <ReadyToSend reports={ready} canSend={canSend} />}
         {pastWeek && <div className="st-banner note">This is a past week, kept for reference. This week&apos;s reports open Friday at 5 PM.</div>}
         {!week && (
           <div className="st-empty">

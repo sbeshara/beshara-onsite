@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { getMe } from "@/lib/auth";
 import { jobContacts, type JobContact } from "@/lib/jobtread";
 import { inviteOrFind } from "@/lib/invite";
+import { allowed, PERMISSIONS, type PermissionKey } from "@/lib/permissions";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { isAdminRole, type Role } from "@/lib/types";
@@ -24,7 +25,8 @@ async function requireAdmin() {
 export async function createProject(_prev: Result, form: FormData): Promise<Result> {
   let projectId: string;
   try {
-    const me = await requireAdmin();
+    const me = await getMe();
+    if (!(await allowed(me.role, "pm_create_projects"))) return { error: "Only the Principal Contractor or Admin can create projects." };
     const name = clean(form.get("name"));
     const town = clean(form.get("town"));
     const scope = clean(form.get("scope")) || null;
@@ -37,7 +39,8 @@ export async function createProject(_prev: Result, form: FormData): Promise<Resu
     const client = await inviteOrFind(clientEmail, clientName, "client", null);
     if (client.role !== "client") return { error: `${clientEmail} belongs to a Beshara team member, not a client.` };
 
-    const supabase = await createClient();
+    // Saved with the server's key: PMs may create projects only when that's switched on (checked above).
+    const supabase = createAdminClient();
     const { data: project, error } = await supabase
       .from("projects")
       .insert({ name, town, scope, created_by: me.id, primary_client_id: client.id })
@@ -46,7 +49,8 @@ export async function createProject(_prev: Result, form: FormData): Promise<Resu
     if (error || !project) return { error: "Couldn't create the project. Try again." };
     projectId = project.id;
 
-    const members = [client.id, ...staff].map((user_id) => ({ project_id: project.id, user_id }));
+    // A PM who creates a project is on it.
+    const members = [...new Set([client.id, ...staff, ...(me.role === "construction" ? [me.id] : [])])].map((user_id) => ({ project_id: project.id, user_id }));
     const { error: memberErr } = await supabase.from("project_members").insert(members);
     if (memberErr) return { error: "The project was created, but adding people failed. Open Team & Clients to add them." };
   } catch (e) {
@@ -185,7 +189,8 @@ export async function resendInvite(userId: string): Promise<Result> {
 
 export async function inviteTeamMember(_prev: Result, form: FormData): Promise<Result> {
   try {
-    const me = await requireAdmin();
+    const me = await getMe();
+    if (!(await allowed(me.role, "pm_create_projects"))) return { error: "Only the Principal Contractor or Admin can create projects." };
     const name = clean(form.get("name"));
     const email = clean(form.get("email"));
     const role = clean(form.get("role")) as Role;
@@ -238,4 +243,15 @@ export async function removeTeamMember(userId: string): Promise<Result> {
   }
   revalidatePath("/team");
   return { ok: "Removed. They can no longer sign in." };
+}
+
+// Switches a role permission on or off (Team & Access → Permissions).
+export async function setPermission(key: PermissionKey, on: boolean): Promise<Result> {
+  const me = await getMe();
+  if (me.role !== "owner") return { error: "Only the Principal Contractor can change permissions." };
+  if (!PERMISSIONS.some((p) => p.key === key)) return { error: "Unknown permission." };
+  const { error } = await createAdminClient().from("app_settings").upsert({ key: `perm:${key}`, value: on ? "true" : "false" });
+  if (error) return { error: "Couldn't save that. Try again." };
+  revalidatePath("/", "layout");
+  return { ok: "Saved." };
 }

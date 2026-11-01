@@ -75,6 +75,9 @@ export default function PeopleManager({ projectId, primaryClientId, staff, assig
                 </small>
               </div>
               <span className="cbtns">
+                <a className="linkbtn" href={`/view-as?user=${p.id}`} title={`See OnSite the way ${p.full_name || p.email} does (read-only)`}>
+                  View As
+                </a>
                 <button
                   type="button"
                   className="linkbtn"

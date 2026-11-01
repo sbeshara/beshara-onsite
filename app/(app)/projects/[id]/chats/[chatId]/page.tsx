@@ -7,7 +7,8 @@ import NewChatButton from "@/components/NewChatButton";
 import Thread from "@/components/Thread";
 import { getMe } from "@/lib/auth";
 import { plainText, shortDate, timeLabel } from "@/lib/format";
-import { getPreview } from "@/lib/preview";
+import { projectViewer } from "@/lib/viewas";
+import { getPermissions } from "@/lib/permissions";
 import { signUrls } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 import type { Chat, Message, Profile } from "@/lib/types";
@@ -15,7 +16,8 @@ import type { Chat, Message, Profile } from "@/lib/types";
 export default async function ChatPage({ params }: { params: Promise<{ id: string; chatId: string }> }) {
   const { id, chatId } = await params;
   const me = await getMe();
-  const previewing = (await getPreview()) === id;
+  const v = await projectViewer(id);
+  const previewing = v.clientOnly;
   const supabase = await createClient();
   const [{ data: chatsData }, { data: msgData }, { data: peopleData }, { data: memberData }, { data: unreadData }] = await Promise.all([
     supabase.from("chats").select("*").eq("project_id", id).order("position").order("created_at"),
@@ -44,7 +46,7 @@ export default async function ChatPage({ params }: { params: Promise<{ id: strin
   const people = Object.fromEntries(((peopleData ?? []) as Profile[]).map((p) => [p.id, p]));
   const clientNames = (memberData ?? []).map((m) => people[m.user_id]).filter((p) => p?.role === "client").map((p) => p.full_name || p.email);
   const urls = await signUrls(supabase, messages.flatMap((m) => (m.files ?? []).map((f) => f.storage_path)));
-  const teamView = me.role !== "client" && !previewing;
+  const teamView = v.role !== "client";
   // One list, newest message first (Basecamp posts included); the everyday
   // Internal Only chat stays pinned at the bottom.
   const pinned = chats.find((c) => c.is_internal && !c.source_id);
@@ -97,7 +99,9 @@ export default async function ChatPage({ params }: { params: Promise<{ id: strin
     <div className="chat">
       <div className="chans" aria-label="Chats">
         <ChatSearch projectId={id} chatId={chatId} clientView={previewing} people={searchPeople}>
-          {!previewing && <NewChatButton projectId={id} myId={me.id} isClient={me.role === "client"} />}
+          {!v.readOnly && (me.role !== "client" || (await getPermissions()).clients_start_chats) && (
+            <NewChatButton projectId={id} myId={me.id} isClient={me.role === "client"} />
+          )}
           <div className="chans-list">{listed.map(chatLink)}</div>
           {pinned && teamView && <div className="chans-pin">{chatLink(pinned)}</div>}
         </ChatSearch>
@@ -108,9 +112,9 @@ export default async function ChatPage({ params }: { params: Promise<{ id: strin
         initialMessages={messages}
         initialUrls={urls}
         people={people}
-        me={{ id: me.id, role: previewing ? "client" : me.role }}
+        me={{ id: v.userId, role: v.role }}
         clientNames={clientNames}
-        readOnly={previewing}
+        readOnly={v.readOnly}
         hadUnread={!!unread[chatId]}
       />
     </div>

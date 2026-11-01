@@ -272,13 +272,14 @@ export async function postReport(admin: Admin, report: WeeklyReport, senderId: s
 
 // Approved reports waiting to be sent, oldest week first (only the projects
 // the signed-in person can see, since this uses their client).
-export async function readyToSend(supabase: Pick<Admin, "from">) {
-  const { data } = await supabase
+// `only` limits it to these projects (e.g. when viewing as a PM).
+export async function readyToSend(supabase: Pick<Admin, "from">, only?: string[] | null) {
+  let q = supabase
     .from("weekly_reports")
     .select("id, week_start, approved_at, approved_by, projects(name), approver:profiles!weekly_reports_approved_by_fkey(full_name)")
-    .eq("status", "approved")
-    .order("week_start")
-    .order("approved_at");
+    .eq("status", "approved");
+  if (only) q = q.in("project_id", only);
+  const { data } = await q.order("week_start").order("approved_at");
   type Row = { id: string; week_start: string; approved_at: string; projects: { name: string } | null; approver: { full_name: string } | null };
   return ((data ?? []) as unknown as Row[]).map((r) => ({
     id: r.id,

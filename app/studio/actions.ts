@@ -5,6 +5,7 @@ import { getMe } from "@/lib/auth";
 import type { ReportLine } from "@/lib/report-pdf";
 import { LINKABLE_STATUSES, listJobs } from "@/lib/jobtread";
 import { generateAll, nextReportFriday, OPENS, postReport, reportWeek, shortDate, type ReportPhoto, type WeeklyReport } from "@/lib/reports";
+import { allowed } from "@/lib/permissions";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { isAdminRole, isTeamRole } from "@/lib/types";
@@ -126,14 +127,17 @@ export async function reopenReport(id: string): Promise<Result> {
   return { ok: "Reopened. Edit it, then approve it again." };
 }
 
-// The Principal Contractor or an Admin sends approved reports to clients.
+// The Principal Contractor or an Admin sends approved reports to clients (and
+// PMs, for their own jobs, when "Send progress reports" is switched on).
 export async function sendReports(ids: string[]): Promise<Result> {
   let sent = 0;
   const problems: string[] = [];
   try {
-    const me = await requireAdmin();
+    const me = await getMe();
+    if (!(await allowed(me.role, "pm_send_reports"))) throw new Error("Only an Admin or the Principal Contractor can send reports.");
     const admin = createAdminClient();
-    const { data: reports } = await admin.from("weekly_reports").select("*, projects(name)").in("id", ids).eq("status", "approved");
+    // Read as the sender, so a PM can only send reports for jobs they're on.
+    const { data: reports } = await (await createClient()).from("weekly_reports").select("*, projects(name)").in("id", ids).eq("status", "approved");
     for (const r of (reports ?? []) as (WeeklyReport & { projects: { name: string } | null })[]) {
       try {
         await postReport(admin, r, me.id);
@@ -202,23 +206,29 @@ export async function linkJob(projectId: string, jobId: string | null, label: st
 // JobTread job, already linked so progress reports draft from its logs.
 export async function importJobs(jobIds: string[]): Promise<Result> {
   try {
-    const me = await requireAdmin();
+    const me = await getMe();
+    if (!(await allowed(me.role, "pm_create_projects"))) throw new Error("Only an Admin or the Principal Contractor can import jobs.");
     const admin = createAdminClient();
     const { data: linked } = await admin.from("projects").select("jobtread_job_id").not("jobtread_job_id", "is", null);
     const taken = new Set((linked ?? []).map((p) => p.jobtread_job_id));
     const jobs = (await listJobs(LINKABLE_STATUSES)).filter((j) => jobIds.includes(j.id) && !taken.has(j.id));
     if (!jobs.length) return { error: "Those jobs are already in OnSite." };
-    const { error } = await admin.from("projects").insert(
-      jobs.map((j) => ({
-        name: (j.client ?? `Job ${j.number}`).slice(0, 120),
-        town: j.town ?? "",
-        phase: j.status === "Construction" ? 2 : 0, // OnSite's Construction or Preconstruction phase
-        created_by: me.id,
-        jobtread_job_id: j.id,
-        jobtread_label: j.label,
-      })),
-    );
+    const { data: made, error } = await admin
+      .from("projects")
+      .insert(
+        jobs.map((j) => ({
+          name: (j.client ?? `Job ${j.number}`).slice(0, 120),
+          town: j.town ?? "",
+          phase: j.status === "Construction" ? 2 : 0, // OnSite's Construction or Preconstruction phase
+          created_by: me.id,
+          jobtread_job_id: j.id,
+          jobtread_label: j.label,
+        })),
+      )
+      .select("id");
     if (error) return { error: `Couldn't create the projects: ${error.message}` };
+    // A PM who imports a job is on it.
+    if (me.role === "construction") await admin.from("project_members").insert((made ?? []).map((p) => ({ project_id: p.id, user_id: me.id })));
     revalidatePath("/", "layout");
     return { ok: `Added ${jobs.length} project${jobs.length === 1 ? "" : "s"} to OnSite. Invite each client from the project's Team & Clients page.` };
   } catch (e) {
