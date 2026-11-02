@@ -99,18 +99,46 @@ export default function Thread({ chat, initialMessages, initialUrls, people, me,
       });
   }, [supabase, me.id, chat.id, messages.length, readOnly, hadUnread, router]);
 
-  // Posts a message (HTML from the editor) and its attachments.
-  async function send(body: string, files: File[]): Promise<boolean> {
-    if (readOnly || (!body.trim() && !files.length)) return false;
+  // Posts a message (HTML from the editor), the pictures placed in its text,
+  // and its attachments.
+  async function send(body: string, files: File[], inline: { id: string; file: File }[]): Promise<boolean> {
+    if (readOnly || (!body.trim() && !files.length && !inline.length)) return false;
     setError("");
+    // Pictures in the text are uploaded first so the message can point at them.
+    let html = body.trim();
+    const pictures: { name: string; path: string; file: File }[] = [];
+    for (const { id, file } of inline) {
+      const name = file.name && !/^image\.\w+$/i.test(file.name) ? file.name : `Picture ${pictures.length + 1}.${(file.type.split("/")[1] || "png").replace("jpeg", "jpg")}`;
+      const path = storagePath(chat.project_id, name);
+      const up = await supabase.storage.from(FILES_BUCKET).upload(path, file, { contentType: file.type || undefined });
+      if (up.error) {
+        setError("A picture in your message didn't upload. Check your connection and try again.");
+        return false;
+      }
+      pictures.push({ name, path, file });
+      html = html.replace(new RegExp(`<img[^>]*data-pending="${id}"[^>]*>`), `<img data-path="${path}">`);
+    }
     const { data: msg, error: msgErr } = await supabase
       .from("messages")
-      .insert({ chat_id: chat.id, author_id: me.id, body: body.trim() })
+      .insert({ chat_id: chat.id, author_id: me.id, body: html })
       .select("id")
       .single();
     if (msgErr || !msg) {
       setError("Your message didn't send. Check your connection and try again.");
       return false;
+    }
+    for (const p of pictures) {
+      await supabase.from("files").insert({
+        project_id: chat.project_id,
+        message_id: msg.id,
+        name: p.name,
+        storage_path: p.path,
+        size_bytes: p.file.size,
+        mime_type: p.file.type || null,
+        folder: "Photos",
+        is_internal: chat.is_internal,
+        uploaded_by: me.id,
+      });
     }
     let failed = 0;
     for (const file of files) {
@@ -156,9 +184,11 @@ export default function Thread({ chat, initialMessages, initialUrls, people, me,
         if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragging(false);
       }}
       onDrop={(e) => {
+        // The writing box already took this drop (pictures go in the text).
+        const taken = e.nativeEvent.defaultPrevented;
         e.preventDefault();
         setDragging(false);
-        if (!readOnly) setDropped([...e.dataTransfer.files]);
+        if (!readOnly && !taken) setDropped([...e.dataTransfer.files]);
       }}
     >
       <div className="msgs" ref={listRef} aria-live="polite">
@@ -190,8 +220,8 @@ export default function Thread({ chat, initialMessages, initialUrls, people, me,
                     <time>{m.source_id ? `${shortDate(m.created_at)}, ${timeLabel(m.created_at)}` : timeLabel(m.created_at)}</time>
                     {m.source_id && <span className="tag-bc" title="Brought over from Basecamp">Basecamp</span>}
                   </div>
-                  {m.body && <MessageBody text={m.body} />}
-                  {(m.files ?? []).map((f) => {
+                  {m.body && <MessageBody text={m.body} urls={urls} />}
+                  {(m.files ?? []).filter((f) => !m.body.includes(`data-path="${f.storage_path}"`)).map((f) => {
                     const url = urls[f.storage_path];
                     return isImage(f.mime_type, f.name) && url ? (
                       <a key={f.id} className="phbtn" href={url} target="_blank" rel="noreferrer">

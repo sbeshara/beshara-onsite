@@ -71,7 +71,7 @@ export function storagePath(projectId: string, fileName: string) {
 
 // New messages are saved as HTML from the editor; older ones are Markdown.
 export function isHtml(body: string) {
-  return /^\s*<(p|h[1-6]|ul|ol|blockquote|table|hr|div)[\s>/]/i.test(body);
+  return /^\s*<(p|h[1-6]|ul|ol|blockquote|table|hr|div|img)[\s>/]/i.test(body);
 }
 
 const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };

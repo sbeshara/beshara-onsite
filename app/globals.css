@@ -189,7 +189,6 @@ button.pstep:hover{color:var(--ink)}
 .tab[aria-selected="true"],.tab[aria-current="page"]{color:var(--ink);border-bottom-color:var(--brand)}
 .count{font-size:11px;font-weight:700;background:var(--sunk);border:1px solid var(--line);border-radius:10px;padding:0 6px;color:var(--muted)}
 
-.chat{display:grid;grid-template-columns:440px minmax(0,1fr);min-height:0}
 .chans{border-right:1px solid var(--line);overflow:hidden;padding:10px 8px;display:flex;flex-direction:column;gap:2px;min-height:0}
 .chans-list,.shits{flex:1 1 auto;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:2px}
 .chans-pin{flex:none;border-top:1px solid var(--line);margin-top:4px;padding-top:6px}
@@ -213,9 +212,10 @@ button.pstep:hover{color:var(--ink)}
 /* Rich message editor (Basecamp-style) */
 /* The writing box never pushes Attach/Post off screen: it takes at most part of
    the chat and scrolls inside itself. */
-.compose.rich{gap:8px;max-height:min(70%,560px);min-height:0;grid-template-rows:minmax(0,1fr) auto}
-.compose.rich .editbox{display:flex;flex-direction:column;min-height:0}
-.editor-wrap{flex:1 1 auto;min-height:0;overflow:auto}
+.compose.rich{display:flex;flex-direction:column;gap:8px;max-height:min(45vh,440px);min-height:0}
+.compose.rich .editbox{display:flex;flex-direction:column;flex:0 1 auto;min-height:0}
+.compose.rich .compose-actions{flex:none}
+.editor-wrap{flex:0 1 auto;min-height:0;overflow:auto}
 .editbox{border:1px solid var(--line);border-radius:12px;background:var(--surface);overflow:hidden}
 .compose.int .editbox{border-color:var(--internal-line)}
 .editbox:focus-within{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-soft)}
@@ -439,9 +439,6 @@ button.vis:hover{border-color:currentColor}
   .proj-select{display:block;width:100%;order:3;border:0;background:var(--hdr-soft);color:var(--hdr-ink);border-radius:10px;padding:9px 10px;font-weight:600}
   .proj-select option{color:#151B18;background:#fff}
   .shell{padding-left:max(8px,env(safe-area-inset-left,0px));padding-right:max(8px,env(safe-area-inset-right,0px));padding-block:8px}
-  .chat{grid-template-columns:112px minmax(0,1fr)}
-  .chan-prev,.chan-when{display:none}
-  .chan-name{white-space:normal}
   .toolbar{gap:0;padding:4px}
   .tb{width:30px}
   .editor{min-height:64px}
@@ -561,7 +558,7 @@ a.userchip:hover b{text-decoration:underline}
 .shit mark{background:#fff3a3;color:inherit;border-radius:2px;padding:0 1px}
 .msg.flash{animation:flash 2.4s ease-out}
 @keyframes flash{0%,40%{background:#fff3a3}100%{background:transparent}}
-@media (max-width:820px){.csearch{margin:0 0 6px;padding:0 6px}.chan>.av{display:none}.ucount{margin-left:0}.shit .chan-prev{display:-webkit-box;font-size:12px}}
+@media (max-width:820px){.csearch{margin:0 0 6px}.chan>.av{width:32px;height:32px;font-size:11px}}
 /* Basecamp import */
 .bc-setup{padding:18px 20px;max-width:820px;display:grid;gap:10px}
 .bc-setup h2{font-family:var(--f-display);font-weight:500;font-size:21px}
@@ -604,7 +601,6 @@ a.userchip:hover b{text-decoration:underline}
 .tc-clients li{font-size:13.5px}
 .tc-clients small{display:block;color:var(--muted);font-size:12px}
 .tc-clients small.tc-warn{color:#8a4b00}
-@media (max-width:1280px) and (min-width:821px){.chat{grid-template-columns:360px minmax(0,1fr)}}
 .chan-top .tag-bc{flex:none}
 /* Team & Access: By Job */
 .team-tabs{padding:0;max-width:1200px}
@@ -631,3 +627,25 @@ a.userchip:hover b{text-decoration:underline}
 .switch input:focus-visible+span{outline:2px solid var(--brand);outline-offset:2px}
 .switch input:disabled{cursor:default}
 @media (max-width:820px){.perm-row{grid-template-columns:minmax(0,1fr) auto}.perm-row .perm-role{grid-column:1/-1}}
+
+/* Chats: the list is a project's home; each chat opens full width */
+.chans.chatlist{border-right:0;padding:16px clamp(12px,3vw,28px) 12px;width:100%;max-width:1000px;margin:0 auto}
+.chatlist .chan{padding:12px 12px}
+.chatlist .chan-prev{-webkit-line-clamp:2}
+.chat-full{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0}
+.chat-bar{display:flex;align-items:center;gap:10px;padding:10px clamp(12px,2vw,20px);border-bottom:1px solid var(--line);flex-wrap:wrap}
+.chat-bar h2{font-family:var(--f-display);font-weight:500;font-size:20px;line-height:1.2;min-width:0}
+.chat-bar .ic{display:flex;color:var(--client)}
+.chat-bar .ic.int{color:var(--internal)}
+.chat-vis{margin-left:auto;font-size:12.5px;color:var(--muted)}
+.chat-full .msgs,.chat-full .compose{padding-inline:max(16px,calc((100% - 940px) / 2))}
+.phase-pill{display:inline-block;vertical-align:middle;margin-left:10px;font-family:var(--f-body,inherit);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:999px;background:color-mix(in srgb,var(--ph) 16%,var(--surface));color:color-mix(in srgb,var(--ph) 75%,#000)}
+/* The writing box stays small until someone starts writing */
+.compose.rich.idle .toolbar{display:none}
+.compose.rich.idle .editor{min-height:48px}
+/* Pictures in the text */
+.md .inline-pic{display:block;width:max-content;max-width:100%;margin:6px 0}
+.md .inline-pic img{display:block;max-width:min(100%,600px);max-height:440px;border-radius:8px;border:1px solid var(--line)}
+.md .inline-pic.missing{display:inline-block;font-size:12px;color:var(--muted);background:var(--sunk);border:1px dashed var(--line);border-radius:6px;padding:4px 8px}
+.editor img{display:block;max-width:min(100%,440px);max-height:320px;border-radius:6px;margin:6px 0;border:1px solid var(--line)}
+.editor img.ProseMirror-selectednode{outline:2px solid var(--brand)}

@@ -1,11 +1,7 @@
-import { notFound, redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import ChatList from "@/components/ChatList";
 
-// Opening a project lands on its first chat.
+// Opening a project shows its chats; each chat opens on its own page.
 export default async function ProjectHome({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const supabase = await createClient();
-  const { data } = await supabase.from("chats").select("id").eq("project_id", id).order("position").order("created_at").limit(1);
-  if (!data?.length) notFound();
-  redirect(`/projects/${id}/chats/${data[0].id}`);
+  return <ChatList projectId={id} />;
 }

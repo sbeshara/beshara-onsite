@@ -241,6 +241,8 @@ export function convertRichText(content: string | null | undefined): string {
   });
   const cleaned = sanitizeHtml(swapped, {
     ...SAFE_HTML,
+    // Basecamp's own images come over as attachments, not inline.
+    allowedTags: (SAFE_HTML.allowedTags as string[]).filter((t) => t !== "img"),
     transformTags: {
       ...SAFE_HTML.transformTags,
       div: "p",
