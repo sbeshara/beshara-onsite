@@ -1,4 +1,5 @@
 import "server-only";
+import { constructionCheck } from "./construction";
 import { FILES_BUCKET } from "./constants";
 import { storagePath, TZ } from "./format";
 import { dailyLogs, fileUrls } from "./jobtread";
@@ -187,12 +188,23 @@ async function askPmsForLookingAhead(admin: Admin, project: ProjectForReport, we
   }
 }
 
+// Drafts every job in construction (or the one project asked for), reading
+// daily logs from its construction job in JobTread.
 export async function generateAll(admin: Admin, weekStart: string, opts: GenerateOpts & { projectId?: string } = {}) {
-  let q = admin.from("projects").select("id, name, town, jobtread_job_id").not("jobtread_job_id", "is", null);
+  let q = admin.from("projects").select("id, name, town, phase, jobtread_job_id").not("jobtread_job_id", "is", null);
   if (opts.projectId) q = q.eq("id", opts.projectId);
-  const { data: projects } = await q;
+  const { data } = await q;
+  const projects = (data ?? []) as (ProjectForReport & { phase: number })[];
+  const check = await constructionCheck(projects);
   const results = [];
-  for (const p of (projects ?? []) as ProjectForReport[]) results.push(await generateReport(admin, p, weekStart, opts));
+  for (const p of projects) {
+    if (!opts.projectId && check.ok && !check.inConstruction(p)) {
+      results.push({ project: p.name, result: "not in construction" });
+      continue;
+    }
+    const job = check.jobsFor(p)[0] ?? p.jobtread_job_id;
+    results.push(await generateReport(admin, { ...p, jobtread_job_id: job }, weekStart, opts));
+  }
   return results;
 }
 

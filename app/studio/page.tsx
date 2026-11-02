@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getMe } from "@/lib/auth";
 import { fileUrls } from "@/lib/jobtread";
 import ReadyToSend from "@/components/ReadyToSend";
+import { constructionCheck } from "@/lib/construction";
 import { allowed } from "@/lib/permissions";
 import { nextReportFriday, readyToSend, reportWeek, shortDate, weekLabel, type WeeklyReport } from "@/lib/reports";
 import { reportFileName } from "@/lib/report-pdf";
@@ -38,7 +39,7 @@ export default async function ReportsHome({ searchParams }: { searchParams: Prom
 
   const [{ data: weeksData }, { data: projectsData }, ready] = await Promise.all([
     supabase.from("weekly_reports").select("week_start").order("week_start", { ascending: false }).limit(200),
-    supabase.from("projects").select("id, name, town, jobtread_job_id, jobtread_label").order("name"),
+    supabase.from("projects").select("id, name, town, phase, jobtread_job_id, jobtread_label").order("name"),
     readyToSend(supabase),
   ]);
   // Reports are open from Friday 5 PM (until Monday 10 AM for PMs, the end of
@@ -50,7 +51,11 @@ export default async function ReportsHome({ searchParams }: { searchParams: Prom
   const { data: reportsData } = week ? await supabase.from("weekly_reports").select("*").eq("week_start", week) : { data: [] };
   const reports = Object.fromEntries(((reportsData ?? []) as WeeklyReport[]).map((r) => [r.project_id, r]));
 
+  // Only jobs in construction are listed (plus any job that already has a
+  // report that week). If JobTread can't be reached, nothing is hidden.
+  const check = await constructionCheck((projectsData ?? []) as { phase: number; jobtread_job_id: string | null }[]);
   const rows = (week ? (projectsData ?? []) : [])
+    .filter((p) => !check.ok || check.inConstruction(p) || !!reports[p.id])
     .map((p) => {
       const r = reports[p.id] as WeeklyReport | undefined;
       const status = r
@@ -157,7 +162,7 @@ export default async function ReportsHome({ searchParams }: { searchParams: Prom
         </nav>
         {admin && week && week === open && count("missing") > 0 && <GenerateButton weekStart={week} />}
         <p className="fine">
-          Open Friday at 5 PM until Monday at 10 AM for PMs. Each job is drafted Friday at 5 PM from the daily logs so far; Looking Ahead fills in
+          Only jobs in construction are listed. Open Friday at 5 PM until Monday at 10 AM for PMs. Each job is drafted Friday at 5 PM from the daily logs so far; Looking Ahead fills in
           as the Friday log comes in (or press Redraft). Reports are sent on Monday.
         </p>
       </aside>

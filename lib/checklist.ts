@@ -1,7 +1,8 @@
 import "server-only";
 import { HQ_URL } from "./apps";
 import { TZ } from "./format";
-import { jobsById, listOpenJobs, logsOn } from "./jobtread";
+import { constructionCheck } from "./construction";
+import { logsOn } from "./jobtread";
 import { brandEmail, escapeHtml as esc, sendEmail } from "./notify";
 import { createAdminClient } from "./supabase/admin";
 
@@ -17,7 +18,6 @@ type Admin = ReturnType<typeof createAdminClient>;
 // separate invoicing job). If a project is linked to one that isn't in
 // construction, the same customer's job that is in construction stands in.
 
-const CONSTRUCTION_PHASE = 2;
 
 export type CheckItem = {
   projectId: string;
@@ -54,35 +54,11 @@ export async function loadChecklistStatus(admin: Admin, day: string, onlyUser?: 
     .eq("profiles.role", "construction");
   if (onlyUser) q = q.eq("user_id", onlyUser);
   let jobtreadOk = true;
-  const [{ data: rows }, logs, open] = await Promise.all([
-    q,
-    logsOn(day).catch(() => ((jobtreadOk = false), [])),
-    // JobTread jobs whose Status is Construction (null if JobTread can't be reached).
-    listOpenJobs().catch(() => ((jobtreadOk = false), null)),
-  ]);
-  const inConstruction = open ? new Set(open.map((j) => j.id)) : null;
-  const byAccount = new Map<string, string[]>();
-  for (const j of open ?? []) if (j.accountId) byAccount.set(j.accountId, [...(byAccount.get(j.accountId) ?? []), j.id]);
-  const linkedElsewhere = [
-    ...new Set(
-      ((rows ?? []) as unknown as { projects: { jobtread_job_id: string | null } }[])
-        .map((r) => r.projects.jobtread_job_id)
-        .filter((id): id is string => !!id && !!inConstruction && !inConstruction.has(id)),
-    ),
-  ];
-  const accountOf = new Map(
-    [...(await jobsById(linkedElsewhere).catch(() => new Map()))].filter(([, j]) => j.accountId).map(([id, j]) => [id, j.accountId as string]),
-  );
-  // The JobTread jobs whose daily logs count for a project.
-  const jobsFor = (p: { jobtread_job_id: string | null }) => {
-    const id = p.jobtread_job_id;
-    if (!id) return [];
-    if (!inConstruction || inConstruction.has(id)) return [id];
-    const account = accountOf.get(id);
-    return account ? (byAccount.get(account) ?? []) : [];
-  };
-  const onChecklist = (p: { phase: number; jobtread_job_id: string | null }) =>
-    p.jobtread_job_id && inConstruction ? jobsFor(p).length > 0 : p.phase === CONSTRUCTION_PHASE;
+  const [{ data: rows }, logs] = await Promise.all([q, logsOn(day).catch(() => ((jobtreadOk = false), []))]);
+  const check = await constructionCheck(((rows ?? []) as unknown as { projects: { phase: number; jobtread_job_id: string | null } }[]).map((r) => r.projects));
+  if (!check.ok) jobtreadOk = false;
+  const jobsFor = check.jobsFor;
+  const onChecklist = check.inConstruction;
   type Row = {
     user_id: string;
     profiles: { id: string; full_name: string; email: string };
