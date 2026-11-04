@@ -628,18 +628,35 @@ a.userchip:hover b{text-decoration:underline}
 .switch input:disabled{cursor:default}
 @media (max-width:820px){.perm-row{grid-template-columns:minmax(0,1fr) auto}.perm-row .perm-role{grid-column:1/-1}}
 
-/* Chats: the list is a project's home; each chat opens full width */
-.chans.chatlist{border-right:0;padding:16px clamp(12px,3vw,28px) 12px;width:100%;max-width:1000px;margin:0 auto}
-.chatlist .chan{padding:12px 12px}
-.chatlist .chan-prev{-webkit-line-clamp:2}
-.chat-full{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0}
-.chat-bar{display:flex;align-items:center;gap:10px;padding:10px clamp(12px,2vw,20px);border-bottom:1px solid var(--line);flex-wrap:wrap}
-.chat-bar h2{font-family:var(--f-display);font-weight:500;font-size:20px;line-height:1.2;min-width:0}
+/* Chats: the list on the left, the open chat on the right */
+.chat{display:grid;grid-template-columns:minmax(340px,40%) minmax(0,1fr);min-height:0}
+.chat .chans .chan-prev{-webkit-line-clamp:2}
+.chat-pane{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;background:var(--surface)}
+.chat-none{display:grid;place-items:center;color:var(--muted)}
+.chat-bar{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line);min-width:0}
+.chat-bar h2{font-family:var(--f-display);font-weight:500;font-size:20px;line-height:1.2;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .chat-bar .ic{display:flex;color:var(--client)}
 .chat-bar .ic.int{color:var(--internal)}
-.chat-vis{margin-left:auto;font-size:12.5px;color:var(--muted)}
-.chat-full .msgs,.chat-full .compose{padding-inline:max(16px,calc((100% - 940px) / 2))}
-.phase-pill{display:inline-block;vertical-align:middle;margin-left:10px;font-family:var(--f-body,inherit);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:999px;background:color-mix(in srgb,var(--ph) 16%,var(--surface));color:color-mix(in srgb,var(--ph) 75%,#000)}
+.chat-vis{margin-left:auto;font-size:12.5px;color:var(--muted);white-space:nowrap}
+.chat-expand{flex:none;padding:6px 12px;font-size:13px;margin-left:auto}
+.chat-vis+.chat-expand{margin-left:0}
+.chat-back{display:none}
+/* Full screen: the open chat covers the whole window while you write */
+.chat-pane.expanded{position:fixed;inset:0;z-index:60;box-shadow:0 0 0 100vmax rgba(0,0,0,.25)}
+.chat-pane.expanded .msgs,.chat-pane.expanded .compose{padding-inline:max(16px,calc((100% - 980px) / 2))}
+.chat-pane.expanded .chat-bar{padding-inline:max(16px,calc((100% - 980px) / 2))}
+.chat-pane.expanded .compose.rich{max-height:min(55vh,560px)}
+body.chat-expanded{overflow:hidden}
+@media (max-width:820px){
+  /* Phone: the list, or one chat with a clear way back */
+  .chat{grid-template-columns:minmax(0,1fr)}
+  .chat.home .chat-pane{display:none}
+  .chat:not(.home) .chans{display:none}
+  .chat-back{display:inline-flex;flex:none;padding:7px 12px;font-weight:700}
+  .chat-vis,.chat-expand{display:none}
+  .chat-bar{padding:8px 10px;gap:8px}
+  .chat-bar h2{font-size:17px}
+}
 /* The writing box stays small until someone starts writing */
 .compose.rich.idle .toolbar{display:none}
 .compose.rich.idle .editor{min-height:48px}

@@ -1,58 +1,13 @@
-import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
-import { LockIcon, PeopleIcon } from "@/components/Icons";
-import Thread from "@/components/Thread";
-import { signUrls } from "@/lib/storage";
-import { createClient } from "@/lib/supabase/server";
-import type { Chat, Message, Profile } from "@/lib/types";
-import { projectViewer } from "@/lib/viewas";
+import ChatList from "@/components/ChatList";
+import ChatView from "@/components/ChatView";
 
-// One chat, full width. "All Chats" (and the Chat tab) go back to the list.
+// Chats on the left, the open chat on the right (on a phone, just the chat).
 export default async function ChatPage({ params }: { params: Promise<{ id: string; chatId: string }> }) {
   const { id, chatId } = await params;
-  const v = await projectViewer(id);
-  const supabase = await createClient();
-  const [{ data: chatData }, { data: msgData }, { data: peopleData }, { data: memberData }, { data: unreadData }] = await Promise.all([
-    supabase.from("chats").select("*").eq("id", chatId).eq("project_id", id).maybeSingle(),
-    supabase.from("messages").select("*, files(*)").eq("chat_id", chatId).order("created_at", { ascending: false }).limit(200),
-    supabase.from("profiles").select("*"),
-    supabase.from("project_members").select("user_id").eq("project_id", id),
-    v.readOnly ? Promise.resolve({ data: [] }) : supabase.rpc("my_unread"),
-  ]);
-  const chat = chatData as Chat | null;
-  // Client views never open an internal chat.
-  if (chat && v.clientOnly && chat.is_internal) redirect(`/projects/${id}`);
-  if (!chat) notFound();
-  const messages = ((msgData ?? []) as Message[]).reverse();
-  const people = Object.fromEntries(((peopleData ?? []) as Profile[]).map((p) => [p.id, p]));
-  const clientNames = (memberData ?? []).map((m) => people[m.user_id]).filter((p) => p?.role === "client").map((p) => p.full_name || p.email);
-  const urls = await signUrls(supabase, messages.flatMap((m) => (m.files ?? []).map((f) => f.storage_path)));
-  const hadUnread = ((unreadData ?? []) as { chat_id: string }[]).some((u) => u.chat_id === chatId);
-
   return (
-    <div className="chat-full">
-      <div className="chat-bar">
-        <Link className="linkbtn chat-back" href={`/projects/${id}`}>
-          ← All Chats
-        </Link>
-        <span className={`ic ${chat.is_internal ? "int" : ""}`} aria-hidden="true">
-          {chat.is_internal ? <LockIcon /> : <PeopleIcon />}
-        </span>
-        <h2>{chat.name}</h2>
-        {chat.source_id && <span className="tag-bc">Basecamp</span>}
-        {v.role !== "client" && <span className="chat-vis">{chat.is_internal ? "Team only" : "The client sees this"}</span>}
-      </div>
-      <Thread
-        key={chat.id}
-        chat={chat}
-        initialMessages={messages}
-        initialUrls={urls}
-        people={people}
-        me={{ id: v.userId, role: v.role }}
-        clientNames={clientNames}
-        readOnly={v.readOnly}
-        hadUnread={hadUnread}
-      />
+    <div className="chat">
+      <ChatList projectId={id} activeId={chatId} />
+      <ChatView projectId={id} chatId={chatId} />
     </div>
   );
 }

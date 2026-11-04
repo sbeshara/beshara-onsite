@@ -2,9 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import Avatar from "@/components/Avatar";
 import InviteClientButton from "@/components/InviteClientButton";
-import { HideInChat, OnlyInChat } from "@/components/InChat";
 import PhaseControl from "@/components/PhaseControl";
-import { PHASES } from "@/lib/constants";
 import ProjectTabs from "@/components/ProjectTabs";
 import { getMe } from "@/lib/auth";
 import { getPreview } from "@/lib/preview";
@@ -40,12 +38,7 @@ export default async function ProjectLayout({ children, params }: { children: Re
       <div className="phead">
         <div className="phead-row">
           <div>
-            <h1>
-              {project.name}
-              <OnlyInChat>
-                <span className={`phase-pill ph${project.phase}`}>{PHASES[project.phase]}</span>
-              </OnlyInChat>
-            </h1>
+            <h1>{project.name}</h1>
             <div className="sub">{[project.town ? `${project.town}, NJ` : "", project.scope].filter(Boolean).join(" · ")}</div>
           </div>
           <div className="people">
@@ -62,12 +55,10 @@ export default async function ProjectLayout({ children, params }: { children: Re
             )}
           </div>
         </div>
-        <HideInChat>
-          <PhaseControl projectId={id} phase={project.phase} canEdit={isTeamRole(me.role) && !v.readOnly} />
-          {isAdminRole(me.role) && !v.readOnly && (
-            <InviteClientButton projectId={id} projectName={project.name} reminder hasClient={memberProfiles.some((p) => p.role === "client")} />
-          )}
-        </HideInChat>
+        <PhaseControl projectId={id} phase={project.phase} canEdit={isTeamRole(me.role) && !v.readOnly} />
+        {isAdminRole(me.role) && !v.readOnly && (
+          <InviteClientButton projectId={id} projectName={project.name} reminder hasClient={memberProfiles.some((p) => p.role === "client")} />
+        )}
       </div>
       <ProjectTabs projectId={id} fileCount={fileCount ?? 0} />
       {children}

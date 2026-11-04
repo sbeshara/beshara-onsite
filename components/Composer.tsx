@@ -17,6 +17,7 @@ type Props = {
   internal: boolean;
   // Posts the message (HTML) with any attached files and the pictures placed in
   // the text (each marked data-pending="<id>" in the HTML); resolves true when it went through.
+  onFocus?: () => void;
   onPost: (html: string, files: File[], inline: { id: string; file: File }[]) => Promise<boolean>;
   // Files dropped onto the thread land here.
   dropped: File[];
@@ -184,11 +185,13 @@ function Toolbar({ editor, onPicture }: { editor: Editor; onPicture: (files: Fil
 
 // A Basecamp-style writing box: formatting toolbar, room to write, attachments
 // collected before posting. Enter makes a new line; Post (or Ctrl/Cmd+Enter) sends.
-export default function Composer({ placeholder, hint, error, internal, onPost, dropped, onDroppedTaken }: Props) {
+export default function Composer({ placeholder, hint, error, internal, onPost, onFocus, dropped, onDroppedTaken }: Props) {
   const [files, setFiles] = useState<File[]>([]);
   const [posting, setPosting] = useState(false);
   const [tooLong, setTooLong] = useState(false);
   const [focused, setFocused] = useState(false);
+  const onFocusRef = useRef(onFocus);
+  onFocusRef.current = onFocus;
   const [empty, setEmpty] = useState(true);
   const postRef = useRef<() => void>(() => {});
   const inline = useRef(new Map<string, { file: File; url: string }>());
@@ -205,7 +208,10 @@ export default function Composer({ placeholder, hint, error, internal, onPost, d
     }
   };
   const editor = useEditor({
-    onFocus: () => setFocused(true),
+    onFocus: () => {
+      setFocused(true);
+      onFocusRef.current?.();
+    },
     onBlur: () => setFocused(false),
     onUpdate: ({ editor: e }) => setEmpty(e.isEmpty),
     immediatelyRender: false,
@@ -285,7 +291,7 @@ export default function Composer({ placeholder, hint, error, internal, onPost, d
 
   return (
     <div className={`compose rich ${internal ? "int" : ""} ${!focused && empty && !files.length ? "idle" : ""}`}>
-      <div className="editbox">
+      <div className="editbox" onPointerDown={() => onFocusRef.current?.()}>
         {editor && <Toolbar editor={editor} onPicture={addPictures} />}
         <EditorContent editor={editor} className="editor-wrap" />
         {files.length > 0 && (

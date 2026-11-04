@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useChatPane } from "@/components/ChatPane";
 import { useRouter } from "next/navigation";
 import { FILES_BUCKET, roleLabel } from "@/lib/constants";
 import { dayLabel, guessFolder, isImage, shortDate, storagePath, timeLabel } from "@/lib/format";
@@ -34,6 +35,7 @@ export default function Thread({ chat, initialMessages, initialUrls, people, me,
   const [dropped, setDropped] = useState<File[]>([]);
   const takeDropped = useCallback(() => setDropped([]), []);
   const listRef = useRef<HTMLDivElement>(null);
+  const pane = useChatPane();
 
   const urlsRef = useRef(urls);
   urlsRef.current = urls;
@@ -82,12 +84,17 @@ export default function Thread({ chat, initialMessages, initialUrls, people, me,
     }
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
   }, [messages.length]);
+  // Going full screen (or back) keeps the newest message in view.
+  useEffect(() => {
+    listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
+  }, [pane.expanded]);
 
   // Opening a chat (or seeing a new message arrive in it) marks it read,
   // which clears its unread dot and keeps it out of the email digest.
   const refreshedRef = useRef(false);
   useEffect(() => {
-    if (readOnly) return;
+    // A chat that isn't on screen (a phone showing just the list) isn't read yet.
+    if (readOnly || !listRef.current?.offsetParent) return;
     supabase
       .from("chat_reads")
       .upsert({ user_id: me.id, chat_id: chat.id, last_read_at: new Date().toISOString() }, { onConflict: "user_id,chat_id" })
@@ -256,7 +263,12 @@ export default function Thread({ chat, initialMessages, initialUrls, people, me,
               ? "Your Beshara team sees everything here."
               : "The client will see this message."
         }
-        onPost={send}
+        onPost={async (html, files, inline) => {
+          const ok = await send(html, files, inline);
+          if (ok) pane.collapse();
+          return ok;
+        }}
+        onFocus={pane.expand}
         dropped={dropped}
         onDroppedTaken={takeDropped}
       />

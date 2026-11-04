@@ -10,11 +10,10 @@ import { createClient } from "@/lib/supabase/server";
 import type { Chat, Profile } from "@/lib/types";
 import { projectViewer } from "@/lib/viewas";
 
-// A project's chats, full width: search, + New Chat, one list sorted by the
-// newest message (Basecamp posts included), Internal Only pinned at the
-// bottom. Clicking a chat opens it on its own page.
-export default async function ChatList({ projectId }: { projectId: string }) {
-  const me = await getMe();
+// A project's chats, beside the open chat: search, + New Chat, one list sorted
+// by the newest message (Basecamp posts included), Internal Only pinned at the
+// bottom.
+export async function loadChats(projectId: string) {
   const v = await projectViewer(projectId);
   const supabase = await createClient();
   const [{ data: chatsData }, { data: peopleData }, { data: unreadData }, { data: latestData }] = await Promise.all([
@@ -37,6 +36,14 @@ export default async function ChatList({ projectId }: { projectId: string }) {
   const listed = chats
     .filter((c) => c !== pinned)
     .sort((a, b) => (latest[b.id]?.created_at ?? "").localeCompare(latest[a.id]?.created_at ?? "") || a.position - b.position);
+  // The chat a project opens on: the newest one (Internal Only if it's the only one).
+  const first = listed[0] ?? (v.role !== "client" ? pinned : undefined);
+  return { v, latest, unread, people, pinned, listed, first };
+}
+
+export default async function ChatList({ projectId, activeId, data }: { projectId: string; activeId?: string; data?: Awaited<ReturnType<typeof loadChats>> }) {
+  const me = await getMe();
+  const { v, latest, unread, people, pinned, listed } = data ?? (await loadChats(projectId));
   const canStart = !v.readOnly && (me.role !== "client" || (await getPermissions()).clients_start_chats);
 
   const chatLink = (c: Chat) => {
@@ -44,9 +51,14 @@ export default async function ChatList({ projectId }: { projectId: string }) {
     const who = l && !l.company && l.author_id ? people[l.author_id] : undefined;
     const author = l ? (l.company ? "Beshara Builders" : who?.full_name || who?.email || l.imported_author || "Former member") : "";
     const text = l ? plainText(l.body).replace(/\s+/g, " ") || "Sent an attachment" : "No messages yet";
-    const count = unread[c.id] ?? 0;
+    const count = c.id !== activeId ? unread[c.id] ?? 0 : 0;
     return (
-      <Link key={c.id} className={`chan ${c.is_internal ? "int" : ""} ${count ? "unread" : ""}`} href={`/projects/${projectId}/chats/${c.id}`}>
+      <Link
+        key={c.id}
+        className={`chan ${c.is_internal ? "int" : ""} ${count ? "unread" : ""}`}
+        href={`/projects/${projectId}/chats/${c.id}`}
+        aria-current={c.id === activeId ? "page" : undefined}
+      >
         {!l ? (
           <span className="av av-none">{c.is_internal ? <LockIcon /> : <PeopleIcon />}</span>
         ) : l.company ? (
@@ -76,8 +88,8 @@ export default async function ChatList({ projectId }: { projectId: string }) {
   const searchPeople = Object.fromEntries(Object.values(people).map((p) => [p.id, { name: p.full_name || p.email, url: p.avatar_url ?? null }]));
 
   return (
-    <div className="chans chatlist" aria-label="Chats">
-      <ChatSearch projectId={projectId} chatId="" clientView={v.clientOnly} people={searchPeople}>
+    <div className="chans" aria-label="Chats">
+      <ChatSearch projectId={projectId} chatId={activeId ?? ""} clientView={v.clientOnly} people={searchPeople}>
         {canStart && <NewChatButton projectId={projectId} myId={me.id} isClient={me.role === "client"} />}
         <div className="chans-list">
           {listed.map(chatLink)}
