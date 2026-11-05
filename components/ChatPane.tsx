@@ -18,7 +18,7 @@ export default function ChatPane({ backHref, bar, children }: { backHref: string
   useEffect(() => {
     if (!expanded) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !e.defaultPrevented) setExpanded(false);
+      if (e.key === "Escape") setExpanded(false);
     };
     document.addEventListener("keydown", onKey);
     document.body.classList.add("chat-expanded");

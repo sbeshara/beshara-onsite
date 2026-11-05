@@ -284,7 +284,8 @@ export default function Composer({ placeholder, hint, error, internal, onPost, o
       setFiles([]);
       for (const v of inline.current.values()) URL.revokeObjectURL(v.url);
       inline.current.clear();
-      editor.commands.focus();
+      // Posting closes full screen, so the box is left unfocused.
+      editor.commands.blur();
     }
   }
   postRef.current = post;

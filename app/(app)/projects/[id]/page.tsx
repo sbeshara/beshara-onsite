@@ -1,15 +1,17 @@
+import { redirect } from "next/navigation";
 import ChatList, { loadChats } from "@/components/ChatList";
-import ChatView from "@/components/ChatView";
 
-// Opening a project shows its chats with the newest one open beside them.
-// On a phone it shows just the list.
-export default async function ProjectHome({ params }: { params: Promise<{ id: string }> }) {
+// Opening a project opens its newest chat (beside the list). "?list=1" is the
+// phone's All Chats view: just the list.
+export default async function ProjectHome({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ list?: string }> }) {
   const { id } = await params;
+  const { list } = await searchParams;
   const data = await loadChats(id);
+  if (data.first && !list) redirect(`/projects/${id}/chats/${data.first.id}`);
   return (
     <div className="chat home">
-      <ChatList projectId={id} activeId={data.first?.id} data={data} />
-      {data.first ? <ChatView projectId={id} chatId={data.first.id} /> : <div className="chat-pane chat-none empty">No chats yet.</div>}
+      <ChatList projectId={id} data={data} />
+      <div className="chat-pane chat-none empty">{data.first ? "Choose a chat." : "No chats yet."}</div>
     </div>
   );
 }

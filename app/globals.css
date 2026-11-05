@@ -640,7 +640,7 @@ a.userchip:hover b{text-decoration:underline}
 .chat-vis{margin-left:auto;font-size:12.5px;color:var(--muted);white-space:nowrap}
 .chat-expand{flex:none;padding:6px 12px;font-size:13px;margin-left:auto}
 .chat-vis+.chat-expand{margin-left:0}
-.chat-back{display:none}
+.chat-bar .chat-back{display:none}
 /* Full screen: the open chat covers the whole window while you write */
 .chat-pane.expanded{position:fixed;inset:0;z-index:60;box-shadow:0 0 0 100vmax rgba(0,0,0,.25)}
 .chat-pane.expanded .msgs,.chat-pane.expanded .compose{padding-inline:max(16px,calc((100% - 980px) / 2))}
@@ -652,7 +652,7 @@ body.chat-expanded{overflow:hidden}
   .chat{grid-template-columns:minmax(0,1fr)}
   .chat.home .chat-pane{display:none}
   .chat:not(.home) .chans{display:none}
-  .chat-back{display:inline-flex;flex:none;padding:7px 12px;font-weight:700}
+  .chat-bar .chat-back{display:inline-flex;flex:none;padding:7px 12px;font-weight:700}
   .chat-vis,.chat-expand{display:none}
   .chat-bar{padding:8px 10px;gap:8px}
   .chat-bar h2{font-size:17px}

@@ -31,7 +31,7 @@ export default async function ChatView({ projectId, chatId }: { projectId: strin
   return (
     <ChatPane
       key={chat.id}
-      backHref={`/projects/${projectId}`}
+      backHref={`/projects/${projectId}?list=1`}
       bar={
         <>
           <span className={`ic ${chat.is_internal ? "int" : ""}`} aria-hidden="true">
