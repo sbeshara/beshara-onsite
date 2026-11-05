@@ -58,3 +58,5 @@ button.ck-box:disabled{cursor:default}
 .ck-dot.on{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
 .ck-dot.miss{background:#FBE7E5;border-color:#F0C4BE;color:#9F2A1E}
 .ck-list.compact .ck-dot{width:18px;height:18px;font-size:10px}
+.ck-nobody{border-color:#e6c48a;background:#fdf6e8;margin-bottom:12px}
+.ck-nobody .fine{margin:0}

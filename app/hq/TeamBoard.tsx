@@ -3,7 +3,15 @@ import type { PersonChecklist } from "@/lib/checklist";
 const time = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/New_York" });
 
 // For the Principal Contractor and Admins: every PM's jobs for today.
-export default function TeamBoard({ lists, site }: { lists: PersonChecklist[]; site: string }) {
+export default function TeamBoard({
+  lists,
+  unassigned = [],
+  site,
+}: {
+  lists: PersonChecklist[];
+  unassigned?: { projectId: string; name: string; town: string }[];
+  site: string;
+}) {
   const total = lists.reduce((n, p) => n + p.items.length, 0);
   const done = lists.reduce((n, p) => n + p.items.filter((i) => i.done).length, 0);
   return (
@@ -14,6 +22,29 @@ export default function TeamBoard({ lists, site }: { lists: PersonChecklist[]; s
           {done} of {total} Jobs Logged
         </span>
       </div>
+      {unassigned.length > 0 && (
+        <div className="ck-card ck-nobody" role="note">
+          <div className="ck-card-h">
+            <b>Nobody Assigned</b>
+            <span className="ck-count">{unassigned.length}</span>
+          </div>
+          <p className="fine">
+            In construction, but no one from Construction Management is on {unassigned.length === 1 ? "this job" : "these jobs"}, so no one is reminded
+            about the daily log.
+          </p>
+          <ul className="ck-list compact">
+            {unassigned.map((j) => (
+              <li key={j.projectId}>
+                <span className="ck-dot miss" aria-hidden="true">!</span>
+                <div className="ck-main">
+                  <a className="ck-name" href={`${site}/team?view=jobs&job=${j.projectId}`}>{j.name}</a>
+                  <span className="ck-sub">Assign someone on Team &amp; Access</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {lists.length ? (
         <div className="ck-board">
           {lists.map((p) => {

@@ -74,9 +74,9 @@ export default async function HQ() {
   // Today's checklist: a PM's own jobs, or every PM's for the Principal Contractor and Admins.
   const today = njNow();
   const workday = isWeekday(today.weekday);
-  const { people: lists, jobtreadOk } = workday
+  const { people: lists, jobtreadOk, unassigned } = workday
     ? await loadChecklistStatus(createAdminClient(), today.day, isAdminRole(me.role) ? undefined : me.id)
-    : { people: [], jobtreadOk: true };
+    : { people: [], jobtreadOk: true, unassigned: [] };
   const mine = me.role === "construction" ? (lists[0]?.items ?? []) : null;
   const mineOpen = mine ? mine.filter((i) => !i.done).length : 0;
   const apps = TEAM_APPS.filter((a) => !a.roles || a.roles.includes(me.role));
@@ -138,7 +138,7 @@ export default async function HQ() {
             <Checklist items={mine} site={site} />
           </div>
         )}
-        {workday && isAdminRole(me.role) && <TeamBoard lists={lists} site={site} />}
+        {workday && isAdminRole(me.role) && <TeamBoard lists={lists} unassigned={unassigned} site={site} />}
         <nav className="hq-grid" aria-label="Apps">
           {apps.map((a) => (
             <a key={a.key} className="hq-tile" href={a.url} {...(a.external ? { target: "_blank", rel: "noreferrer" } : {})}>

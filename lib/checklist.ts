@@ -123,15 +123,23 @@ export async function dailyLogOwners(admin: Admin, day = njNow().day) {
 
 // jobtreadOk is false when JobTread couldn't be reached, so daily logs may be
 // missing from the lists (reminder emails aren't sent then).
-export async function loadChecklistStatus(admin: Admin, day: string, onlyUser?: string): Promise<{ people: PersonChecklist[]; jobtreadOk: boolean }> {
+// unassigned: jobs in construction with nobody from Construction Management on
+// them, so nobody is reminded about their daily log (for admins to fix).
+export async function loadChecklistStatus(
+  admin: Admin,
+  day: string,
+  onlyUser?: string,
+): Promise<{ people: PersonChecklist[]; jobtreadOk: boolean; unassigned: { projectId: string; name: string; town: string }[] }> {
   let jobtreadOk = true;
-  const [byProject, logs, chosen, tally] = await Promise.all([
+  const [byProject, { data: all }, logs, chosen, tally] = await Promise.all([
     constructionMembers(admin),
+    onlyUser ? Promise.resolve({ data: [] as ProjectRow[] }) : admin.from("projects").select("id, name, town, phase, jobtread_job_id"),
     logsOn(day).catch(() => ((jobtreadOk = false), [])),
     chosenOwners(admin),
     logAuthorsSince(daysBefore(day, 30)).catch(() => ((jobtreadOk = false), null)),
   ]);
-  const check = await constructionCheck([...byProject.values()].map((e) => e.project));
+  const nobody = ((all ?? []) as ProjectRow[]).filter((p) => !byProject.has(p.id));
+  const check = await constructionCheck([...[...byProject.values()].map((e) => e.project), ...nobody]);
   if (!check.ok) jobtreadOk = false;
   const people = new Map<string, PersonChecklist>();
   for (const [id, { project: p, members }] of byProject) {
@@ -153,7 +161,11 @@ export async function loadChecklistStatus(admin: Admin, day: string, onlyUser?: 
     people.set(m.id, person);
   }
   for (const p of people.values()) p.items.sort((a, b) => Number(!!a.done) - Number(!!b.done) || a.name.localeCompare(b.name));
-  return { people: [...people.values()].sort((a, b) => a.name.localeCompare(b.name)), jobtreadOk };
+  const unassigned = nobody
+    .filter((p) => check.inConstruction(p))
+    .map((p) => ({ projectId: p.id, name: p.name, town: p.town }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  return { people: [...people.values()].sort((a, b) => a.name.localeCompare(b.name)), jobtreadOk, unassigned };
 }
 
 // ---- Reminder emails ----------------------------------------------------------

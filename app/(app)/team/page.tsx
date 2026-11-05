@@ -138,6 +138,7 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
                       <span />
                       <span className="m">
                         {plural(c.team, "PM")} · {plural(c.clients, "client")}
+                        {!c.team && <b className="byjob-warn"> · no PM</b>}
                         {!c.clients ? <b className="byjob-warn"> · no client</b> : c.pending ? <b className="byjob-warn"> · {c.pending} invite pending</b> : null}
                       </span>
                     </Link>
