@@ -666,3 +666,9 @@ body.chat-expanded{overflow:hidden}
 .md .inline-pic.missing{display:inline-block;font-size:12px;color:var(--muted);background:var(--sunk);border:1px dashed var(--line);border-radius:6px;padding:4px 8px}
 .editor img{display:block;max-width:min(100%,440px);max-height:320px;border-radius:6px;margin:6px 0;border:1px solid var(--line)}
 .editor img.ProseMirror-selectednode{outline:2px solid var(--brand)}
+/* Team & Access, By Job: who writes the daily log */
+.logowner{padding:12px 16px;margin-bottom:14px;display:grid;gap:4px}
+.logowner label{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.logowner select{min-width:220px}
+.logowner.warn{border-color:#e6c48a;background:#fdf6e8}
+.logowner p{margin:0}

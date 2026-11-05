@@ -9,6 +9,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { isAdminRole, type Profile } from "@/lib/types";
 import { getPermissions, PERMISSIONS } from "@/lib/permissions";
+import { dailyLogOwners } from "@/lib/checklist";
+import DailyLogPicker from "./DailyLogPicker";
 import PermissionsPanel from "./PermissionsPanel";
 import TeamManager from "./TeamManager";
 
@@ -106,7 +108,8 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
   }
   const list = projects ?? [];
   const selectedId = list.some((p) => p.id === job) ? job! : (list.find((p) => p.phase === 2) ?? list[0])?.id;
-  const selected = selectedId ? await loadProjectPeople(selectedId) : null;
+  const [selected, owners] = await Promise.all([selectedId ? loadProjectPeople(selectedId) : null, dailyLogOwners(createAdminClient()).catch(() => ({}) as Awaited<ReturnType<typeof dailyLogOwners>>)]);
+  const owner = selectedId ? owners[selectedId] : undefined;
 
   return (
     <div className="page">
@@ -154,6 +157,15 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
                   Open Project →
                 </Link>
               </div>
+              {owner && (
+                <DailyLogPicker
+                  key={`${selected.projectId}:${owner.userId}`}
+                  projectId={selected.projectId}
+                  owner={owner.userId}
+                  how={owner.how}
+                  members={owner.members.map((m) => ({ id: m.id, name: m.full_name || m.email }))}
+                />
+              )}
               <PeopleManager
                 key={selected.projectId}
                 projectId={selected.projectId}

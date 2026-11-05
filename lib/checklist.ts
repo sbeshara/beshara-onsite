@@ -2,7 +2,7 @@ import "server-only";
 import { HQ_URL } from "./apps";
 import { TZ } from "./format";
 import { constructionCheck } from "./construction";
-import { logsOn } from "./jobtread";
+import { logAuthorsSince, logsOn } from "./jobtread";
 import { brandEmail, escapeHtml as esc, sendEmail } from "./notify";
 import { createAdminClient } from "./supabase/admin";
 
@@ -45,31 +45,102 @@ export async function loadChecklists(admin: Admin, day: string, onlyUser?: strin
   return (await loadChecklistStatus(admin, day, onlyUser)).people;
 }
 
-// jobtreadOk is false when JobTread couldn't be reached, so daily logs may be
-// missing from the lists (reminder emails aren't sent then).
-export async function loadChecklistStatus(admin: Admin, day: string, onlyUser?: string): Promise<{ people: PersonChecklist[]; jobtreadOk: boolean }> {
-  let q = admin
+// Who writes each job's daily log. A job can have several Construction
+// Management people on it, but only one is responsible for its daily log, so
+// it's on only their checklist. An admin can pick that person (Team & Access,
+// By Job); otherwise it's whoever on the job has written the most of its
+// JobTread daily logs in the last 30 days, or, with no history, the first of
+// them alphabetically. A log written by anyone still checks the job off.
+export type LogOwner = { userId: string; how: "chosen" | "only" | "logs" | "guess" };
+export const LOG_OWNER_KEY = (projectId: string) => `dailylog:${projectId}`;
+
+type Member = { id: string; full_name: string; email: string };
+type ProjectRow = { id: string; name: string; town: string; phase: number; jobtread_job_id: string | null };
+type MemberRow = { user_id: string; profiles: Member; projects: ProjectRow };
+
+const daysBefore = (day: string, n: number) => new Date(Date.parse(`${day}T12:00:00Z`) - n * 86400_000).toISOString().slice(0, 10);
+const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
+
+async function constructionMembers(admin: Admin) {
+  const { data } = await admin
     .from("project_members")
     .select("user_id, profiles!inner(id, full_name, email, role), projects!inner(id, name, town, phase, jobtread_job_id)")
     .eq("profiles.role", "construction");
-  if (onlyUser) q = q.eq("user_id", onlyUser);
+  const byProject = new Map<string, { project: ProjectRow; members: Member[] }>();
+  for (const r of (data ?? []) as unknown as MemberRow[]) {
+    const e = byProject.get(r.projects.id) ?? { project: r.projects, members: [] };
+    e.members.push(r.profiles);
+    byProject.set(r.projects.id, e);
+  }
+  for (const e of byProject.values()) e.members.sort((a, b) => (a.full_name || a.email).localeCompare(b.full_name || b.email));
+  return byProject;
+}
+
+function pickOwner(
+  projectId: string,
+  members: Member[],
+  jobs: string[],
+  chosen: Record<string, string>,
+  tally: Record<string, Record<string, number>> | null,
+): LogOwner | null {
+  if (!members.length) return null;
+  const set = chosen[projectId];
+  if (set && members.some((m) => m.id === set)) return { userId: set, how: "chosen" };
+  if (members.length === 1) return { userId: members[0].id, how: "only" };
+  const counts = new Map<string, number>();
+  for (const job of jobs) for (const [author, n] of Object.entries(tally?.[job] ?? {})) counts.set(norm(author), (counts.get(norm(author)) ?? 0) + n);
+  let best: Member | null = null;
+  let bestN = 0;
+  for (const m of members) {
+    const n = counts.get(norm(m.full_name || "")) ?? 0;
+    if (n > bestN) [best, bestN] = [m, n];
+  }
+  return best ? { userId: best.id, how: "logs" } : { userId: members[0].id, how: "guess" };
+}
+
+async function chosenOwners(admin: Admin) {
+  const { data } = await admin.from("app_settings").select("key, value").like("key", "dailylog:%");
+  return Object.fromEntries((data ?? []).map((r) => [String(r.key).slice("dailylog:".length), String(r.value)]));
+}
+
+// Each job in construction → who's responsible for its daily log (for Team & Access).
+export async function dailyLogOwners(admin: Admin, day = njNow().day) {
+  const byProject = await constructionMembers(admin);
+  const projects = [...byProject.values()].map((e) => e.project);
+  const [check, chosen, tally] = await Promise.all([
+    constructionCheck(projects),
+    chosenOwners(admin),
+    logAuthorsSince(daysBefore(day, 30)).catch(() => null),
+  ]);
+  const out: Record<string, LogOwner & { members: Member[] }> = {};
+  for (const [id, e] of byProject) {
+    if (!check.inConstruction(e.project)) continue;
+    const owner = pickOwner(id, e.members, check.jobsFor(e.project), chosen, tally);
+    if (owner) out[id] = { ...owner, members: e.members };
+  }
+  return out;
+}
+
+// jobtreadOk is false when JobTread couldn't be reached, so daily logs may be
+// missing from the lists (reminder emails aren't sent then).
+export async function loadChecklistStatus(admin: Admin, day: string, onlyUser?: string): Promise<{ people: PersonChecklist[]; jobtreadOk: boolean }> {
   let jobtreadOk = true;
-  const [{ data: rows }, logs] = await Promise.all([q, logsOn(day).catch(() => ((jobtreadOk = false), []))]);
-  const check = await constructionCheck(((rows ?? []) as unknown as { projects: { phase: number; jobtread_job_id: string | null } }[]).map((r) => r.projects));
+  const [byProject, logs, chosen, tally] = await Promise.all([
+    constructionMembers(admin),
+    logsOn(day).catch(() => ((jobtreadOk = false), [])),
+    chosenOwners(admin),
+    logAuthorsSince(daysBefore(day, 30)).catch(() => ((jobtreadOk = false), null)),
+  ]);
+  const check = await constructionCheck([...byProject.values()].map((e) => e.project));
   if (!check.ok) jobtreadOk = false;
-  const jobsFor = check.jobsFor;
-  const onChecklist = check.inConstruction;
-  type Row = {
-    user_id: string;
-    profiles: { id: string; full_name: string; email: string };
-    projects: { id: string; name: string; town: string; phase: number; jobtread_job_id: string | null };
-  };
   const people = new Map<string, PersonChecklist>();
-  for (const r of (rows ?? []) as unknown as Row[]) {
-    if (!onChecklist(r.projects)) continue;
-    const person = people.get(r.user_id) ?? { userId: r.user_id, name: r.profiles.full_name || r.profiles.email, email: r.profiles.email, items: [] };
-    const p = r.projects;
-    const jobs = jobsFor(p);
+  for (const [id, { project: p, members }] of byProject) {
+    if (!check.inConstruction(p)) continue;
+    const jobs = check.jobsFor(p);
+    const owner = pickOwner(id, members, jobs, chosen, tally);
+    if (!owner || (onlyUser && owner.userId !== onlyUser)) continue;
+    const m = members.find((x) => x.id === owner.userId)!;
+    const person = people.get(m.id) ?? { userId: m.id, name: m.full_name || m.email, email: m.email, items: [] };
     const log = logs.filter((l) => jobs.includes(l.jobId)).sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0];
     person.items.push({
       projectId: p.id,
@@ -79,7 +150,7 @@ export async function loadChecklistStatus(admin: Admin, day: string, onlyUser?: 
       linked: !!p.jobtread_job_id,
       done: log ? { by: "log", author: log.author, at: log.createdAt } : null,
     });
-    people.set(r.user_id, person);
+    people.set(m.id, person);
   }
   for (const p of people.values()) p.items.sort((a, b) => Number(!!a.done) - Number(!!b.done) || a.name.localeCompare(b.name));
   return { people: [...people.values()].sort((a, b) => a.name.localeCompare(b.name)), jobtreadOk };

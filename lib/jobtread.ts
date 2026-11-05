@@ -218,6 +218,40 @@ export async function logsOn(day: string): Promise<DayLog[]> {
   return r.organization.dailyLogs.nodes.filter((l) => l.job).map((l) => ({ jobId: l.job!.id, author: l.user?.name ?? "", createdAt: l.createdAt }));
 }
 
+// Who has written each job's daily logs since a day: job ID → author name →
+// how many logs. Used to work out who's responsible for a job's daily log.
+// Kept for 30 minutes, since it only shifts slowly (not when pointed at a
+// test server, whose history changes between checks).
+let tallyCache: { since: string; at: number; data: Record<string, Record<string, number>> } | null = null;
+export async function logAuthorsSince(since: string): Promise<Record<string, Record<string, number>>> {
+  const cache = !process.env.JOBTREAD_API_URL;
+  if (cache && tallyCache && tallyCache.since === since && Date.now() - tallyCache.at < 30 * 60_000) return tallyCache.data;
+  const org = await organizationId();
+  const data: Record<string, Record<string, number>> = {};
+  let page: string | null = null;
+  for (let i = 0; i < 8; i++) {
+    const r: { organization: { dailyLogs: { nextPage: string | null; nodes: { job: { id: string } | null; user: { name: string } | null }[] } } } = await pave({
+      organization: {
+        $: { id: org },
+        dailyLogs: {
+          $: { where: ["date", ">=", since], size: 100, ...(page ? { page } : {}) },
+          nextPage: {},
+          nodes: { job: { id: {} }, user: { name: {} } },
+        },
+      },
+    });
+    for (const l of r.organization.dailyLogs.nodes) {
+      if (!l.job || !l.user?.name) continue;
+      const t = (data[l.job.id] ??= {});
+      t[l.user.name] = (t[l.user.name] ?? 0) + 1;
+    }
+    page = r.organization.dailyLogs.nextPage;
+    if (!page) break;
+  }
+  if (cache) tallyCache = { since, at: Date.now(), data };
+  return data;
+}
+
 export type JobContact = { name: string; title: string | null; email: string; primary: boolean };
 
 // The customer's contacts on a job, with emails, for pre-filling client invites.
