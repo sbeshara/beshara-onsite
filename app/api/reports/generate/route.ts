@@ -5,7 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export const maxDuration = 300;
 
 // Called hourly on Fridays and Saturdays by the database scheduler.
-//   Friday from 5 PM: drafts every linked job from the logs so far (Looking
+//   Friday from 10 AM: drafts every linked job from the logs so far (Looking
 //                     Ahead flagged as missing until the Friday log is in), and
 //                     redrafts untouched drafts as Friday logs come in.
 //   Saturday 8 AM:    drafts the rest, refreshes untouched drafts still missing

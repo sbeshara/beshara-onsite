@@ -64,16 +64,19 @@ export function lastFullWeek(now = clock()) {
 // "Now" for the report schedule. REPORTS_NOW pins it for testing only.
 export const clock = () => (process.env.REPORTS_NOW ? new Date(process.env.REPORTS_NOW) : new Date());
 
-// Progress reports open Friday at 5 PM: drafted from whatever daily logs are
-// in, reviewed by PMs over the weekend until Monday 10 AM. The Principal
-// Contractor and Admins can keep approving and sending through Monday.
+// Progress reports are open from Friday at 10 AM until Monday at noon, for
+// everyone (PMs, Admins and the Principal Contractor). They're drafted Friday
+// from 10 AM from whatever daily logs are in, and untouched drafts are
+// redrafted as Friday's logs come in.
 // Returns the Monday of the week being reported, or null while closed.
-export const OPENS = "Friday at 5 PM";
-export function reportWeek(now = clock(), opts: { admin?: boolean } = {}) {
+export const OPENS = "Friday at 10 AM";
+export const OPEN_HOUR = 10; // Friday: open, and drafting starts
+export const CLOSE_HOUR = 12; // Monday
+export function reportWeek(now = clock(), _opts: { admin?: boolean } = {}) {
   const t = nj(now);
   const monday = mondayOf(t.date);
-  if ((t.weekday === "Fri" && t.hour >= 17) || t.weekday === "Sat" || t.weekday === "Sun") return monday;
-  if (t.weekday === "Mon" && (t.hour < 10 || opts.admin)) return addDays(monday, -7);
+  if ((t.weekday === "Fri" && t.hour >= OPEN_HOUR) || t.weekday === "Sat" || t.weekday === "Sun") return monday;
+  if (t.weekday === "Mon" && t.hour < CLOSE_HOUR) return addDays(monday, -7);
   return null;
 }
 // The Friday the next reports open (for "opens Friday 10/31" messages).
@@ -85,7 +88,7 @@ export const nextReportFriday = (now = clock()) => {
 
 export function scheduleSlot(now = clock()) {
   const t = nj(now);
-  if (t.weekday === "Fri" && t.hour >= 17) return "friday" as const; // draft every job with what's in, refresh as Friday logs come in
+  if (t.weekday === "Fri" && t.hour >= OPEN_HOUR) return "friday" as const; // draft every job with what's in, refresh as Friday logs come in
   if (t.weekday === "Sat" && t.hour === 8) return "saturday" as const; // draft the rest, email PMs missing Looking Ahead
   return null;
 }

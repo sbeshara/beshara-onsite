@@ -672,3 +672,13 @@ body.chat-expanded{overflow:hidden}
 .logowner select{min-width:220px}
 .logowner.warn{border-color:#e6c48a;background:#fdf6e8}
 .logowner p{margin:0}
+/* Delete Project (Team & Clients, admins only) */
+.danger{margin-top:28px;border:1px solid #e3b4ad;border-radius:12px;padding:16px 18px;display:grid;gap:10px;max-width:720px;background:#fdf4f2}
+.danger h2{font-family:var(--f-display);font-weight:500;font-size:19px;color:#9F2A1E}
+.danger form{display:grid;gap:10px}
+.danger label{display:grid;gap:4px}
+.danger p{margin:0}
+.danger-btn{color:#9F2A1E;border-color:#e3b4ad;justify-self:start}
+.danger-btn.solid{background:#9F2A1E;color:#fff;border-color:#9F2A1E}
+.danger-btn:disabled{opacity:.5;cursor:default}
+.danger-actions{display:flex;gap:12px;align-items:center}

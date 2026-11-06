@@ -31,8 +31,7 @@ async function requireAdmin() {
   return me;
 }
 
-// PMs can work on a week's reports from Friday 5 PM until Monday 10 AM; the
-// Principal Contractor and Admins through the end of Monday.
+// Everyone can work on a week's reports from Friday 10 AM until Monday at noon.
 const closedMessage = () => `Progress reports are closed. They open ${OPENS.replace("Friday", `Friday ${shortDate(nextReportFriday())}`)}.`;
 function checkWindow(role: Parameters<typeof isAdminRole>[0], weekStart: string) {
   if (reportWeek(undefined, { admin: isAdminRole(role) }) !== weekStart) throw new Error(closedMessage());

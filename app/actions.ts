@@ -9,6 +9,8 @@ import { allowed, PERMISSIONS, type PermissionKey } from "@/lib/permissions";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { isAdminRole, type Role } from "@/lib/types";
+import { FILES_BUCKET } from "@/lib/constants";
+import { getViewAs } from "@/lib/viewas";
 
 export type Result = { error?: string; ok?: string };
 
@@ -254,4 +256,34 @@ export async function setPermission(key: PermissionKey, on: boolean): Promise<Re
   if (error) return { error: "Couldn't save that. Try again." };
   revalidatePath("/", "layout");
   return { ok: "Saved." };
+}
+
+// Deletes a project for good: its chats, messages, files (and the stored
+// copies), progress reports and checklist history. People stay: clients keep
+// their login for any other projects. The name must be typed to confirm.
+export async function deleteProject(projectId: string, typedName: string): Promise<Result> {
+  try {
+    await requireAdmin();
+    if (await getViewAs()) return { error: "You're viewing as someone else. Exit View As first." };
+    const admin = createAdminClient();
+    const { data: project } = await admin.from("projects").select("id, name").eq("id", projectId).maybeSingle();
+    if (!project) return { error: "That project is already gone." };
+    if (typedName.trim().toLowerCase() !== String(project.name).trim().toLowerCase()) return { error: `Type the project name exactly (${project.name}) to delete it.` };
+    // Every stored file lives under <projectId>/ in the bucket.
+    for (;;) {
+      const { data: objects, error } = await admin.storage.from(FILES_BUCKET).list(projectId, { limit: 1000 });
+      if (error) return { error: "Couldn't remove the project's files. Nothing was deleted; try again." };
+      if (!objects?.length) break;
+      const { error: rmError } = await admin.storage.from(FILES_BUCKET).remove(objects.map((o) => `${projectId}/${o.name}`));
+      if (rmError) return { error: "Couldn't remove the project's files. Try again." };
+      if (objects.length < 1000) break;
+    }
+    const { error } = await admin.from("projects").delete().eq("id", projectId);
+    if (error) return { error: "Couldn't delete the project. Try again." };
+    await admin.from("app_settings").delete().in("key", [`dailylog:${projectId}`, `basecamp_announced:${projectId}`]);
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+  revalidatePath("/", "layout");
+  redirect("/?deleted=1");
 }

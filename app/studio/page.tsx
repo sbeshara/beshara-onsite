@@ -42,8 +42,8 @@ export default async function ReportsHome({ searchParams }: { searchParams: Prom
     supabase.from("projects").select("id, name, town, phase, jobtread_job_id, jobtread_label").order("name"),
     readyToSend(supabase),
   ]);
-  // Reports are open from Friday 5 PM (until Monday 10 AM for PMs, the end of
-  // Monday for Admins); otherwise only past weeks can be looked at.
+  // Reports are open from Friday 10 AM until Monday noon, for everyone;
+  // otherwise only past weeks can be looked at.
   const open = reportWeek(undefined, { admin });
   const weeks = [...new Set([...(open ? [open] : []), ...(weeksData ?? []).map((w) => w.week_start as string)])].sort().reverse().slice(0, 8);
   const week = wanted && /^\d{4}-\d{2}-\d{2}$/.test(wanted) ? wanted : open;
@@ -112,7 +112,7 @@ export default async function ReportsHome({ searchParams }: { searchParams: Prom
         <div className="st-side-h">
           <h1>Progress Reports</h1>
           <p>
-            {week ? `Week of ${weekLabel(week)}${pastWeek ? " · Past Week" : ""}` : `Closed until Friday ${shortDate(nextReportFriday())} at 5 PM`}
+            {week ? `Week of ${weekLabel(week)}${pastWeek ? " · Past Week" : ""}` : `Closed until Friday ${shortDate(nextReportFriday())} at 10 AM`}
           </p>
         </div>
         {weeks.length > 0 && (
@@ -162,20 +162,20 @@ export default async function ReportsHome({ searchParams }: { searchParams: Prom
         </nav>
         {admin && week && week === open && count("missing") > 0 && <GenerateButton weekStart={week} />}
         <p className="fine">
-          Only jobs in construction are listed. Open Friday at 5 PM until Monday at 10 AM for PMs. Each job is drafted Friday at 5 PM from the daily logs so far; Looking Ahead fills in
-          as the Friday log comes in (or press Redraft). Reports are sent on Monday.
+          Only jobs in construction are listed. Open Friday at 10 AM until Monday at 12 PM. Each job is drafted Friday at 10 AM from the daily logs so far and redrafted as
+          Friday&apos;s logs come in, until someone edits it (or press Redraft). Reports are sent on Monday.
         </p>
       </aside>
       <section className="st-detail">
         {posted && <div className="st-banner ok">Sent the {posted} report to the client&apos;s Progress Reports chat.</div>}
         {approved && <div className="st-banner ok">Approved the {approved} report. It&apos;s in Ready to Send; nothing goes to the client until it&apos;s sent.</div>}
         {!editor && <ReadyToSend reports={ready} canSend={canSend} />}
-        {pastWeek && <div className="st-banner note">This is a past week, kept for reference. This week&apos;s reports open Friday at 5 PM.</div>}
+        {pastWeek && <div className="st-banner note">This is a past week, kept for reference. This week&apos;s reports open Friday at 10 AM.</div>}
         {!week && (
           <div className="st-empty">
             <h2>Progress Reports Open Friday</h2>
             <p>
-              The next reports open Friday {shortDate(nextReportFriday())} at 5 PM. PMs review them until Monday at 10 AM, then they&apos;re sent on Monday.
+              The next reports open Friday {shortDate(nextReportFriday())} at 10 AM. They&apos;re reviewed, approved and sent by Monday at 12 PM.
               {weeks.length > 0 && " Past weeks are listed on the left for reference."}
             </p>
           </div>
