@@ -4,7 +4,7 @@ import Link from "next/link";
 import Hero from "@/components/Hero";
 import { ChatIcon, DocIcon, GridIcon } from "@/components/Icons";
 import { todayLabel } from "@/lib/format";
-import { isWeekday, loadChecklistStatus, njNow } from "@/lib/checklist";
+import { DUE_HOUR, isWeekday, loadChecklistStatus, njNow } from "@/lib/checklist";
 import ReadyToSend from "@/components/ReadyToSend";
 import { readyToSend, reportWeek } from "@/lib/reports";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -79,6 +79,7 @@ export default async function HQ() {
     : { people: [], jobtreadOk: true, unassigned: [] };
   const mine = me.role === "construction" ? (lists[0]?.items ?? []) : null;
   const mineOpen = mine ? mine.filter((i) => !i.done).length : 0;
+  const late = today.hour >= DUE_HOUR; // logs are due by the end of the day
   const apps = TEAM_APPS.filter((a) => !a.roles || a.roles.includes(me.role));
   const first = (me.full_name || me.email).split(" ")[0];
 
@@ -120,7 +121,7 @@ export default async function HQ() {
           {mine && workday && mine.length ? (
             <a className="feat" href="#today">
               <GridIcon />
-              {mineOpen ? `${plural(mineOpen, "Daily Log")} Missing Today` : "All Daily Logs In Today"}
+              {mineOpen ? `${plural(mineOpen, "Daily Log")} ${late ? "Missing" : "Due"} Today` : "All Daily Logs In Today"}
             </a>
           ) : (
             <span className="feat">
@@ -135,10 +136,10 @@ export default async function HQ() {
         )}
         {workday && mine && mine.length > 0 && (
           <div id="today">
-            <Checklist items={mine} site={site} />
+            <Checklist items={mine} site={site} late={late} />
           </div>
         )}
-        {workday && isAdminRole(me.role) && <TeamBoard lists={lists} unassigned={unassigned} site={site} />}
+        {workday && isAdminRole(me.role) && <TeamBoard lists={lists} unassigned={unassigned} site={site} late={late} />}
         <nav className="hq-grid" aria-label="Apps">
           {apps.map((a) => (
             <a key={a.key} className="hq-tile" href={a.url} {...(a.external ? { target: "_blank", rel: "noreferrer" } : {})}>

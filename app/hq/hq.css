@@ -60,3 +60,6 @@ button.ck-box:disabled{cursor:default}
 .ck-list.compact .ck-dot{width:18px;height:18px;font-size:10px}
 .ck-nobody{border-color:#e6c48a;background:#fdf6e8;margin-bottom:12px}
 .ck-nobody .fine{margin:0}
+/* Before 5 PM an unlogged job is just due, not missing */
+.ck-dot.due{background:transparent;border-color:var(--line)}
+.ck-due{align-self:center;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;border-radius:999px;padding:3px 9px;background:var(--bg);color:var(--muted);border:1px solid var(--line);white-space:nowrap}

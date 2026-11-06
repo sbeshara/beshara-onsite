@@ -4,7 +4,9 @@ const time = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { hour: 
 
 // A PM's Daily Check-In: each active job is done once JobTread has today's
 // daily log for it. There's nothing to tick; the log is the check-in.
-export default function Checklist({ items, site }: { items: CheckItem[]; site: string }) {
+// Logs are due by the end of the day: until 5 PM an unlogged job shows as
+// "Due today", after 5 PM as "Missing".
+export default function Checklist({ items, site, late }: { items: CheckItem[]; site: string; late: boolean }) {
   const done = items.filter((i) => i.done).length;
   return (
     <section className="ck">
@@ -20,8 +22,8 @@ export default function Checklist({ items, site }: { items: CheckItem[]; site: s
       <ul className="ck-list">
         {items.map((i) => (
           <li key={i.projectId} className={i.done ? "done" : ""}>
-            <span className={`ck-dot ${i.done ? "on" : "miss"}`} aria-hidden="true">
-              {i.done ? "✓" : "!"}
+            <span className={`ck-dot ${i.done ? "on" : late ? "miss" : "due"}`} aria-hidden="true">
+              {i.done ? "✓" : late ? "!" : ""}
             </span>
             <div className="ck-main">
               <a className="ck-name" href={`${site}/projects/${i.projectId}`}>
@@ -31,19 +33,19 @@ export default function Checklist({ items, site }: { items: CheckItem[]; site: s
                 {i.done ? (
                   <>Daily log by {i.done.author || "the team"} at {time(i.done.at)}</>
                 ) : i.linked ? (
-                  "Missing today's daily log"
+                  late ? "Missing today's daily log" : "Today's daily log is due by the end of the day"
                 ) : (
-                  "Missing · not linked to JobTread, so its daily log can't be found. Ask Julia to link it."
+                  `${late ? "Missing" : "Due today"} · not linked to JobTread, so its daily log can't be found. Ask Julia to link it.`
                 )}
               </span>
             </div>
-            {!i.done && <span className="ck-missing">Missing</span>}
+            {!i.done && <span className={late ? "ck-missing" : "ck-due"}>{late ? "Missing" : "Due Today"}</span>}
           </li>
         ))}
       </ul>
       <p className="fine">
-        Each job checks off on its own once its JobTread daily log for today is in. Only jobs in construction are listed; reminders go out at 10 AM and
-        5 PM for any still missing.
+        Each job checks off on its own once its JobTread daily log for today is in. Only jobs in construction are listed. Logs are due by the end of
+        the day; at 5 PM you get one reminder for any still missing.
       </p>
     </section>
   );

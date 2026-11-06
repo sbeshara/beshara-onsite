@@ -7,8 +7,10 @@ export default function TeamBoard({
   lists,
   unassigned = [],
   site,
+  late = true,
 }: {
   lists: PersonChecklist[];
+  late?: boolean; // after 5 PM, when an unlogged job counts as missing
   unassigned?: { projectId: string; name: string; town: string }[];
   site: string;
 }) {
@@ -60,13 +62,13 @@ export default function TeamBoard({
                 <ul className="ck-list compact">
                   {p.items.map((i) => (
                     <li key={i.projectId} className={i.done ? "done" : ""}>
-                      <span className={`ck-dot ${i.done ? "on" : "miss"}`} aria-hidden="true">
-                        {i.done ? "✓" : "!"}
+                      <span className={`ck-dot ${i.done ? "on" : late ? "miss" : "due"}`} aria-hidden="true">
+                        {i.done ? "✓" : late ? "!" : ""}
                       </span>
                       <div className="ck-main">
                         <a className="ck-name" href={`${site}/projects/${i.projectId}`}>{i.name}</a>
                         <span className="ck-sub">
-                          {i.done ? <>Daily log by {i.done.author || "the team"} · {time(i.done.at)}</> : i.linked ? "Missing" : "Missing · not linked to JobTread"}
+                          {i.done ? <>Daily log by {i.done.author || "the team"} · {time(i.done.at)}</> : i.linked ? (late ? "Missing" : "Due today") : `${late ? "Missing" : "Due today"} · not linked to JobTread`}
                         </span>
                       </div>
                     </li>

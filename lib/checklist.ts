@@ -38,6 +38,8 @@ export function njNow(now = process.env.REPORTS_NOW ? new Date(process.env.REPOR
   );
   return { day: `${p.year}-${p.month}-${p.day}`, weekday: p.weekday as string, hour: Number(p.hour) };
 }
+// Logs are due by the end of the day; until 5 PM an unlogged job is just "due".
+export const DUE_HOUR = 17;
 export const isWeekday = (weekday: string) => !["Sat", "Sun"].includes(weekday);
 
 // Everyone's checklist for one day (or just one person's).
@@ -188,23 +190,7 @@ const jobList = (items: CheckItem[]) =>
 const button = (label: string) =>
   `<p style="margin:18px 0 0"><a href="${HQ_URL}" style="display:inline-block;background:#455C51;color:#FFFFFF;text-decoration:none;font-weight:bold;font-size:14px;padding:11px 18px;border-radius:999px">${esc(label)}</a></p>`;
 
-const FOOTER = "A job checks off on its own once JobTread has its daily log for today, and Beshara HQ shows it right away. You only get these emails while a job's log is missing.";
-
-// 10 AM: every job not checked yet today.
-function morningEmail(p: PersonChecklist, day: string) {
-  const first = p.name.split(" ")[0] || "there";
-  const open = p.items.filter((i) => !i.done);
-  return {
-    subject: `Today's daily logs · ${dayLabel(day)} · ${open.length} to write`,
-    html: brandEmail({
-      tag: "Daily Check-In",
-      heading: `Good morning, ${first}`,
-      body: `<p style="margin:0 0 12px;font-size:15px;line-height:1.5">Here ${open.length === 1 ? "is the job" : "are the jobs"} that need${open.length === 1 ? "s" : ""} a daily log in JobTread today, ${esc(dayLabel(day))}, even the quiet ones. Each checks off on its own once the log is in.</p>
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${jobList(open)}</table>${button("Open My Check-In")}`,
-      footer: FOOTER,
-    }),
-  };
-}
+const FOOTER = "A job checks off on its own once JobTread has its daily log for today, and Beshara HQ shows it right away. You only get this email at 5 PM, and only while a job's log is missing.";
 
 // 5 PM: whatever is still missing a check.
 function afternoonEmail(p: PersonChecklist, day: string) {
@@ -247,7 +233,7 @@ function teamEmail(name: string, open: PersonChecklist[], day: string) {
 }
 
 // Sends one round of reminders; each person gets each slot at most once a day.
-export async function sendReminders(admin: Admin, day: string, slot: "morning" | "afternoon") {
+export async function sendReminders(admin: Admin, day: string, slot: "afternoon") {
   const { people: lists, jobtreadOk } = await loadChecklistStatus(admin, day);
   // Without JobTread every job would look unlogged; better no email than a wrong one.
   if (!jobtreadOk) {
@@ -263,20 +249,18 @@ export async function sendReminders(admin: Admin, day: string, slot: "morning" |
     const open = p.items.filter((i) => !i.done);
     if (!open.length) continue; // only email about jobs still missing a check
     if (!(await claim(p.userId))) continue;
-    const mail = slot === "morning" ? morningEmail(p, day) : afternoonEmail(p, day);
+    const mail = afternoonEmail(p, day);
     const r = await sendEmail(p.email, mail.subject, mail.html);
     if (r.ok) sent.push(p.email);
   }
-  if (slot === "afternoon") {
-    const open = lists.filter((p) => p.items.some((i) => !i.done));
-    if (open.length) {
-      const { data: bosses } = await admin.from("profiles").select("id, full_name, email").in("role", ["owner", "admin"]);
-      for (const b of bosses ?? []) {
-        if (!(await claim(b.id))) continue;
-        const mail = teamEmail(b.full_name || b.email, open, day);
-        const r = await sendEmail(b.email, mail.subject, mail.html);
-        if (r.ok) sent.push(b.email);
-      }
+  const open = lists.filter((p) => p.items.some((i) => !i.done));
+  if (open.length) {
+    const { data: bosses } = await admin.from("profiles").select("id, full_name, email").in("role", ["owner", "admin"]);
+    for (const b of bosses ?? []) {
+      if (!(await claim(b.id))) continue;
+      const mail = teamEmail(b.full_name || b.email, open, day);
+      const r = await sendEmail(b.email, mail.subject, mail.html);
+      if (r.ok) sent.push(b.email);
     }
   }
   return sent;
