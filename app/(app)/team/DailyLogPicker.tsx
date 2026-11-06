@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { setDailyLogOwner } from "./actions";
 
 type Props = {
@@ -24,6 +24,8 @@ export default function DailyLogPicker({ projectId, owner, how, members }: Props
   const [note, setNote] = useState(HOW[how]);
   const [error, setError] = useState("");
   const [pending, start] = useTransition();
+  // Follow the saved choice when the page refreshes.
+  useEffect(() => setValue(owner), [owner]);
   return (
     <div className={`box logowner ${how === "guess" ? "warn" : ""}`}>
       <label>

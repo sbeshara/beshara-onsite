@@ -160,7 +160,7 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
               </div>
               {owner && (
                 <DailyLogPicker
-                  key={`${selected.projectId}:${owner.userId}`}
+                  key={selected.projectId}
                   projectId={selected.projectId}
                   owner={owner.userId}
                   how={owner.how}
