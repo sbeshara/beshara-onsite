@@ -5,6 +5,7 @@ import Hero from "@/components/Hero";
 import { ChatIcon, DocIcon, GridIcon } from "@/components/Icons";
 import { todayLabel } from "@/lib/format";
 import { DUE_HOUR, isWeekday, loadChecklistStatus, njNow } from "@/lib/checklist";
+import { isSeniorPm } from "@/lib/senior";
 import ReadyToSend from "@/components/ReadyToSend";
 import { readyToSend, reportWeek } from "@/lib/reports";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -71,13 +72,16 @@ export default async function HQ() {
         ? { text: `${plural(toReview, "Report")} to Review`, hot: true }
         : { text: "Nothing Waiting", hot: false },
   };
-  // Today's checklist: a PM's own jobs, or every PM's for the Principal Contractor and Admins.
+  // Today's checklist: a PM's own jobs, plus every PM's for the Principal
+  // Contractor, Admins and Senior PMs (the team board).
   const today = njNow();
   const workday = isWeekday(today.weekday);
+  const senior = me.role === "construction" && (await isSeniorPm(me.id));
+  const seesBoard = isAdminRole(me.role) || senior;
   const { people: lists, jobtreadOk, unassigned } = workday
-    ? await loadChecklistStatus(createAdminClient(), today.day, isAdminRole(me.role) ? undefined : me.id)
+    ? await loadChecklistStatus(createAdminClient(), today.day, seesBoard ? undefined : me.id)
     : { people: [], jobtreadOk: true, unassigned: [] };
-  const mine = me.role === "construction" ? (lists[0]?.items ?? []) : null;
+  const mine = me.role === "construction" ? (lists.find((p) => p.userId === me.id)?.items ?? []) : null;
   const mineOpen = mine ? mine.filter((i) => !i.done).length : 0;
   const late = today.hour >= DUE_HOUR; // logs are due by the end of the day
   const apps = TEAM_APPS.filter((a) => !a.roles || a.roles.includes(me.role));
@@ -139,7 +143,7 @@ export default async function HQ() {
             <Checklist items={mine} site={site} late={late} />
           </div>
         )}
-        {workday && isAdminRole(me.role) && <TeamBoard lists={lists} unassigned={unassigned} site={site} late={late} />}
+        {workday && seesBoard && <TeamBoard lists={lists} unassigned={unassigned} site={site} late={late} canManage={isAdminRole(me.role)} />}
         <nav className="hq-grid" aria-label="Apps">
           {apps.map((a) => (
             <a key={a.key} className="hq-tile" href={a.url} {...(a.external ? { target: "_blank", rel: "noreferrer" } : {})}>

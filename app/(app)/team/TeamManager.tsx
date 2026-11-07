@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
-import { inviteTeamMember, removeTeamMember, resendInvite, setAssignment, setRole, type Result } from "@/app/actions";
+import { inviteTeamMember, removeTeamMember, resendInvite, setAssignment, setRole, setSeniorPm, type Result } from "@/app/actions";
 import Avatar from "@/components/Avatar";
 import { ROLE_LABEL } from "@/lib/constants";
 import { plural } from "@/lib/format";
@@ -13,11 +13,13 @@ type Props = {
   projects: { id: string; name: string; town: string }[];
   assigned: Record<string, string[]>;
   lastSignIn: Record<string, string | null>;
+  senior: string[]; // Senior PMs: also see HQ's team check-in board
 };
 
 const since = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
-export default function TeamManager({ me, people, projects, assigned: initial, lastSignIn }: Props) {
+export default function TeamManager({ me, people, projects, assigned: initial, lastSignIn, senior: initialSenior }: Props) {
+  const [senior, setSenior] = useState(initialSenior);
   // Ticks update right away; the server saves each one.
   const [assigned, setAssigned] = useState(initial);
   const toggle = (userId: string, projectId: string, on: boolean) => {
@@ -49,7 +51,7 @@ export default function TeamManager({ me, people, projects, assigned: initial, l
                   <b>{p.full_name || p.email}</b>
                   <small>
                     {p.email}
-                    {p.role === "construction" ? ` · ${plural(assigned[p.id]?.length ?? 0, "job")}` : " · sees every job"}
+                    {p.role === "construction" ? ` · ${senior.includes(p.id) ? "Senior PM · " : ""}${plural(assigned[p.id]?.length ?? 0, "job")}` : " · sees every job"}
                   </small>
                   <small className={`signin ${lastSignIn[p.id] ? "in" : ""}`}>
                     {lastSignIn[p.id] ? `Signed in · last on ${since(lastSignIn[p.id]!)}` : "Invite pending · hasn't signed in yet"}
@@ -89,6 +91,27 @@ export default function TeamManager({ me, people, projects, assigned: initial, l
                       <button type="button" className="linkbtn" onClick={() => setConfirming(p.id)}>Remove</button>
                     ))}
                 </span>
+                {p.role === "construction" && (
+                  <label className="senior-pick">
+                    <input
+                      type="checkbox"
+                      checked={senior.includes(p.id)}
+                      disabled={pending}
+                      onChange={(e) => {
+                        const on = e.target.checked;
+                        setSenior((s) => (on ? [...s, p.id] : s.filter((x) => x !== p.id)));
+                        start(async () => {
+                          const r = await setSeniorPm(p.id, on);
+                          setMsg(r);
+                          if (r.error) setSenior((s) => (on ? s.filter((x) => x !== p.id) : [...s, p.id]));
+                        });
+                      }}
+                    />
+                    <span>
+                      <b>Senior PM</b> · also sees the team check-in board on HQ (every PM&apos;s daily logs). Their own jobs and logs stay the same.
+                    </span>
+                  </label>
+                )}
                 {p.role === "construction" && (
                   <fieldset className="jobpick">
                     <legend>Jobs {p.full_name.split(" ")[0] || "they"} Can See</legend>

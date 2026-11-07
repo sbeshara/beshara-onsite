@@ -11,6 +11,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isAdminRole, type Role } from "@/lib/types";
 import { FILES_BUCKET } from "@/lib/constants";
 import { getViewAs } from "@/lib/viewas";
+import { SENIOR_KEY } from "@/lib/senior";
 
 export type Result = { error?: string; ok?: string };
 
@@ -227,6 +228,27 @@ export async function setRole(userId: string, role: Role): Promise<Result> {
   }
   revalidatePath("/team");
   return { ok: "Role updated." };
+}
+
+// Makes a Construction Management person a Senior PM (or not): they also see
+// HQ's team check-in board. Nothing else about their access changes.
+export async function setSeniorPm(userId: string, on: boolean): Promise<Result> {
+  try {
+    await requireAdmin();
+    if (await getViewAs()) return { error: "You're viewing as someone else. Exit View As first." };
+    const admin = createAdminClient();
+    const { data: target } = await admin.from("profiles").select("role, full_name").eq("id", userId).maybeSingle();
+    if (target?.role !== "construction") return { error: "Only Construction Management people can be a Senior PM." };
+    const { error } = on
+      ? await admin.from("app_settings").upsert({ key: SENIOR_KEY(userId), value: "1" })
+      : await admin.from("app_settings").delete().eq("key", SENIOR_KEY(userId));
+    if (error) return { error: "Couldn't save that. Try again." };
+    revalidatePath("/team");
+    const first = String(target.full_name || "They").split(" ")[0];
+    return { ok: on ? `${first} is a Senior PM: they now see the team check-in board on HQ.` : `${first} is no longer a Senior PM.` };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
 }
 
 // Removes a team member's access to the app entirely.

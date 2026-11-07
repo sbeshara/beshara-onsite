@@ -682,3 +682,7 @@ body.chat-expanded{overflow:hidden}
 .danger-btn.solid{background:#9F2A1E;color:#fff;border-color:#9F2A1E}
 .danger-btn:disabled{opacity:.5;cursor:default}
 .danger-actions{display:flex;gap:12px;align-items:center}
+/* Team & Access: Senior PM switch */
+.senior-pick{grid-column:2/-1;display:flex;gap:8px;align-items:flex-start;font-size:13px;color:var(--muted);margin-top:4px}
+.senior-pick b{color:var(--ink)}
+.senior-pick input{margin-top:2px}

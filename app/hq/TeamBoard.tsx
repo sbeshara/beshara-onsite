@@ -2,13 +2,15 @@ import type { PersonChecklist } from "@/lib/checklist";
 
 const time = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/New_York" });
 
-// For the Principal Contractor and Admins: every PM's jobs for today.
+// For the Principal Contractor, Admins and Senior PMs: every PM's jobs for today.
 export default function TeamBoard({
   lists,
   unassigned = [],
   site,
   late = true,
+  canManage = true,
 }: {
+  canManage?: boolean; // Admins can fix assignments; a Senior PM only sees the board
   lists: PersonChecklist[];
   late?: boolean; // after 5 PM, when an unlogged job counts as missing
   unassigned?: { projectId: string; name: string; town: string }[];
@@ -39,8 +41,12 @@ export default function TeamBoard({
               <li key={j.projectId}>
                 <span className="ck-dot miss" aria-hidden="true">!</span>
                 <div className="ck-main">
-                  <a className="ck-name" href={`${site}/team?view=jobs&job=${j.projectId}`}>{j.name}</a>
-                  <span className="ck-sub">Assign someone on Team &amp; Access</span>
+                  {canManage ? (
+                    <a className="ck-name" href={`${site}/team?view=jobs&job=${j.projectId}`}>{j.name}</a>
+                  ) : (
+                    <span className="ck-name">{j.name}</span>
+                  )}
+                  <span className="ck-sub">{canManage ? "Assign someone on Team & Access" : "Ask Julia to assign someone"}</span>
                 </div>
               </li>
             ))}

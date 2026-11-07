@@ -11,6 +11,7 @@ import { isAdminRole, type Profile } from "@/lib/types";
 import { getPermissions, PERMISSIONS } from "@/lib/permissions";
 import { dailyLogOwners } from "@/lib/checklist";
 import DailyLogPicker from "./DailyLogPicker";
+import { seniorPmIds } from "@/lib/senior";
 import PermissionsPanel from "./PermissionsPanel";
 import TeamManager from "./TeamManager";
 
@@ -91,7 +92,7 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
           </p>
         </div>
         {tabs}
-        <TeamManager me={{ id: me.id, role: me.role }} people={team} projects={projects ?? []} assigned={assigned} lastSignIn={lastSignIn} />
+        <TeamManager me={{ id: me.id, role: me.role }} people={team} projects={projects ?? []} assigned={assigned} lastSignIn={lastSignIn} senior={await seniorPmIds()} />
       </div>
     );
   }
