@@ -15,13 +15,13 @@ export default function Checklist({ items, site, late }: { items: CheckItem[]; s
           <h2>Daily Check-In</h2>
           <p className="ck-lead">Write today&apos;s daily log in JobTread for every active job, even the quiet ones.</p>
         </div>
-        <span className={`ck-count ${done === items.length ? "all" : ""}`}>
+        <span className={`ck-count ${done === items.length ? "all" : late ? "" : "due"}`}>
           {done} of {items.length} Logged
         </span>
       </div>
       <ul className="ck-list">
         {items.map((i) => (
-          <li key={i.projectId} className={i.done ? "done" : ""}>
+          <li key={i.projectId} className={i.done ? "done" : late ? "" : "due"}>
             <span className={`ck-dot ${i.done ? "on" : late ? "miss" : "due"}`} aria-hidden="true">
               {i.done ? "✓" : late ? "!" : ""}
             </span>

@@ -22,7 +22,7 @@ export default function TeamBoard({
     <section className="ck">
       <div className="ck-h">
         <h2>Team Check-Ins Today</h2>
-        <span className={`ck-count ${done === total ? "all" : ""}`}>
+        <span className={`ck-count ${done === total ? "all" : late ? "" : "due"}`}>
           {done} of {total} Jobs Logged
         </span>
       </div>
@@ -61,13 +61,13 @@ export default function TeamBoard({
               <div key={p.userId} className="ck-card">
                 <div className="ck-card-h">
                   <b>{p.name}</b>
-                  <span className={`ck-count ${d === p.items.length ? "all" : ""}`}>
+                  <span className={`ck-count ${d === p.items.length ? "all" : late ? "" : "due"}`}>
                     {d}/{p.items.length}
                   </span>
                 </div>
                 <ul className="ck-list compact">
                   {p.items.map((i) => (
-                    <li key={i.projectId} className={i.done ? "done" : ""}>
+                    <li key={i.projectId} className={i.done ? "done" : late ? "" : "due"}>
                       <span className={`ck-dot ${i.done ? "on" : late ? "miss" : "due"}`} aria-hidden="true">
                         {i.done ? "✓" : late ? "!" : ""}
                       </span>
