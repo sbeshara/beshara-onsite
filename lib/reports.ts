@@ -86,11 +86,15 @@ export const nextReportFriday = (now = clock()) => {
   return t.weekday === "Sat" || t.weekday === "Sun" ? addDays(friday, 7) : friday;
 };
 
+// The scheduler calls hourly while reports are open (Friday 10 AM to Monday
+// noon). Every run drafts any job not drafted yet and redrafts drafts nobody
+// has edited whenever that week's daily logs (Monday through Sunday) have
+// changed, so a Saturday or Sunday log is pulled in on its own. Saturday at
+// 8 AM it also emails PMs whose report is still missing Looking Ahead.
 export function scheduleSlot(now = clock()) {
+  if (!reportWeek(now)) return null;
   const t = nj(now);
-  if (t.weekday === "Fri" && t.hour >= OPEN_HOUR) return "friday" as const; // draft every job with what's in, refresh as Friday logs come in
-  if (t.weekday === "Sat" && t.hour === 8) return "saturday" as const; // draft the rest, email PMs missing Looking Ahead
-  return null;
+  return t.weekday === "Sat" && t.hour === 8 ? ("saturday" as const) : ("refresh" as const);
 }
 
 export const shortDate = (iso: string) => {
@@ -103,12 +107,17 @@ export const lookAheadDates = (weekStart: string) => [4, 5, 6].map((n) => addDay
 
 // ---- Drafting ----------------------------------------------------------------
 
+type SourceLog = { date: string; notes: string };
+// Whether the daily logs are the same ones a draft was made from.
+const logKey = (logs: SourceLog[]) => JSON.stringify(logs.map((l) => [l.date, (l.notes ?? "").trim()]).sort());
+const sameLogs = (now: SourceLog[], before: SourceLog[] | null) => !!before && logKey(now) === logKey(before);
+
 type ProjectForReport = { id: string; name: string; town: string; jobtread_job_id: string | null };
 
 export type GenerateOpts = {
   force?: boolean; // redraft an existing draft (the Redraft button)
   waitForFriday?: boolean; // skip jobs with no Friday daily log yet
-  refreshUntouched?: boolean; // redraft drafts nobody has edited that still lack Looking Ahead
+  refreshUntouched?: boolean; // redraft drafts nobody has edited whenever the week's daily logs have changed
   notify?: boolean; // email the PMs when Looking Ahead is missing
 };
 
@@ -116,22 +125,26 @@ export async function generateReport(admin: Admin, project: ProjectForReport, we
   if (!project.jobtread_job_id) return { project: project.name, result: "not linked" };
   const { data: existing } = await admin
     .from("weekly_reports")
-    .select("id, status, updated_by, looking_ahead")
+    .select("id, status, updated_by, looking_ahead, source_logs")
     .eq("project_id", project.id)
     .eq("week_start", weekStart)
     .maybeSingle();
-  const stale = existing?.status === "draft" && !existing.updated_by && !(existing.looking_ahead as unknown[]).length;
+  // Nobody has edited it (a draft, or a "no logs yet" placeholder), so it can be redrafted.
+  const untouched = !!existing && ["draft", "no_logs"].includes(existing.status) && !existing.updated_by;
+  const stale = untouched && !(existing!.looking_ahead as unknown[]).length;
   if (existing && ["approved", "sent"].includes(existing.status)) return { project: project.name, result: "exists" };
-  if (existing && !opts.force && !(opts.refreshUntouched && stale)) return { project: project.name, result: "exists" };
+  if (existing && !opts.force && !(opts.refreshUntouched && untouched)) return { project: project.name, result: "exists" };
 
   const base = { project_id: project.id, week_start: weekStart, generated_at: new Date().toISOString(), updated_at: new Date().toISOString() };
   try {
     const logs = await dailyLogs(project.jobtread_job_id, weekStart, addDays(weekStart, 6));
-    // Redrafting an untouched draft only helps once a Friday, Saturday or Sunday
-    // log is in; until then just ask the PMs for Looking Ahead (Saturday 8 AM).
-    if (existing && !opts.force && !logs.some((l) => lookAheadDates(weekStart).includes(l.date))) {
-      if (opts.notify) await askPmsForLookingAhead(admin, project, weekStart, existing.id, false);
-      return { project: project.name, result: "waiting for Friday log" };
+    // An untouched draft is only redrafted when the week's logs have changed
+    // since it was drafted (a new or edited log). Otherwise it stays, and on
+    // Saturday 8 AM the PMs are asked for Looking Ahead if it's still missing.
+    if (existing && !opts.force && sameLogs(logs, existing.source_logs as SourceLog[] | null)) {
+      const hadLog = logs.some((l) => lookAheadDates(weekStart).includes(l.date));
+      if (opts.notify && stale) await askPmsForLookingAhead(admin, project, weekStart, existing.id, hadLog);
+      return { project: project.name, result: stale && !hadLog ? "waiting for Friday log" : "up to date" };
     }
     if (opts.waitForFriday && !logs.some((l) => l.date === addDays(weekStart, 4))) return { project: project.name, result: "waiting for Friday log" };
     const source = logs.map((l) => ({ date: l.date, author: l.author, notes: l.notes, trades: l.trades }));

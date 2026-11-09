@@ -4,13 +4,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 export const maxDuration = 300;
 
-// Called hourly on Fridays and Saturdays by the database scheduler.
-//   Friday from 10 AM: drafts every linked job from the logs so far (Looking
-//                     Ahead flagged as missing until the Friday log is in), and
-//                     redrafts untouched drafts as Friday logs come in.
-//   Saturday 8 AM:    drafts the rest, refreshes untouched drafts still missing
-//                     Looking Ahead, and emails their PMs.
-// ?slot=friday|saturday runs that step now for the current report week.
+// Called hourly by the database scheduler. While reports are open (Friday
+// 10 AM to Monday noon) every run drafts jobs not drafted yet and redrafts
+// drafts nobody has edited whenever that week's daily logs (Monday through
+// Sunday) have changed. Saturday 8 AM also emails PMs whose report is still
+// missing Looking Ahead.
+// ?slot=refresh|saturday runs that step now (friday is the same as refresh).
 export async function POST(request: NextRequest) {
   const admin = createAdminClient();
   const { data: secret } = await admin.from("app_settings").select("value").eq("key", "cron_secret").maybeSingle();
@@ -18,12 +17,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false }, { status: 401 });
   }
   const forced = request.nextUrl.searchParams.get("slot");
-  const slot = forced === "friday" || forced === "saturday" ? forced : scheduleSlot();
+  const slot = forced === "saturday" ? "saturday" : forced === "friday" || forced === "refresh" ? "refresh" : scheduleSlot();
   const week = reportWeek();
-  if (!slot || !week) return NextResponse.json({ ok: true, skipped: "outside the Friday-Saturday drafting hours" });
-  const results =
-    slot === "friday"
-      ? await generateAll(admin, week, { refreshUntouched: true })
-      : await generateAll(admin, week, { refreshUntouched: true, notify: true });
+  if (!slot || !week) return NextResponse.json({ ok: true, skipped: "reports are closed (open Friday 10 AM to Monday noon)" });
+  const results = await generateAll(admin, week, { refreshUntouched: true, notify: slot === "saturday" });
   return NextResponse.json({ ok: true, slot, week, results });
 }

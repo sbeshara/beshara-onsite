@@ -162,8 +162,8 @@ export default async function ReportsHome({ searchParams }: { searchParams: Prom
         </nav>
         {admin && week && week === open && count("missing") > 0 && <GenerateButton weekStart={week} />}
         <p className="fine">
-          Only jobs in construction are listed. Open Friday at 10 AM until Monday at 12 PM. Each job is drafted Friday at 10 AM from the daily logs so far and redrafted as
-          Friday&apos;s logs come in, until someone edits it (or press Redraft). Reports are sent on Monday.
+          Only jobs in construction are listed. Open Friday at 10 AM until Monday at 12 PM. Each job is drafted Friday at 10 AM from the daily logs so far, and updates by itself as
+          new logs for the week come in (through Sunday) until someone edits it. After editing, press Redraft to pull in newer logs. Reports are sent on Monday.
         </p>
       </aside>
       <section className="st-detail">
