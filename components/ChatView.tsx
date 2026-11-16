@@ -4,6 +4,7 @@ import { LockIcon, PeopleIcon } from "@/components/Icons";
 import Thread from "@/components/Thread";
 import { signUrls } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
+import { myUnread } from "@/lib/unread";
 import type { Chat, Message, Profile } from "@/lib/types";
 import { projectViewer } from "@/lib/viewas";
 
@@ -16,7 +17,7 @@ export default async function ChatView({ projectId, chatId }: { projectId: strin
     supabase.from("messages").select("*, files(*)").eq("chat_id", chatId).order("created_at", { ascending: false }).limit(200),
     supabase.from("profiles").select("*"),
     supabase.from("project_members").select("user_id").eq("project_id", projectId),
-    v.readOnly ? Promise.resolve({ data: [] }) : supabase.rpc("my_unread"),
+    v.readOnly ? Promise.resolve({ data: [] }) : myUnread().then((data) => ({ data })),
   ]);
   const chat = chatData as (Chat & { projects?: { name: string } | null }) | null;
   // Client views never open an internal chat.

@@ -10,6 +10,7 @@ import ReadyToSend from "@/components/ReadyToSend";
 import { readyToSend, reportWeek } from "@/lib/reports";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { myUnread } from "@/lib/unread";
 import { isAdminRole, isTeamRole } from "@/lib/types";
 import { ROLE_LABEL } from "@/lib/constants";
 import { getViewAs } from "@/lib/viewas";
@@ -55,7 +56,7 @@ export default async function HQ() {
     projectsQ = projectsQ.in("id", only);
   }
   const [{ data: unread }, { count: toReview }, { count: projects }] = await Promise.all([
-    viewAs ? Promise.resolve({ data: [] }) : supabase.rpc("my_unread"),
+    viewAs ? Promise.resolve({ data: [] }) : myUnread().then((data) => ({ data })),
     reviewQ,
     projectsQ,
   ]);

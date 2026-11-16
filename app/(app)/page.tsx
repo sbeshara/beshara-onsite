@@ -9,6 +9,7 @@ import { PHASES, ROLE_LABEL } from "@/lib/constants";
 import { dayLabel, fileExt, isImage, plainText, plural, shortDate, todayLabel } from "@/lib/format";
 import { signUrls } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
+import { myUnread } from "@/lib/unread";
 import { isAdminRole, isTeamRole, type FileRow, type Profile } from "@/lib/types";
 
 const TEAM_COPY = "Every client conversation in one place: progress reports, questions, selections and the schedule, plus the documents we share.";
@@ -94,7 +95,7 @@ async function TeamDashboard({ me, only = null }: { me: Profile; only?: string[]
     supabase.rpc("latest_messages"),
     filesQ,
     weekQ,
-    ids ? Promise.resolve({ data: [] }) : supabase.rpc("my_unread"),
+    ids ? Promise.resolve({ data: [] }) : myUnread().then((data) => ({ data })),
   ]);
   const unreadProjects = new Set(((unreadData ?? []) as { project_id: string }[]).map((u) => u.project_id));
   const projects = (projectsData ?? []) as ProjectRow[];

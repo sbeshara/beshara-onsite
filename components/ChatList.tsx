@@ -7,6 +7,7 @@ import { getMe } from "@/lib/auth";
 import { plainText, shortDate, timeLabel } from "@/lib/format";
 import { getPermissions } from "@/lib/permissions";
 import { createClient } from "@/lib/supabase/server";
+import { myUnread } from "@/lib/unread";
 import type { Chat, Profile } from "@/lib/types";
 import { projectViewer } from "@/lib/viewas";
 
@@ -19,8 +20,8 @@ export async function loadChats(projectId: string) {
   const [{ data: chatsData }, { data: peopleData }, { data: unreadData }, { data: latestData }] = await Promise.all([
     supabase.from("chats").select("*").eq("project_id", projectId).order("position").order("created_at"),
     supabase.from("profiles").select("*"),
-    v.readOnly ? Promise.resolve({ data: [] }) : supabase.rpc("my_unread"),
-    supabase.rpc("latest_messages"),
+    v.readOnly ? Promise.resolve({ data: [] }) : myUnread().then((data) => ({ data })),
+    supabase.rpc("latest_messages", { p_project: projectId }),
   ]);
   type Latest = { chat_id: string; project_id: string; message_id: string; author_id: string | null; body: string; created_at: string; imported_author?: string | null };
   const latestRows = ((latestData ?? []) as Latest[]).filter((l) => l.project_id === projectId);

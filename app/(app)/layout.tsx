@@ -10,6 +10,7 @@ import { getPreview } from "@/lib/preview";
 import { getViewAs } from "@/lib/viewas";
 import { allowed } from "@/lib/permissions";
 import { createClient } from "@/lib/supabase/server";
+import { myUnread } from "@/lib/unread";
 import { isAdminRole } from "@/lib/types";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -19,7 +20,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const supabase = await createClient();
   const { data } = await supabase.from("projects").select("id, name, town, phase, primary_client_id").order("created_at");
   const all = data ?? [];
-  const { data: unreadRows } = preview || viewAs ? { data: [] } : await supabase.rpc("my_unread");
+  const unreadRows = preview || viewAs ? [] : await myUnread();
   const unreadProjects = [...new Set(((unreadRows ?? []) as { project_id: string }[]).map((r) => r.project_id))];
 
   // While previewing as a client, the menus show exactly what that client would see.
