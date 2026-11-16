@@ -144,6 +144,11 @@ export function digestEmail(rows: DigestRow[]) {
     <tr><td style="padding:26px 28px">
       <h1 style="margin:0 0 14px;font-family:Didot,'Bodoni 72',Georgia,serif;font-weight:normal;font-size:26px">Hi ${esc(first)}, you have ${rows.length === 1 ? "a new message" : `${rows.length} new messages`}</h1>
       ${sections}
+      <table role="presentation" cellpadding="0" cellspacing="0" style="margin:6px 0 0;width:100%;border:1px solid #DCE3DF;border-radius:10px;background:#F6F8F7"><tr>
+        <td style="padding:12px 14px;width:44px"><img src="${site}/icon-192.png" alt="" width="40" height="40" style="display:block;border-radius:9px;border:0"></td>
+        <td style="padding:12px 4px;font-size:13.5px;line-height:1.4">Keep OnSite on your phone's home screen, like an app.</td>
+        <td style="padding:12px 14px;text-align:right;white-space:nowrap"><a href="${site}/install" style="display:inline-block;background:#455C51;color:#FFFFFF;text-decoration:none;font-weight:bold;font-size:13px;padding:9px 14px;border-radius:999px">Get the App</a></td>
+      </tr></table>
       <p style="margin:18px 0 0;font-size:12.5px;color:#5D6A64">You're getting this because you haven't read these yet in Beshara OnSite. Turn off email notifications any time in <a href="${site}/account" style="color:#455C51">Your account</a>.</p>
     </td></tr>
     <tr><td style="padding:16px 28px;border-top:1px solid #DCE3DF;font-size:12px;color:#5D6A64">Beshara Builders · Healthcare construction management · New Jersey</td></tr>

@@ -12,13 +12,13 @@ export default async function ChatView({ projectId, chatId }: { projectId: strin
   const v = await projectViewer(projectId);
   const supabase = await createClient();
   const [{ data: chatData }, { data: msgData }, { data: peopleData }, { data: memberData }, { data: unreadData }] = await Promise.all([
-    supabase.from("chats").select("*").eq("id", chatId).eq("project_id", projectId).maybeSingle(),
+    supabase.from("chats").select("*, projects(name)").eq("id", chatId).eq("project_id", projectId).maybeSingle(),
     supabase.from("messages").select("*, files(*)").eq("chat_id", chatId).order("created_at", { ascending: false }).limit(200),
     supabase.from("profiles").select("*"),
     supabase.from("project_members").select("user_id").eq("project_id", projectId),
     v.readOnly ? Promise.resolve({ data: [] }) : supabase.rpc("my_unread"),
   ]);
-  const chat = chatData as Chat | null;
+  const chat = chatData as (Chat & { projects?: { name: string } | null }) | null;
   // Client views never open an internal chat.
   if (chat && v.clientOnly && chat.is_internal) redirect(`/projects/${projectId}`);
   if (!chat) notFound();
@@ -37,7 +37,11 @@ export default async function ChatView({ projectId, chatId }: { projectId: strin
           <span className={`ic ${chat.is_internal ? "int" : ""}`} aria-hidden="true">
             {chat.is_internal ? <LockIcon /> : <PeopleIcon />}
           </span>
-          <h2>{chat.name}</h2>
+          <div className="chat-title">
+            <h2>{chat.name}</h2>
+            {/* On a phone the project header is hidden in a chat, so its name shows here. */}
+            {chat.projects?.name && <span className="chat-proj">{chat.projects.name}</span>}
+          </div>
           {chat.source_id && <span className="tag-bc">Basecamp</span>}
           {v.role !== "client" && <span className="chat-vis">{chat.is_internal ? "Team only" : "The client sees this"}</span>}
         </>

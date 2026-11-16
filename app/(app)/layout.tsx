@@ -1,6 +1,7 @@
 import Link from "next/link";
 import ProjectSwitcher from "@/components/ProjectSwitcher";
 import Rail from "@/components/Rail";
+import InstallNudge from "@/components/InstallNudge";
 import ServiceWorker from "@/components/ServiceWorker";
 import { HQ_URL } from "@/lib/apps";
 import { getMe } from "@/lib/auth";
@@ -70,6 +71,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
         )}
       </header>
+      {me.role === "client" && !previewProject && !viewAs && <InstallNudge />}
       <div className="shell">
         <Rail
           projects={projects}

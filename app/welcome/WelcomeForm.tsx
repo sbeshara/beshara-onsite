@@ -29,7 +29,8 @@ export default function WelcomeForm({ name, email, projectName, reset }: Props) 
     if (fullName.trim() && fullName.trim() !== name) {
       await supabase.from("profiles").update({ full_name: fullName.trim() }).eq("id", data.user.id);
     }
-    router.replace("/");
+    // A new account is offered the app next (resetting a password just goes in).
+    router.replace(reset ? "/" : "/install?welcome=1");
     router.refresh();
   }
 

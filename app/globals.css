@@ -686,3 +686,74 @@ body.chat-expanded{overflow:hidden}
 .senior-pick{grid-column:2/-1;display:flex;gap:8px;align-items:flex-start;font-size:13px;color:var(--muted);margin-top:4px}
 .senior-pick b{color:var(--ink)}
 .senior-pick input{margin-top:2px}
+
+/* Phones */
+.chat-title{display:grid;min-width:0}
+.chat-proj{display:none}
+@media (max-width:820px){
+  /* The chat list scrolls with the page, like any phone page. */
+  .app:has(.chat.home){height:auto;min-height:100%}
+  .app:has(.chat.home) .pview,.app:has(.chat.home) .chat,.app:has(.chat.home) .chans{display:block;height:auto;overflow:visible}
+  .app:has(.chat.home) .chans-list{overflow:visible}
+  .app:has(.chat.home) .chans-pin{border-top:1px solid var(--line);margin-top:6px}
+  .app:has(.chat.home) .chan{padding:12px 8px}
+  /* In a chat, the messages get the screen: the logo bar, project header and
+     tabs step aside (All Chats goes back to them), and the box stays slim. */
+  .app:has(.chat:not(.home)){height:100dvh}
+  .app:has(.chat:not(.home)) .top{padding-block:0}
+  .app:has(.chat:not(.home)) .top>:not(.previewbar){display:none}
+  .app:has(.chat:not(.home)) .previewbar{margin-block:6px}
+  .app:has(.chat:not(.home)) .shell{padding:0;padding-top:env(safe-area-inset-top,0px)}
+  .app:has(.chat:not(.home)) .work{border-radius:0;border:0;box-shadow:none}
+  .app:has(.chat:not(.home)) .phead,.app:has(.chat:not(.home)) .tabs{display:none}
+  .app:has(.chat:not(.home)) .pview{grid-template-rows:minmax(0,1fr)}
+  .chat-bar{padding:8px 10px;gap:8px}
+  .chat-bar .chat-back{padding:8px 12px}
+  .chat-bar h2{font-size:17px}
+  .chat-proj{display:block;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .chat-bar>.ic{display:none}
+  .msgs{padding:12px 12px 16px}
+  /* Slim writing box until tapped: text, Attach and Post in one row. */
+  .compose.rich.idle{flex-direction:row;align-items:center;gap:6px;padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px))}
+  .compose.rich.idle .editbox{flex:1 1 auto;min-width:0}
+  .compose.rich.idle .editor{min-height:40px;max-height:40px;overflow:hidden;padding-block:9px}
+  .compose.rich.idle .compose-actions{flex-wrap:nowrap;gap:6px}
+  .compose.rich.idle .compose-actions>:not(.attachbtn):not(.btn){display:none}
+  .compose.rich.idle .attachbtn{font-size:0;gap:0;padding:10px}
+  .compose.rich.idle .attachbtn svg{width:18px;height:18px}
+  .compose.rich.idle .pending{display:none}
+}
+@media (max-width:820px){.toolbar{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.toolbar::-webkit-scrollbar{display:none}.toolbar>*{flex:none}}
+/* Big phones turned sideways are wide but short: in a chat, show just the chat. */
+@media (min-width:821px) and (max-height:500px){
+  .app:has(.chat:not(.home)){height:100dvh}
+  .app:has(.chat:not(.home)) .top>:not(.previewbar){display:none}
+  .app:has(.chat:not(.home)) .top{padding-block:0}
+  .app:has(.chat:not(.home)) .shell{grid-template-columns:minmax(0,1fr);padding:0}
+  .app:has(.chat:not(.home)) .rail,.app:has(.chat:not(.home)) .phead,.app:has(.chat:not(.home)) .tabs,.app:has(.chat:not(.home)) .chat>.chans{display:none}
+  .app:has(.chat:not(.home)) .pview{grid-template-rows:minmax(0,1fr)}
+  .app:has(.chat:not(.home)) .chat{grid-template-columns:minmax(0,1fr)}
+  .app:has(.chat:not(.home)) .work{border-radius:0;border:0}
+  .app:has(.chat:not(.home)) .chat-bar .chat-back{display:inline-flex;padding:6px 12px;font-weight:700}
+  .app:has(.chat:not(.home)) .chat-proj{display:block;font-size:12px;color:var(--muted)}
+  .app:has(.chat:not(.home)) .compose.rich.idle .toolbar,.app:has(.chat:not(.home)) .compose .hint{display:none}
+}
+/* Get the OnSite App */
+.install{display:grid;gap:12px}
+.install-app{display:flex;align-items:center;gap:12px}
+.install-app img{width:64px;height:64px;border-radius:15px;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.install-app div{display:grid}
+.install-app b{font-size:17px}
+.install-app span{font-size:12.5px;color:var(--muted)}
+.install-steps{list-style:none;margin:4px 0 0;padding:0;display:grid;gap:10px;counter-reset:step}
+.install-steps li{display:grid;grid-template-columns:44px minmax(0,1fr);gap:12px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--bg);font-size:15px;line-height:1.4}
+.install-ic{width:44px;height:44px;border-radius:10px;display:grid;place-items:center;background:var(--surface);border:1px solid var(--line);color:#1A7CF4;font-size:22px;font-weight:700}
+.install-btn{font-size:17px;padding:14px}
+.install-skip{justify-self:center;margin-top:4px}
+/* A small nudge for clients on a phone to add the app */
+.install-nudge{display:flex;align-items:center;gap:10px;background:var(--brand-soft);border-bottom:1px solid var(--line);padding:8px 12px;font-size:13.5px}
+.install-nudge img{width:30px;height:30px;border-radius:7px}
+.install-nudge a.btn{padding:6px 12px;font-size:13px;margin-left:auto}
+.install-nudge button{border:0;background:none;color:var(--muted);font-size:18px;padding:4px 6px;cursor:pointer}
+@media (min-width:821px){.install-nudge{display:none}}
+@media (max-width:820px){.install-page .auth-side{display:none}.install-page .auth-main{padding-top:20px}}
