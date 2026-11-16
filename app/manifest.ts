@@ -6,7 +6,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     id: "/",
     name: "Beshara OnSite",
-    short_name: "OnSite",
+    short_name: "BB OnSite",
     description: "All your project communication in one place, from Beshara Builders.",
     start_url: "/",
     scope: "/",

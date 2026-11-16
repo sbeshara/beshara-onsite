@@ -1,7 +1,8 @@
 import AuthSide from "@/components/AuthSide";
 import InstallGuide from "./InstallGuide";
 
-export const metadata = { title: "Get the OnSite App · Beshara Builders" };
+// The title is the name iPhones put under the home-screen icon.
+export const metadata = { title: "BB OnSite" };
 
 // "Get the OnSite App": the page client emails link to. It works before
 // signing in. Android and computers get a one-tap Install button; iPhones

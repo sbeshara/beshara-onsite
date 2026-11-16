@@ -75,7 +75,7 @@ export default function InstallGuide({ welcome }: { welcome: boolean }) {
       <div className="install-app">
         <img src="/icon-192.png" alt="" width="64" height="64" />
         <div>
-          <b>OnSite</b>
+          <b>BB OnSite</b>
           <span>Beshara Builders</span>
         </div>
       </div>
@@ -93,7 +93,7 @@ export default function InstallGuide({ welcome }: { welcome: boolean }) {
 
       {done && kind !== "installed" && (
         <>
-          <p className="ok" role="status">Done! Look for the green <b>OnSite</b> icon on your home screen or desktop.</p>
+          <p className="ok" role="status">Done! Look for the green <b>BB OnSite</b> icon on your home screen or desktop.</p>
           <a className="btn wide" href="/">Continue to OnSite</a>
         </>
       )}
@@ -119,7 +119,7 @@ export default function InstallGuide({ welcome }: { welcome: boolean }) {
               <span>Scroll down and tap <b>Add to Home Screen</b>, then <b>Add</b>.</span>
             </li>
           </ol>
-          <p className="fine">Then open OnSite from its new icon and sign in once. It stays signed in after that.</p>
+          <p className="fine">Then open <b>BB OnSite</b> from its new icon and sign in once. It stays signed in after that.</p>
           {continueLink}
         </>
       )}

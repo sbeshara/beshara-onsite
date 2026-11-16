@@ -9,7 +9,7 @@ const mono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["500"], variable: "--f
 export const metadata: Metadata = {
   title: "Beshara OnSite",
   description: "All your project communication in one place, from Beshara Builders.",
-  appleWebApp: { capable: true, title: "OnSite", statusBarStyle: "black-translucent" },
+  appleWebApp: { capable: true, title: "BB OnSite", statusBarStyle: "black-translucent" },
 };
 
 export const viewport: Viewport = {
