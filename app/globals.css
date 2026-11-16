@@ -757,3 +757,17 @@ body.chat-expanded{overflow:hidden}
 .install-nudge button{border:0;background:none;color:var(--muted);font-size:18px;padding:4px 6px;cursor:pointer}
 @media (min-width:821px){.install-nudge{display:none}}
 @media (max-width:820px){.install-page .auth-side{display:none}.install-page .auth-main{padding-top:20px}}
+/* Message All Clients */
+.bcast{display:grid;gap:14px;max-width:900px}
+.bcast-msg{padding:14px 16px;display:grid;gap:10px}
+.bcast-msg textarea{font-family:inherit;line-height:1.5}
+.bcast-list{padding:6px 0}
+.bcast-h{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 16px 10px;border-bottom:1px solid var(--line)}
+.bcast-h .fine{margin-right:auto}
+.bcast-row{display:flex;gap:10px;align-items:flex-start;padding:9px 16px;border-bottom:1px solid var(--line);cursor:pointer}
+.bcast-row:last-child{border-bottom:0}
+.bcast-row span{display:grid}
+.bcast-row small{color:var(--muted);font-size:12.5px}
+.bcast-row.dim b{color:var(--muted)}
+.bcast-row input{margin-top:3px}
+.bcast-go{display:flex;align-items:center;gap:12px;flex-wrap:wrap}

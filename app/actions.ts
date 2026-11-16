@@ -309,3 +309,48 @@ export async function deleteProject(projectId: string, typedName: string): Promi
   revalidatePath("/", "layout");
   redirect("/?deleted=1");
 }
+
+// Posts one message, as Beshara Builders, to a client chat in each picked
+// project: the chat with that name, made (visible to the client) if it isn't
+// there yet. Clients hear about it the usual way (email digest, phone).
+export async function messageAllClients(chatName: string, body: string, projectIds: string[]): Promise<Result> {
+  try {
+    const me = await requireAdmin();
+    if (await getViewAs()) return { error: "You're viewing as someone else. Exit View As first." };
+    const name = chatName.trim().slice(0, 60);
+    const text = body.trim().slice(0, 5000);
+    if (!name || !text) return { error: "Add a chat name and a message." };
+    const ids = [...new Set(projectIds)].slice(0, 500);
+    if (!ids.length) return { error: "Pick at least one project." };
+    const admin = createAdminClient();
+    const { data: chats } = await admin.from("chats").select("id, project_id, name, is_internal").in("project_id", ids);
+    let posted = 0;
+    const skipped: string[] = [];
+    for (const projectId of ids) {
+      const existing = (chats ?? []).find((c) => c.project_id === projectId && c.name.trim().toLowerCase() === name.toLowerCase());
+      if (existing?.is_internal) {
+        skipped.push(projectId);
+        continue;
+      }
+      let chatId = existing?.id as string | undefined;
+      if (!chatId) {
+        const { data: made, error } = await admin.from("chats").insert({ project_id: projectId, name, is_internal: false, created_by: me.id }).select("id").single();
+        if (error || !made) {
+          skipped.push(projectId);
+          continue;
+        }
+        chatId = made.id;
+      }
+      const { error } = await admin.from("messages").insert({ chat_id: chatId, author_id: me.id, body: text, posted_as: "company" });
+      if (error) skipped.push(projectId);
+      else posted++;
+    }
+    revalidatePath("/", "layout");
+    if (!posted) return { error: "Nothing was posted. Try again." };
+    return {
+      ok: `Posted to ${posted} ${posted === 1 ? "project" : "projects"}.${skipped.length ? ` ${skipped.length} couldn't be posted to; try those again.` : ""}`,
+    };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}

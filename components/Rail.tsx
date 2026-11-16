@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { PHASES } from "@/lib/constants";
-import { DocIcon, GridIcon, PeopleIcon, UploadIcon } from "./Icons";
+import { DocIcon, GridIcon, PeopleIcon, UploadIcon, ChatIcon } from "./Icons";
 
 type P = { id: string; name: string; town: string; phase: number };
 
@@ -87,6 +87,11 @@ export default function Rail({
           {isAdmin && (
             <Link className="navi" href="/team" aria-current={path === "/team" ? "page" : undefined}>
               <PeopleIcon /> Team &amp; Access
+            </Link>
+          )}
+          {isAdmin && (
+            <Link className="navi" href="/broadcast" aria-current={path === "/broadcast" ? "page" : undefined}>
+              <ChatIcon /> Message All Clients
             </Link>
           )}
           {isAdmin && (
