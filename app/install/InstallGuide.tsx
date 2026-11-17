@@ -41,7 +41,14 @@ export default function InstallGuide({ welcome }: { welcome: boolean }) {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    setKind(detect());
+    const k = detect();
+    // iPhones open the home-screen icon on the page it was added from (this
+    // one). Opened from the icon, go straight into OnSite.
+    if (k === "installed") {
+      location.replace("/");
+      return;
+    }
+    setKind(k);
     const onPrompt = (e: Event) => {
       e.preventDefault();
       setPrompt(e as Prompt);
@@ -83,13 +90,6 @@ export default function InstallGuide({ welcome }: { welcome: boolean }) {
       <p className="sub">Keep OnSite on your home screen like any other app. One tap opens your project, and you stay signed in.</p>
 
       {kind === "loading" && <p className="fine">One moment…</p>}
-
-      {kind === "installed" && (
-        <>
-          <p className="ok">OnSite is already on this device. You&apos;re using it right now.</p>
-          <a className="btn wide" href="/">Open OnSite</a>
-        </>
-      )}
 
       {done && kind !== "installed" && (
         <>
