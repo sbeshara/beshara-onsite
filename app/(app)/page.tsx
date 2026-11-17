@@ -17,7 +17,7 @@ const CLIENT_COPY =
   "Stay in touch with your Beshara team throughout your buildout. Progress reports, questions, selections and the schedule, all in one conversation, plus key documents like your plans.";
 
 type ProjectRow = { id: string; name: string; town: string; scope: string | null; phase: number; project_members: { user_id: string }[] };
-type Latest = { chat_id: string; project_id: string; chat_name: string; is_internal: boolean; author_id: string | null; body: string; created_at: string; imported?: boolean };
+type Latest = { chat_id: string; project_id: string; chat_name: string; is_internal: boolean; author_id: string | null; body: string; created_at: string; imported?: boolean; imported_author?: string | null };
 
 function PhaseBar({ phase }: { phase: number }) {
   return (
@@ -95,17 +95,20 @@ async function TeamDashboard({ me, only = null }: { me: Profile; only?: string[]
     supabase.rpc("latest_messages"),
     filesQ,
     weekQ,
-    ids ? Promise.resolve({ data: [] }) : myUnread().then((data) => ({ data })),
+    myUnread().then((data) => ({ data })),
   ]);
-  const unreadProjects = new Set(((unreadData ?? []) as { project_id: string }[]).map((u) => u.project_id));
+  const unreadRows = ((unreadData ?? []) as { chat_id: string; project_id: string; unread: number }[]).filter((u) => !ids || ids.includes(u.project_id));
+  const unreadProjects = new Set(unreadRows.map((u) => u.project_id));
   const projects = (projectsData ?? []) as ProjectRow[];
   const people = Object.fromEntries(((peopleData ?? []) as Profile[]).map((p) => [p.id, p]));
   const owners = Object.values(people).filter((p) => p.role === "owner");
   const projectNames = Object.fromEntries(projects.map((p) => [p.id, p.name]));
-  const needs = ((latestData ?? []) as Latest[])
-    .filter((l) => !ids || ids.includes(l.project_id))
-    .filter((l) => !l.is_internal && !l.imported && l.author_id && people[l.author_id]?.role === "client")
-    .sort((a, b) => a.created_at.localeCompare(b.created_at));
+  // Chats with messages you haven't read, newest first.
+  const unreadCount = Object.fromEntries(unreadRows.map((u) => [u.chat_id, Number(u.unread)]));
+  const unread = ((latestData ?? []) as Latest[])
+    .filter((l) => unreadCount[l.chat_id])
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const unreadTotal = unread.reduce((n, l) => n + unreadCount[l.chat_id], 0);
   const files = (filesData ?? []) as FileRow[];
   const photos = files.filter((f) => isImage(f.mime_type, f.name)).slice(0, 6);
   const docs = files.filter((f) => !isImage(f.mime_type, f.name)).slice(0, 5);
@@ -120,26 +123,27 @@ async function TeamDashboard({ me, only = null }: { me: Profile; only?: string[]
       <section className="hello">
         <p className="summary">
           <span className="today">{todayLabel()}</span> ·{" "}
-          {needs.length ? <span className="warn">{plural(needs.length, "client")} waiting on a reply</span> : "No clients are waiting on a reply"}{" "}
+          {unreadTotal ? <span className="warn">{plural(unreadTotal, "unread message")}</span> : "No unread messages"}{" "}
           {admin ? `across all ${plural(projects.length, "project")}` : `on your ${plural(projects.length, "project")}`}, and {plural(weekCount ?? 0, "new file")} this week.
         </p>
       </section>
       <div className="dgrid">
         <div className="col">
           <section>
-            <div className="sec-h"><h2>Needs a Response</h2><span>Oldest First</span></div>
+            <div className="sec-h"><h2>Unread Messages</h2><span>Newest First</span></div>
             <div className="box">
-              {needs.length ? (
-                needs.map((n) => {
-                  const who = people[n.author_id!];
+              {unread.length ? (
+                unread.map((n) => {
+                  const who = n.author_id ? people[n.author_id] : undefined;
+                  const name = who?.full_name || n.imported_author || "Beshara Builders";
                   return (
                     <Link key={n.chat_id} className="need" href={`/projects/${n.project_id}/chats/${n.chat_id}`}>
-                      <Avatar id={who.id} name={who.full_name || who.email} url={who.avatar_url} />
+                      <Avatar id={who?.id ?? n.chat_id} name={name} url={who?.avatar_url} />
                       <span style={{ minWidth: 0 }}>
-                        <span className="t">{who.full_name} · {projectNames[n.project_id]} · {n.chat_name}</span>
+                        <span className="t">{name} · {projectNames[n.project_id] ?? ""} · {n.chat_name}</span>
                         <span className="s" style={{ display: "block" }}>{plainText(n.body) || "Sent an attachment"}</span>
                       </span>
-                      <span className="reply">Reply →</span>
+                      <span className="reply">{unreadCount[n.chat_id]} new →</span>
                     </Link>
                   );
                 })
