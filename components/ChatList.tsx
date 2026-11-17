@@ -8,6 +8,7 @@ import { plainText, shortDate, timeLabel } from "@/lib/format";
 import { getPermissions } from "@/lib/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { myUnread } from "@/lib/unread";
+import MarkAllRead from "@/components/MarkAllRead";
 import type { Chat, Profile } from "@/lib/types";
 import { projectViewer } from "@/lib/viewas";
 
@@ -92,6 +93,9 @@ export default async function ChatList({ projectId, activeId, data }: { projectI
     <div className="chans" aria-label="Chats">
       <ChatSearch projectId={projectId} chatId={activeId ?? ""} clientView={v.clientOnly} people={searchPeople}>
         {canStart && <NewChatButton projectId={projectId} myId={me.id} isClient={me.role === "client"} />}
+        {[...listed, pinned].some((c) => c && c.id !== activeId && unread[c.id]) && (
+          <div className="chans-markread"><MarkAllRead projectId={projectId} /></div>
+        )}
         <div className="chans-list">
           {listed.map(chatLink)}
           {!listed.length && <div className="empty">No chats yet.</div>}

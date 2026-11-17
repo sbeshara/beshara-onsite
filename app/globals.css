@@ -192,6 +192,8 @@ button.pstep:hover{color:var(--ink)}
 .chans{border-right:1px solid var(--line);overflow:hidden;padding:10px 8px;display:flex;flex-direction:column;gap:2px;min-height:0}
 .chans-list,.shits{flex:1 1 auto;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:2px}
 .chans-pin{flex:none;border-top:1px solid var(--line);margin-top:4px;padding-top:6px}
+.chans-markread{display:flex;justify-content:flex-end;padding:0 4px 6px}
+.mark-read:disabled{opacity:.6}
 .chans h3{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:10px 8px 4px}
 .chan{display:flex;align-items:flex-start;gap:9px;border:0;border-left:3px solid transparent;background:none;text-align:left;padding:10px 10px;border-radius:8px}
 .chan .ic{margin-top:0}

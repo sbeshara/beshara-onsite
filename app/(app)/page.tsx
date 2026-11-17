@@ -10,6 +10,7 @@ import { dayLabel, fileExt, isImage, plainText, plural, shortDate, todayLabel } 
 import { signUrls } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 import { myUnread } from "@/lib/unread";
+import MarkAllRead from "@/components/MarkAllRead";
 import { isAdminRole, isTeamRole, type FileRow, type Profile } from "@/lib/types";
 
 const TEAM_COPY = "Every client conversation in one place: progress reports, questions, selections and the schedule, plus the documents we share.";
@@ -130,7 +131,7 @@ async function TeamDashboard({ me, only = null }: { me: Profile; only?: string[]
       <div className="dgrid">
         <div className="col">
           <section>
-            <div className="sec-h"><h2>Unread Messages</h2><span>Newest First</span></div>
+            <div className="sec-h"><h2>Unread Messages</h2>{unread.length && !ids ? <MarkAllRead /> : <span>Newest First</span>}</div>
             <div className="box">
               {unread.length ? (
                 unread.map((n) => {

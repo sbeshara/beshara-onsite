@@ -354,3 +354,22 @@ export async function messageAllClients(chatName: string, body: string, projectI
     return { error: (e as Error).message };
   }
 }
+
+// Marks every chat you can see as read (or just one project's chats). Only
+// changes your own read markers; nobody else's unread counts move.
+export async function markAllRead(projectId?: string): Promise<Result> {
+  const supabase = await createClient();
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) return { error: "Please sign in again." };
+  const { data } = await supabase.rpc("my_unread");
+  const rows = ((data ?? []) as { chat_id: string; project_id: string }[]).filter((u) => !projectId || u.project_id === projectId);
+  if (rows.length) {
+    const now = new Date().toISOString();
+    const { error } = await supabase
+      .from("chat_reads")
+      .upsert(rows.map((u) => ({ user_id: auth.user.id, chat_id: u.chat_id, last_read_at: now })), { onConflict: "user_id,chat_id" });
+    if (error) return { error: "Couldn't mark them read. Try again." };
+  }
+  revalidatePath("/", "layout");
+  return { ok: "done" };
+}
