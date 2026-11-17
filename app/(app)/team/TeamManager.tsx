@@ -13,7 +13,7 @@ type Props = {
   projects: { id: string; name: string; town: string }[];
   assigned: Record<string, string[]>;
   lastSignIn: Record<string, string | null>;
-  senior: string[]; // Senior PMs: also see HQ's team check-in board
+  senior: string[]; // Senior PMs: see every project and HQ's team check-in board
 };
 
 const since = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -108,13 +108,13 @@ export default function TeamManager({ me, people, projects, assigned: initial, l
                       }}
                     />
                     <span>
-                      <b>Senior PM</b> · also sees the team check-in board on HQ (every PM&apos;s daily logs). Their own jobs and logs stay the same.
+                      <b>Senior PM</b> · oversees every project: all chats, files and progress reports, plus the team check-in board on HQ. Daily logs, emails and notifications stay with the jobs checked below. No access to Team &amp; Access or other admin tools.
                     </span>
                   </label>
                 )}
                 {p.role === "construction" && (
                   <fieldset className="jobpick">
-                    <legend>Jobs {p.full_name.split(" ")[0] || "they"} Can See</legend>
+                    <legend>{senior.includes(p.id) ? `Jobs ${p.full_name.split(" ")[0] || "they"} Is On (daily logs and emails)` : `Jobs ${p.full_name.split(" ")[0] || "they"} Can See`}</legend>
                     {projects.map((j) => {
                       const on = assigned[p.id]?.includes(j.id) ?? false;
                       return (

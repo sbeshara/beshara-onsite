@@ -2,6 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { cookies } from "next/headers";
 import { getMe } from "./auth";
+import { isSeniorPm } from "./senior";
 import { createAdminClient } from "./supabase/admin";
 import { isAdminRole, type Profile } from "./types";
 
@@ -27,6 +28,8 @@ export const getViewAs = cache(async (): Promise<ViewAs | null> => {
   if (!profile) return null;
   const p = profile as Profile;
   if (isAdminRole(p.role)) return { profile: p, projectIds: null, isClient: false };
+  // Senior PMs see every project.
+  if (p.role === "construction" && (await isSeniorPm(p.id))) return { profile: p, projectIds: null, isClient: false };
   const { data: rows } = await admin.from("project_members").select("project_id").eq("user_id", id);
   return { profile: p, projectIds: (rows ?? []).map((r) => r.project_id as string), isClient: p.role === "client" };
 });

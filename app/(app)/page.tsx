@@ -11,6 +11,7 @@ import { signUrls } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 import { myUnread } from "@/lib/unread";
 import MarkAllRead from "@/components/MarkAllRead";
+import { isSeniorPm } from "@/lib/senior";
 import { isAdminRole, isTeamRole, type FileRow, type Profile } from "@/lib/types";
 
 const TEAM_COPY = "Every client conversation in one place: progress reports, questions, selections and the schedule, plus the documents we share.";
@@ -115,6 +116,7 @@ async function TeamDashboard({ me, only = null }: { me: Profile; only?: string[]
   const docs = files.filter((f) => !isImage(f.mime_type, f.name)).slice(0, 5);
   const urls = await signUrls(supabase, [...photos, ...docs].map((f) => f.storage_path));
   const admin = isAdminRole(me.role);
+  const seesAll = admin || (!only && me.role === "construction" && (await isSeniorPm(me.id)));
   const first = me.full_name.split(" ")[0] || "there";
 
   return (
@@ -125,7 +127,7 @@ async function TeamDashboard({ me, only = null }: { me: Profile; only?: string[]
         <p className="summary">
           <span className="today">{todayLabel()}</span> ·{" "}
           {unreadTotal ? <span className="warn">{plural(unreadTotal, "unread message")}</span> : "No unread messages"}{" "}
-          {admin ? `across all ${plural(projects.length, "project")}` : `on your ${plural(projects.length, "project")}`}, and {plural(weekCount ?? 0, "new file")} this week.
+          {seesAll ? `across all ${plural(projects.length, "project")}` : `on your ${plural(projects.length, "project")}`}, and {plural(weekCount ?? 0, "new file")} this week.
         </p>
       </section>
       <div className="dgrid">
@@ -155,7 +157,7 @@ async function TeamDashboard({ me, only = null }: { me: Profile; only?: string[]
           </section>
           <section>
             <div className="sec-h">
-              <h2>{admin ? "All Projects" : "Your Projects"}</h2>
+              <h2>{seesAll ? "All Projects" : "Your Projects"}</h2>
               {admin ? <Link className="linkbtn" href="/projects/new">+ New Project</Link> : <span>{plural(projects.length, "Active Project")}</span>}
             </div>
             <div className="box">
