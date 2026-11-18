@@ -6,6 +6,8 @@ import { ChatIcon, DocIcon, GridIcon } from "@/components/Icons";
 import { todayLabel } from "@/lib/format";
 import { DUE_HOUR, isWeekday, loadChecklistStatus, njNow } from "@/lib/checklist";
 import { isSeniorPm } from "@/lib/senior";
+import ViewAsPicker from "@/components/ViewAsPicker";
+import { viewAsPeople } from "@/lib/viewas-people";
 import ReadyToSend from "@/components/ReadyToSend";
 import { readyToSend, reportWeek } from "@/lib/reports";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -93,6 +95,7 @@ export default async function HQ() {
       <header className="top">
         <Link href="/" className="logo" aria-label="Beshara HQ" />
         <span className="hub">HQ</span>
+        {isAdminRole(real.role) && <ViewAsPicker people={await viewAsPeople(real.id)} current={viewAs ? me.id : null} site="" back="hq" />}
         <Link href="/account" className="userchip" title="Your account">
           <b>{real.full_name || real.email}</b>
           <small>{ROLE_LABEL[real.role]}</small>
@@ -105,7 +108,7 @@ export default async function HQ() {
             <span>
               Viewing as <b>{me.full_name || me.email}</b> ({ROLE_LABEL[me.role]}): their HQ, read-only.
             </span>
-            <a className="linkbtn" href={`${site}/view-as/exit`}>Exit View As</a>
+            <a className="linkbtn" href="/view-as/exit?to=hq">Exit View As</a>
           </div>
         )}
       </header>

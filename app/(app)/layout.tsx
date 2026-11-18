@@ -12,6 +12,8 @@ import { allowed } from "@/lib/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { myUnread } from "@/lib/unread";
 import { isAdminRole } from "@/lib/types";
+import ViewAsPicker from "@/components/ViewAsPicker";
+import { viewAsPeople } from "@/lib/viewas-people";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const me = await getMe();
@@ -34,6 +36,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const projects = previewProject ? [previewProject] : viewAs?.projectIds ? all.filter((p) => viewAs.projectIds!.includes(p.id)) : all;
   const isClient = me.role === "client" || !!previewProject || !!viewAs?.isClient;
   const isAdmin = isAdminRole(me.role) && !previewProject && (!viewAs || isAdminRole(viewAs.profile.role));
+  const viewAsPicker = isAdminRole(me.role) && !previewProject ? await viewAsPeople(me.id) : null;
+  // Viewing as a client (started from a project's people page): show them too.
+  if (viewAsPicker && viewAs && !viewAsPicker.some((p) => p.id === viewAs.profile.id))
+    viewAsPicker.push({ id: viewAs.profile.id, name: viewAs.profile.full_name || viewAs.profile.email, role: "Client" });
   const canCreate = !previewProject && !viewAs && (await allowed(me.role, "pm_create_projects"));
 
   return (
@@ -46,6 +52,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <a href={HQ_URL} className="logo" aria-label="Beshara HQ" />
         )}
         <span className="hub">OnSite</span>
+        {viewAsPicker && <ViewAsPicker people={viewAsPicker} current={viewAs?.profile.id ?? null} site="" />}
         <Link href="/account" className="userchip" title="Your account">
           <b>{me.full_name || me.email}</b>
           <small>{ROLE_LABEL[me.role]}</small>
