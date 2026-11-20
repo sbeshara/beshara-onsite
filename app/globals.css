@@ -642,6 +642,21 @@ a.userchip:hover b{text-decoration:underline}
 .chat-vis{margin-left:auto;font-size:12.5px;color:var(--muted);white-space:nowrap}
 .chat-expand{flex:none;padding:6px 12px;font-size:13px;margin-left:auto}
 .chat-vis+.chat-expand{margin-left:0}
+button.chat-vis-btn{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:4px 10px;font-weight:600;cursor:pointer;max-width:45%;overflow:hidden;text-overflow:ellipsis}
+button.chat-vis-btn:hover{border-color:var(--brand);color:var(--brand)}
+.tag-some{font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:4px;background:var(--brand-soft);color:var(--brand);white-space:nowrap}
+/* Choosing which clients are in a chat */
+.cpick{border:0;margin:0;padding:0;display:grid;gap:8px;min-width:0}
+.cpick legend{font-size:13px;font-weight:700;padding:0;margin-bottom:6px}
+.cpick-opt{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:10px;padding:10px 12px;cursor:pointer}
+.cpick-opt:has(input:checked){border-color:var(--brand);background:var(--brand-soft)}
+.cpick-opt input{accent-color:var(--brand);margin:3px 0 0}
+.cpick-opt span{display:grid;gap:2px;font-size:14px}
+.cpick-opt small{color:var(--muted);font-size:12.5px}
+.cpick-list{display:flex;flex-wrap:wrap;gap:6px;padding-left:4px}
+.cpick-list label{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 11px 5px 8px;font-size:13px;cursor:pointer}
+.cpick-list label.on{background:var(--brand-soft);border-color:var(--brand);color:var(--brand);font-weight:600}
+.cpick-list input{accent-color:var(--brand);margin:0}
 .chat-bar .chat-back{display:none}
 /* Full screen: the open chat covers the whole window while you write */
 .chat-pane.expanded{position:fixed;inset:0;z-index:60;box-shadow:0 0 0 100vmax rgba(0,0,0,.25)}

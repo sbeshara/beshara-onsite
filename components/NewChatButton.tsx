@@ -2,14 +2,18 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { createChat } from "@/app/actions";
+import ClientPicker, { type ClientChoice } from "@/components/ClientPicker";
 
-export default function NewChatButton({ projectId, myId, isClient }: { projectId: string; myId: string; isClient: boolean }) {
+type Client = { id: string; name: string };
+
+export default function NewChatButton({ projectId, isClient, clients }: { projectId: string; isClient: boolean; clients: Client[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [pick, setPick] = useState<ClientChoice>({ everyone: true, ids: clients.map((c) => c.id) });
 
   async function create(e: React.FormEvent) {
     e.preventDefault();
@@ -17,19 +21,16 @@ export default function NewChatButton({ projectId, myId, isClient }: { projectId
     if (!trimmed) return;
     setBusy(true);
     setError("");
-    const { data, error } = await createClient()
-      .from("chats")
-      .insert({ project_id: projectId, name: trimmed, is_internal: false, created_by: myId, position: 50 })
-      .select("id")
-      .single();
+    const r = await createChat(projectId, trimmed, isClient || pick.everyone ? null : pick.ids);
     setBusy(false);
-    if (error || !data) {
-      setError(error?.code === "23505" ? `There's already a chat called "${trimmed}". Pick a different name.` : "Couldn't create the chat. Try again.");
+    if (r.error || !r.chatId) {
+      setError(r.error ?? "Couldn't create the chat. Try again.");
       return;
     }
     setOpen(false);
     setName("");
-    router.push(`/projects/${projectId}/chats/${data.id}`);
+    setPick({ everyone: true, ids: clients.map((c) => c.id) });
+    router.push(`/projects/${projectId}/chats/${r.chatId}`);
     router.refresh();
   }
 
@@ -45,17 +46,18 @@ export default function NewChatButton({ projectId, myId, isClient }: { projectId
               Chat Name
               <input id="chat-name" autoFocus maxLength={60} required placeholder="e.g. Millwork" autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} />
             </label>
-            <p className="sub" style={{ margin: 0 }}>
-              {isClient ? (
-                "Everyone on this project, including your Beshara team, will see this chat."
-              ) : (
-                <>Everyone on this project, including the client, will see this chat. Team-only conversations go in <b>Internal Only</b>.</>
-              )}
-            </p>
+            {isClient ? (
+              <p className="sub" style={{ margin: 0 }}>Everyone on this project, including your Beshara team, will see this chat.</p>
+            ) : (
+              <>
+                <ClientPicker clients={clients} value={pick} onChange={setPick} />
+                <p className="sub" style={{ margin: 0 }}>Your Beshara team always sees it. Team-only conversations go in <b>Internal Only</b>.</p>
+              </>
+            )}
             {error && <p className="err" role="alert">{error}</p>}
             <div className="actions">
               <button type="button" className="btn ghost" onClick={() => setOpen(false)}>Cancel</button>
-              <button className="btn" type="submit" disabled={busy}>{busy ? "Creating…" : "Create Chat"}</button>
+              <button className="btn" type="submit" disabled={busy || (!isClient && !pick.everyone && !pick.ids.length)}>{busy ? "Creating…" : "Create Chat"}</button>
             </div>
           </form>
         </div>

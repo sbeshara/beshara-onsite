@@ -373,3 +373,70 @@ export async function markAllRead(projectId?: string): Promise<Result> {
   revalidatePath("/", "layout");
   return { ok: "done" };
 }
+
+// The clients picked for a chat, kept to clients on its project. Empty means
+// none of them were valid.
+async function projectClientIds(projectId: string, ids: string[]) {
+  const { data } = await createAdminClient().from("project_members").select("user_id, profiles!inner(role)").eq("project_id", projectId).eq("profiles.role", "client");
+  const valid = new Set((data ?? []).map((m) => m.user_id as string));
+  return [...new Set(ids)].filter((id) => valid.has(id));
+}
+
+// + New Chat. The team can make it for some of the project's clients only
+// (clientIds); null means every client on the project, including ones added
+// later. Clients' new chats are always for everyone.
+export async function createChat(projectId: string, name: string, clientIds: string[] | null): Promise<Result & { chatId?: string }> {
+  const me = await getMe();
+  if (await getViewAs()) return { error: "You're viewing as someone else. Exit View As first." };
+  const trimmed = name.trim().slice(0, 60);
+  if (!trimmed) return { error: "Give the chat a name." };
+  const supabase = await createClient();
+  let only: string[] | null = null;
+  if (clientIds && me.role !== "client") {
+    only = await projectClientIds(projectId, clientIds);
+    if (!only.length) return { error: "Pick at least one client, or choose everyone." };
+  }
+  const { data, error } = await supabase
+    .from("chats")
+    .insert({ project_id: projectId, name: trimmed, is_internal: false, created_by: me.id, position: 50 })
+    .select("id")
+    .single();
+  if (error || !data) {
+    return { error: error?.code === "23505" ? `There's already a chat called "${trimmed}". Pick a different name.` : "Couldn't create the chat. Try again." };
+  }
+  if (only) {
+    const { error: e2 } = await supabase.from("chat_clients").insert(only.map((user_id) => ({ chat_id: data.id, user_id })));
+    if (e2) {
+      await createAdminClient().from("chats").delete().eq("id", data.id);
+      return { error: "Couldn't create the chat. Try again." };
+    }
+  }
+  revalidatePath(`/projects/${projectId}`, "layout");
+  return { ok: "created", chatId: data.id };
+}
+
+// Changes which clients are in a chat (team only). null: every client on the project.
+export async function setChatClients(chatId: string, clientIds: string[] | null): Promise<Result> {
+  const me = await getMe();
+  if (me.role === "client") return { error: "Only the Beshara team can change this." };
+  if (await getViewAs()) return { error: "You're viewing as someone else. Exit View As first." };
+  const supabase = await createClient();
+  const { data: chat } = await supabase.from("chats").select("id, project_id, is_internal").eq("id", chatId).maybeSingle();
+  if (!chat || chat.is_internal) return { error: "That chat can't be changed." };
+  let only: string[] | null = null;
+  if (clientIds) {
+    only = await projectClientIds(chat.project_id, clientIds);
+    if (!only.length) return { error: "Pick at least one client, or choose everyone." };
+  }
+  // Add the new list before removing anyone, so the chat is never briefly open to every client.
+  if (only) {
+    const { error } = await supabase.from("chat_clients").upsert(only.map((user_id) => ({ chat_id: chatId, user_id })), { onConflict: "chat_id,user_id", ignoreDuplicates: true });
+    if (error) return { error: "Couldn't save. Try again." };
+  }
+  let del = supabase.from("chat_clients").delete().eq("chat_id", chatId);
+  if (only) del = del.not("user_id", "in", `(${only.join(",")})`);
+  const { error } = await del;
+  if (error) return { error: "Couldn't save. Try again." };
+  revalidatePath(`/projects/${chat.project_id}`, "layout");
+  return { ok: "saved" };
+}

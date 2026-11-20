@@ -261,7 +261,9 @@ export default function Thread({ chat, initialMessages, initialUrls, people, me,
             ? "Internal chat. The client won't see this, or anything you attach."
             : me.role === "client"
               ? "Your Beshara team sees everything here."
-              : "The client will see this message."
+              : clientNames.length
+                ? `${names} will see this message.`
+                : "The client will see this message."
         }
         onPost={async (html, files, inline) => {
           const ok = await send(html, files, inline);

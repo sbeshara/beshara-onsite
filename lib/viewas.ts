@@ -45,7 +45,15 @@ export async function projectViewer(projectId: string) {
   const previewing = (await getPreview()) === projectId;
   const viewAs = previewing ? null : await getViewAs();
   const clientOnly = previewing || !!viewAs?.isClient;
+  // The client being looked at as: the one viewed as, or the project's main
+  // client in a client preview (chats can be for some clients only).
+  let clientId: string | null = viewAs?.isClient ? viewAs.profile.id : null;
+  if (previewing) {
+    const { data } = await createAdminClient().from("projects").select("primary_client_id").eq("id", projectId).maybeSingle();
+    clientId = (data?.primary_client_id as string | null) ?? null;
+  }
   return {
+    clientId,
     previewing,
     viewAs,
     // Internal chats and team-only files are hidden.

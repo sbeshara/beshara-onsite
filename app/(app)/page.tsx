@@ -12,6 +12,7 @@ import { createClient } from "@/lib/supabase/server";
 import { myUnread } from "@/lib/unread";
 import MarkAllRead from "@/components/MarkAllRead";
 import { isSeniorPm } from "@/lib/senior";
+import { chatClientsFor } from "@/lib/chat-clients";
 import { isAdminRole, isTeamRole, type FileRow, type Profile } from "@/lib/types";
 
 const TEAM_COPY = "Every client conversation in one place: progress reports, questions, selections and the schedule, plus the documents we share.";
@@ -71,7 +72,7 @@ export default async function Dashboard() {
   if (preview) return <ClientDashboard viewerName="" projectId={preview} />;
   // Viewing as someone: their dashboard, limited to their projects.
   const viewAs = await getViewAs();
-  if (viewAs?.isClient) return <ClientDashboard viewerName={viewAs.profile.full_name} projectId={viewAs.projectIds?.[0] ?? NO_PROJECT} />;
+  if (viewAs?.isClient) return <ClientDashboard viewerName={viewAs.profile.full_name} projectId={viewAs.projectIds?.[0] ?? NO_PROJECT} viewerId={viewAs.profile.id} />;
   if (viewAs) return <TeamDashboard me={viewAs.profile} only={viewAs.projectIds} />;
   return me.role === "client" ? <ClientDashboard viewerName={me.full_name} /> : <TeamDashboard me={me} />;
 }
@@ -206,7 +207,7 @@ async function TeamDashboard({ me, only = null }: { me: Profile; only?: string[]
 }
 
 // projectId is set when the team is previewing a project as its client.
-async function ClientDashboard({ viewerName, projectId }: { viewerName: string; projectId?: string }) {
+async function ClientDashboard({ viewerName, projectId, viewerId }: { viewerName: string; projectId?: string; viewerId?: string }) {
   const supabase = await createClient();
   const base = supabase.from("projects").select("id, name, town, scope, phase, primary_client_id");
   const { data: projectData } = projectId ? await base.eq("id", projectId) : await base.order("created_at").limit(1);
@@ -219,21 +220,26 @@ async function ClientDashboard({ viewerName, projectId }: { viewerName: string; 
       </div>
     );
   }
-  const [{ data: msgData }, { data: peopleData }, { data: membersData }, { data: filesData }] = await Promise.all([
+  const [{ data: msgData }, { data: peopleData }, { data: membersData }, { data: filesData }, only] = await Promise.all([
     supabase.from("messages").select("id, body, created_at, author_id, posted_as, chat_id, chats!inner(name, is_internal), files(name)").eq("project_id", project.id).eq("chats.is_internal", false).order("created_at", { ascending: false }).limit(40),
     supabase.from("profiles").select("*"),
     supabase.from("project_members").select("user_id").eq("project_id", project.id),
-    supabase.from("files").select("*").eq("project_id", project.id).eq("is_internal", false).order("created_at", { ascending: false }).limit(20),
+    supabase.from("files").select("*, messages(chat_id)").eq("project_id", project.id).eq("is_internal", false).order("created_at", { ascending: false }).limit(20),
+    projectId ? chatClientsFor(supabase, project.id) : Promise.resolve({} as Record<string, string[]>),
   ]);
+  // Looking as a client (preview or View As): only the chats they're in. A
+  // signed-in client only ever gets those from the database anyway.
+  const viewer = viewerId ?? project.primary_client_id;
+  const inChat = (chatId: string | null | undefined) => !projectId || !chatId || !only[chatId] || (!!viewer && only[chatId].includes(viewer));
   const people = Object.fromEntries(((peopleData ?? []) as Profile[]).map((p) => [p.id, p]));
   const name = projectId ? (project.primary_client_id && people[project.primary_client_id]?.full_name) || "" : viewerName;
   type Msg = { id: string; body: string; created_at: string; author_id: string | null; posted_as: string | null; chat_id: string; chats: { name: string } | null; files: { name: string }[] };
-  const updates = ((msgData ?? []) as unknown as Msg[]).filter((m) => m.author_id && people[m.author_id] && isTeamRole(people[m.author_id].role)).slice(0, 4);
+  const updates = ((msgData ?? []) as unknown as Msg[]).filter((m) => inChat(m.chat_id) && m.author_id && people[m.author_id] && isTeamRole(people[m.author_id].role)).slice(0, 4);
   const team = [
     ...Object.values(people).filter((p) => p.role === "owner"),
     ...(membersData ?? []).map((m) => people[m.user_id]).filter((p) => p && p.role === "construction"),
   ];
-  const files = (filesData ?? []) as FileRow[];
+  const files = ((filesData ?? []) as (FileRow & { messages: { chat_id: string } | null })[]).filter((f) => inChat(f.messages?.chat_id));
   const photos = files.filter((f) => isImage(f.mime_type, f.name)).slice(0, 3);
   const docs = files.filter((f) => !isImage(f.mime_type, f.name)).slice(0, 4);
   const urls = await signUrls(supabase, [...photos, ...docs].map((f) => f.storage_path));

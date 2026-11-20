@@ -9,6 +9,7 @@ import { getPermissions } from "@/lib/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { myUnread } from "@/lib/unread";
 import MarkAllRead from "@/components/MarkAllRead";
+import { chatClientsFor, clientSeesChat } from "@/lib/chat-clients";
 import type { Chat, Profile } from "@/lib/types";
 import { projectViewer } from "@/lib/viewas";
 
@@ -18,11 +19,13 @@ import { projectViewer } from "@/lib/viewas";
 export async function loadChats(projectId: string) {
   const v = await projectViewer(projectId);
   const supabase = await createClient();
-  const [{ data: chatsData }, { data: peopleData }, { data: unreadData }, { data: latestData }] = await Promise.all([
+  const [{ data: chatsData }, { data: peopleData }, { data: unreadData }, { data: latestData }, only, { data: memberData }] = await Promise.all([
     supabase.from("chats").select("*").eq("project_id", projectId).order("position").order("created_at"),
     supabase.from("profiles").select("*"),
     v.readOnly ? Promise.resolve({ data: [] }) : myUnread().then((data) => ({ data })),
     supabase.rpc("latest_messages", { p_project: projectId }),
+    chatClientsFor(supabase, projectId),
+    supabase.from("project_members").select("user_id").eq("project_id", projectId),
   ]);
   type Latest = { chat_id: string; project_id: string; message_id: string; author_id: string | null; body: string; created_at: string; imported_author?: string | null };
   const latestRows = ((latestData ?? []) as Latest[]).filter((l) => l.project_id === projectId);
@@ -32,20 +35,26 @@ export async function loadChats(projectId: string) {
   const company = new Set((postedAs ?? []).filter((m) => m.posted_as === "company").map((m) => m.id));
   const latest = Object.fromEntries(latestRows.map((l) => [l.chat_id, { ...l, company: company.has(l.message_id) }]));
   const unread = Object.fromEntries(((unreadData ?? []) as { chat_id: string; unread: number }[]).map((u) => [u.chat_id, Number(u.unread)]));
-  const chats = ((chatsData ?? []) as Chat[]).filter((c) => !v.clientOnly || !c.is_internal);
+  const chats = ((chatsData ?? []) as Chat[]).filter((c) => !v.clientOnly || clientSeesChat(c, only, v.clientId));
   const people = Object.fromEntries(((peopleData ?? []) as Profile[]).map((p) => [p.id, p]));
+  // The project's clients, for choosing who's in a new chat.
+  const clients = (memberData ?? [])
+    .map((m) => people[m.user_id])
+    .filter((p): p is Profile => !!p && p.role === "client")
+    .map((p) => ({ id: p.id, name: p.full_name || p.email }))
+    .sort((a, b) => a.name.localeCompare(b.name));
   const pinned = chats.find((c) => c.is_internal && !c.source_id);
   const listed = chats
     .filter((c) => c !== pinned)
     .sort((a, b) => (latest[b.id]?.created_at ?? "").localeCompare(latest[a.id]?.created_at ?? "") || a.position - b.position);
   // The chat a project opens on: the newest one (Internal Only if it's the only one).
   const first = listed[0] ?? (v.role !== "client" ? pinned : undefined);
-  return { v, latest, unread, people, pinned, listed, first };
+  return { v, latest, unread, people, pinned, listed, first, only, clients };
 }
 
 export default async function ChatList({ projectId, activeId, data }: { projectId: string; activeId?: string; data?: Awaited<ReturnType<typeof loadChats>> }) {
   const me = await getMe();
-  const { v, latest, unread, people, pinned, listed } = data ?? (await loadChats(projectId));
+  const { v, latest, unread, people, pinned, listed, only, clients } = data ?? (await loadChats(projectId));
   const canStart = !v.readOnly && (me.role !== "client" || (await getPermissions()).clients_start_chats);
 
   const chatLink = (c: Chat) => {
@@ -73,6 +82,11 @@ export default async function ChatList({ projectId, activeId, data }: { projectI
             <span className="ic" title={c.is_internal ? "Internal Only" : "The client sees this"}>{c.is_internal ? <LockIcon /> : <PeopleIcon />}</span>
             <span className="chan-name">{c.name}</span>
             {c.source_id && <span className="tag-bc">Basecamp</span>}
+            {only[c.id] && !v.clientOnly && v.role !== "client" && (
+              <span className="tag-some" title={`Only ${only[c.id].map((id) => people[id]?.full_name || people[id]?.email).filter(Boolean).join(", ")}`}>
+                {only[c.id].length === 1 ? "1 client" : `${only[c.id].length} clients`}
+              </span>
+            )}
             {count ? <span className="ucount" aria-label={`${count} new`}>{count > 99 ? "99+" : count}</span> : null}
           </span>
           <span className="chan-prev">
@@ -92,7 +106,7 @@ export default async function ChatList({ projectId, activeId, data }: { projectI
   return (
     <div className="chans" aria-label="Chats">
       <ChatSearch projectId={projectId} chatId={activeId ?? ""} clientView={v.clientOnly} people={searchPeople}>
-        {canStart && <NewChatButton projectId={projectId} myId={me.id} isClient={me.role === "client"} />}
+        {canStart && <NewChatButton projectId={projectId} isClient={me.role === "client"} clients={me.role === "client" ? [] : clients} />}
         {[...listed, pinned].some((c) => c && c.id !== activeId && unread[c.id]) && (
           <div className="chans-markread"><MarkAllRead projectId={projectId} /></div>
         )}
