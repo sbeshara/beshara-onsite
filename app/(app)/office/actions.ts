@@ -417,3 +417,122 @@ export async function recallEstimate(estimateId: string, projectId: string): Pro
     return { error: (e as Error).message };
   }
 }
+
+// ---------------------------------------------------------------------------
+// Invoicing (QuickBooks Online)
+// ---------------------------------------------------------------------------
+
+async function requireBilling() {
+  const a = await requireOffice();
+  if (a.me.role !== "owner" && a.me.role !== "admin") throw new Error("Only the Owner or Admin can create and send invoices.");
+  return a;
+}
+
+export async function setStepReached(stepId: string, projectId: string, on: boolean): Promise<Result> {
+  try {
+    const { me } = await requireOffice();
+    const { error } = await (await createClient())
+      .from("estimate_payment_steps")
+      .update(on ? { reached_at: new Date().toISOString(), reached_by: me.id } : { reached_at: null, reached_by: null })
+      .eq("id", stepId);
+    if (error) return { error: "Couldn't update that step. Try again." };
+    revalidatePath(`/office/jobs/${projectId}/invoicing`);
+    revalidatePath("/office/invoicing");
+    return { ok: on ? "Marked ready to invoice." : "Marked not reached." };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}
+
+export async function createInvoice(_prev: Result, form: FormData): Promise<Result> {
+  try {
+    const { me } = await requireBilling();
+    const projectId = clean(form.get("project_id"));
+    const amount = money(form.get("amount"));
+    if (!amount || Number.isNaN(amount) || amount <= 0) return { error: "Enter the invoice amount." };
+    const emailTo = clean(form.get("email_to"));
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTo)) return { error: "Enter the email address the invoice goes to." };
+    const supabase = await createClient();
+    const { data: inv, error } = await supabase
+      .from("invoices")
+      .insert({
+        project_id: projectId,
+        estimate_id: orNull(form.get("estimate_id")),
+        step_id: orNull(form.get("step_id")),
+        description: clean(form.get("description")) || "Progress billing",
+        amount,
+        email_to: emailTo,
+        due_on: orNull(form.get("due_on")),
+        memo: clean(form.get("memo")),
+        created_by: me.id,
+      })
+      .select("id")
+      .single();
+    if (error || !inv) return { error: error?.code === "23505" ? "That payment step already has an invoice." : "Couldn't create the invoice. Try again." };
+    revalidatePath(`/office/jobs/${projectId}/invoicing`);
+    revalidatePath("/office/invoicing");
+    if (form.get("send") !== "1") return { ok: "Invoice saved as a draft." };
+    const { pushAndSend } = await import("@/lib/invoicing");
+    try {
+      await pushAndSend(inv.id, me.id);
+    } catch (e) {
+      return { error: `Saved as a draft, but it didn't send: ${(e as Error).message}` };
+    }
+    revalidatePath(`/office/jobs/${projectId}/invoicing`);
+    revalidatePath("/office/invoicing");
+    return { ok: `Sent. It's in QuickBooks Online and on its way to ${emailTo}.` };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}
+
+export async function sendInvoice(invoiceId: string): Promise<Result> {
+  try {
+    const { me } = await requireBilling();
+    const { pushAndSend } = await import("@/lib/invoicing");
+    await pushAndSend(invoiceId, me.id);
+    revalidatePath("/office", "layout");
+    return { ok: "Sent through QuickBooks Online." };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}
+
+export async function voidInvoice(invoiceId: string): Promise<Result> {
+  try {
+    await requireBilling();
+    const supabase = await createClient();
+    const { data } = await supabase.from("invoices").select("qbo_invoice_id, status").eq("id", invoiceId).maybeSingle();
+    if (data?.qbo_invoice_id) return { error: "This invoice is in QuickBooks. Void it there; its status updates here." };
+    const { error } = await supabase.from("invoices").update({ status: "void" }).eq("id", invoiceId).eq("status", "draft");
+    if (error) return { error: "Couldn't void it. Try again." };
+    revalidatePath("/office", "layout");
+    return { ok: "Draft invoice voided." };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}
+
+export async function checkPaymentsNow(): Promise<Result> {
+  try {
+    await requireOffice();
+    const { checkPayments } = await import("@/lib/invoicing");
+    const n = await checkPayments();
+    revalidatePath("/office", "layout");
+    return { ok: n ? `${n} payment${n === 1 ? "" : "s"} updated from QuickBooks.` : "No new payments in QuickBooks." };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}
+
+export async function disconnectQuickBooks(): Promise<Result> {
+  try {
+    await requireBilling();
+    const { disconnect } = await import("@/lib/qbo");
+    await disconnect();
+    revalidatePath("/office/invoicing");
+    return { ok: "QuickBooks disconnected." };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}
