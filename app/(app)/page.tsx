@@ -245,11 +245,19 @@ async function ClientDashboard({ viewerName, projectId, viewerId }: { viewerName
   const photos = files.filter((f) => isImage(f.mime_type, f.name)).slice(0, 3);
   const docs = files.filter((f) => !isImage(f.mime_type, f.name)).slice(0, 4);
   const urls = await signUrls(supabase, [...photos, ...docs].map((f) => f.storage_path));
+  const { data: proposals } = await supabase.rpc("client_proposals", { p_project: project.id });
+  const waiting = ((proposals ?? []) as { id: string; kind: string; status: string }[]).filter((p) => p.status === "pending");
 
   return (
     <div className="dash">
       <Hero name={name || "there"} eyebrow={`Beshara OnSite · ${project.name}`} copy={CLIENT_COPY} />
       {!projectId && <NotifyPrompt />}
+      {waiting.length > 0 && (
+        <Link className="clientnote" href={`/projects/${project.id}/proposals?doc=${waiting[0].id}`} style={{ textDecoration: "none" }}>
+          <span>{waiting.length === 1 ? `Your ${waiting[0].kind.toLowerCase()} is ready to review and sign.` : `${waiting.length} proposals are waiting for your signature.`}</span>
+          <span className="linkbtn">Review and sign</span>
+        </Link>
+      )}
       <section className="hello">
         <p className="summary">
           Your project is in <b>{PHASES[project.phase]}</b>, step {stageNumber(project.phase)} of {STAGES.length}. Everything your Beshara team shares with you is here.

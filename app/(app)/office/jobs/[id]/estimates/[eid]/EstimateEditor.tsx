@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { CLIENT_VIEWS, docNumber, STATUS_LABEL, totals, type EstGroup, type EstItem, type EstStep } from "@/lib/estimates";
 import { usd } from "@/lib/office";
 import { KIND_UNIT, fmtQty, linkedQuantity, type MeasureKind } from "@/lib/takeoff";
-import { deleteEstimate } from "../../../../actions";
+import { deleteEstimate, recallEstimate, sendEstimate } from "../../../../actions";
 
 type Opt = { id: number; name: string; abbr?: string };
 type CatGroup = { id: string; name: string; parent_id: string | null; description: string };
@@ -19,8 +19,8 @@ const num = (v: string) => {
 };
 
 export default function EstimateEditor(props: {
-  projectId: string; jobNumber: string | null;
-  estimate: { id: string; seq: number; kind: string; name: string; status: string; intro: string; terms: string; issued_on: string; signed_at: string | null; signed_by_name: string | null };
+  projectId: string; jobNumber: string | null; chats: { id: string; name: string }[];
+  estimate: { id: string; seq: number; kind: string; name: string; status: string; intro: string; terms: string; issued_on: string; signed_at: string | null; signed_by_name: string | null; sent_at: string | null; signature: string | null; declined_at: string | null; decline_reason: string | null };
   groups: EstGroup[]; items: EstItem[]; steps: EstStep[];
   catalog: { groups: CatGroup[]; items: CatItem[] }; types: Opt[]; units: Opt[]; measures: MeasureOpt[];
 }) {
@@ -31,6 +31,8 @@ export default function EstimateEditor(props: {
   const [steps, setSteps] = useState(props.steps);
   const [picker, setPicker] = useState<string | null>(null); // group id when adding from the catalog
   const [linking, setLinking] = useState<string | null>(null); // item id being linked to a takeoff
+  const [sending, setSending] = useState(false);
+  const [note, setNote] = useState("");
   const [error, setError] = useState("");
   const [saved, setSaved] = useState("");
   const [pending, start] = useTransition();
@@ -138,9 +140,21 @@ export default function EstimateEditor(props: {
         <span className="fine" aria-live="polite">{saved}</span>
         <span style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
           <Link className="btn ghost" href={`/office/jobs/${props.projectId}/estimates/${est.id}/preview`}>Preview client copy</Link>
+          {est.status === "pending" && (
+            <button className="btn ghost" disabled={pending} onClick={() => start(async () => { const r = await recallEstimate(est.id, props.projectId); if (r.error) setError(r.error); else { setEst({ ...est, status: "draft" }); setNote(r.ok ?? ""); } })}>Take back</button>
+          )}
+          {!locked && <button className="btn" onClick={() => setSending(true)}>{est.status === "pending" ? "Resend" : "Send for signature"}</button>}
         </span>
       </div>
-      {locked && <p className="fine" style={{ color: "var(--brand)" }}>Signed by {est.signed_by_name} {est.signed_at ? `on ${new Date(est.signed_at).toLocaleDateString()}` : ""}. Signed estimates are locked; add a change order to change the scope.</p>}
+      {locked && (
+        <div className="signedbox">
+          {est.signature && <img src={est.signature} alt={`Signature of ${est.signed_by_name}`} />}
+          <div><b>Signed by {est.signed_by_name}</b>{est.signed_at && <small>{new Date(est.signed_at).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}</small>}<small>Signed estimates are locked. Add a change order to change the scope.</small></div>
+        </div>
+      )}
+      {est.status === "pending" && <p className="clientnote">Sent {est.sent_at ? new Date(est.sent_at).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""}, waiting for the client&apos;s signature. They see the version you sent: if you change anything, press Resend.</p>}
+      {est.status === "denied" && <p className="err">Declined by the client{est.declined_at ? ` on ${new Date(est.declined_at).toLocaleDateString()}` : ""}{est.decline_reason ? `: "${est.decline_reason}"` : "."} Edit it and send it again, or start a new one.</p>}
+      {note && <p className="ok" role="status">{note}</p>}
       {error && <p className="err" role="alert">{error}</p>}
 
       <div className="est-grid">
@@ -276,6 +290,20 @@ export default function EstimateEditor(props: {
         </aside>
       </div>
 
+      {sending && (
+        <SendDialog
+          kind={est.kind}
+          chats={props.chats}
+          resend={est.status === "pending"}
+          onClose={() => setSending(false)}
+          onSend={(chat, msg) => start(async () => {
+            const r = await sendEstimate(est.id, props.projectId, chat, msg);
+            if (r.error) setError(r.error);
+            else { setEst({ ...est, status: "pending", sent_at: new Date().toISOString() }); setNote(r.ok ?? ""); setSending(false); }
+          })}
+          busy={pending}
+        />
+      )}
       {picker && (
         <CatalogPicker
           mode={picker === "new-group" ? "groups" : "items"}
@@ -366,6 +394,33 @@ function LinkDialog({ item, unit, measures, projectId, onClose, onSave }: {
             <div className="actions"><button className="btn ghost" onClick={onClose}>Close</button><Link className="btn" href={`/office/jobs/${projectId}/plans`}>Open Plans &amp; Takeoff</Link></div>
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+function SendDialog({ kind, chats, resend, busy, onClose, onSend }: { kind: string; chats: { id: string; name: string }[]; resend: boolean; busy: boolean; onClose: () => void; onSend: (chat: string | null, msg: string) => void }) {
+  const [chat, setChat] = useState(chats[0]?.id ?? "");
+  const [msg, setMsg] = useState(resend ? `I've updated your ${kind.toLowerCase()}. Please review and sign the new version.` : `Your ${kind.toLowerCase()} is ready to review and sign.`);
+  return (
+    <div className="modal-bg" role="presentation" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal" role="dialog" aria-modal="true" aria-label="Send for signature" style={{ maxWidth: 480 }}>
+        <h2 style={{ fontFamily: "var(--f-display)", fontWeight: 500 }}>{resend ? "Resend for signature" : "Send for signature"}</h2>
+        <p className="fine">The client reviews and signs it in OnSite, under Proposals on their project. What they see is frozen now: later edits need a resend.</p>
+        <div className="form" style={{ maxWidth: "none" }}>
+          <label className="field">
+            Tell them in
+            <select value={chat} onChange={(e) => setChat(e.target.value)}>
+              {chats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              <option value="">Don&apos;t post a message</option>
+            </select>
+          </label>
+          {chat && <label className="field">Message<textarea rows={3} value={msg} onChange={(e) => setMsg(e.target.value)} /></label>}
+          <div className="actions">
+            <button className="btn ghost" onClick={onClose}>Cancel</button>
+            <button className="btn" disabled={busy} onClick={() => onSend(chat || null, msg)}>{busy ? "Sending…" : resend ? "Resend" : "Send"}</button>
+          </div>
+        </div>
       </div>
     </div>
   );

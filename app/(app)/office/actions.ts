@@ -367,3 +367,53 @@ export async function deleteEstimate(id: string, projectId: string): Promise<Res
   revalidatePath(`/office/jobs/${projectId}/estimates`);
   redirect(`/office/jobs/${projectId}/estimates`);
 }
+
+// ---------------------------------------------------------------------------
+// Sending for e-signature
+// ---------------------------------------------------------------------------
+
+export async function sendEstimate(estimateId: string, projectId: string, chatId: string | null, message: string): Promise<Result> {
+  try {
+    const { me } = await requireOffice();
+    const supabase = await createClient();
+    const { data: est } = await supabase.from("estimates").select("status, kind, name").eq("id", estimateId).maybeSingle();
+    if (!est) return { error: "Estimate not found." };
+    if (est.status === "approved") return { error: "It's already signed." };
+    const { buildClientCopy } = await import("./jobs/[id]/estimates/load");
+    const copy = await buildClientCopy(supabase, projectId, estimateId);
+    if (!copy) return { error: "Couldn't build the client's copy." };
+    if (!copy.groups.length || copy.total <= 0) return { error: "Add some priced items before sending." };
+    const pct = copy.steps.reduce((s, x) => s + x.percent, 0);
+    if (copy.steps.length && Math.abs(pct - 100) > 0.01) return { error: `The payment schedule adds up to ${pct}%. Make it 100% before sending.` };
+    const { error } = await supabase
+      .from("estimates")
+      .update({ status: "pending", client_copy: copy, sent_at: new Date().toISOString(), sent_by: me.id, declined_at: null, decline_reason: null })
+      .eq("id", estimateId);
+    if (error) return { error: "Couldn't send it. Try again." };
+    // Tell the client in their chat (they get the usual email and phone notification).
+    if (chatId) {
+      const link = `/projects/${projectId}/proposals?doc=${estimateId}`;
+      const body = `${message.trim() || `Your ${est.kind.toLowerCase()} is ready to review and sign.`}\n\n[Review and sign ${est.kind} ${copy.number}](${link})`;
+      const { error: mErr } = await supabase.from("messages").insert({ chat_id: chatId, author_id: me.id, body });
+      if (mErr) return { ok: "Sent. It's waiting in the client's Proposals tab, but the chat message didn't post." };
+    }
+    const { count } = await createAdminClient().from("project_members").select("user_id, profiles!inner(role)", { count: "exact", head: true }).eq("project_id", projectId).eq("profiles.role", "client");
+    revalidatePath(`/office/jobs/${projectId}/estimates`, "layout");
+    return { ok: count ? `Sent ${est.kind} ${copy.number}. The client can review and sign it in OnSite.` : `Sent, but no client is invited to this project yet. Invite them from the project page so they can sign.` };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}
+
+// Takes a sent estimate back to draft so it can be changed (the client stops seeing it).
+export async function recallEstimate(estimateId: string, projectId: string): Promise<Result> {
+  try {
+    await requireOffice();
+    const { error } = await (await createClient()).from("estimates").update({ status: "draft", client_copy: null }).eq("id", estimateId).eq("status", "pending");
+    if (error) return { error: "Couldn't take it back. Try again." };
+    revalidatePath(`/office/jobs/${projectId}/estimates`, "layout");
+    return { ok: "Taken back to draft. The client no longer sees it." };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}

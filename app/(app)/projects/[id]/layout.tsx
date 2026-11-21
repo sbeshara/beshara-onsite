@@ -28,6 +28,9 @@ export default async function ProjectLayout({ children, params }: { children: Re
     v.clientOnly ? fileCountQuery.eq("is_internal", false) : fileCountQuery,
   ]);
   if (!project) notFound();
+  // Clients (and previews as a client) get a Proposals tab once something's been sent.
+  const { data: sent } = !isTeamRole(me.role) || v.clientOnly ? await supabase.rpc("client_proposals", { p_project: id }) : { data: [] };
+  const proposalCount = Array.isArray(sent) ? sent.length : 0;
   const memberProfiles = ((members ?? []) as unknown as { profiles: Profile | null }[]).map((m) => m.profiles).filter(Boolean) as Profile[];
   const everyone = [
     ...memberProfiles.filter((p) => p.role === "client"),
@@ -62,7 +65,7 @@ export default async function ProjectLayout({ children, params }: { children: Re
           <InviteClientButton projectId={id} projectName={project.name} reminder hasClient={memberProfiles.some((p) => p.role === "client")} />
         )}
       </div>
-      <ProjectTabs projectId={id} fileCount={fileCount ?? 0} team={isTeamRole(me.role) && !v.clientOnly} office={access.seesNumbers && !v.readOnly} />
+      <ProjectTabs projectId={id} fileCount={fileCount ?? 0} team={isTeamRole(me.role) && !v.clientOnly} office={access.seesNumbers && !v.readOnly} proposals={proposalCount} />
       {children}
     </div>
   );

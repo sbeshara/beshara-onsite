@@ -9,7 +9,7 @@ export default async function EstimatePage({ params }: { params: Promise<{ id: s
   const { id, eid } = await params;
   const supabase = await createClient();
   const [{ data: est }, { data: groups }, { data: items }, { data: steps }, { data: job }, { data: catGroups }, { data: catItems }, { data: types }, { data: units }, measures] = await Promise.all([
-    supabase.from("estimates").select("id, seq, kind, name, status, intro, terms, issued_on, signed_at, signed_by_name").eq("id", eid).eq("project_id", id).maybeSingle(),
+    supabase.from("estimates").select("id, seq, kind, name, status, intro, terms, issued_on, signed_at, signed_by_name, sent_at, signature, declined_at, decline_reason").eq("id", eid).eq("project_id", id).maybeSingle(),
     supabase.from("estimate_groups").select("id, name, description, client_view, display_qty, display_unit, position").eq("estimate_id", eid).order("position"),
     supabase.from("estimate_items").select("id, group_id, catalog_item_id, name, description, cost_type_id, unit_id, quantity, unit_cost, unit_price, measurement_id, qty_factor, waste_pct, position").eq("estimate_id", eid).order("position"),
     supabase.from("estimate_payment_steps").select("id, name, percent, position").eq("estimate_id", eid).order("position"),
@@ -20,11 +20,13 @@ export default async function EstimatePage({ params }: { params: Promise<{ id: s
     supabase.from("units").select("id, name, abbr").order("id"),
     jobMeasures(supabase, id),
   ]);
+  const { data: chats } = await supabase.from("chats").select("id, name").eq("project_id", id).eq("is_internal", false).order("position");
   if (!est) notFound();
   return (
     <EstimateEditor
       projectId={id}
       jobNumber={job?.job_number ?? null}
+      chats={chats ?? []}
       estimate={est}
       groups={(groups ?? []) as EstGroup[]}
       items={(items ?? []) as EstItem[]}

@@ -23,7 +23,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const viewAs = preview ? null : await getViewAs();
   const supabase = await createClient();
   // Leads live in the office tools, not in the project list.
-  const { data } = await supabase.from("projects").select("id, name, town, phase, primary_client_id").not("status", "in", LEAD_FILTER).order("created_at");
+  // Clients see whatever they've been invited to (a lead too, to sign its proposal).
+  const base = supabase.from("projects").select("id, name, town, phase, primary_client_id");
+  const { data } = await (me.role === "client" ? base : base.not("status", "in", LEAD_FILTER)).order("created_at");
   const all = data ?? [];
   const unreadRows = preview || viewAs ? [] : await myUnread();
   const unreadProjects = [...new Set(((unreadRows ?? []) as { project_id: string }[]).map((r) => r.project_id))];
