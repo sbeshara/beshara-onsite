@@ -12,7 +12,7 @@ export const ALL_STATUSES = [...LEAD_STATUSES, ...JOB_STATUSES] as const;
 export type JobStatus = (typeof ALL_STATUSES)[number];
 export const isLead = (s: string | null | undefined) => (LEAD_STATUSES as readonly string[]).includes(s ?? "");
 // The statuses a PM works in, and may switch between.
-export const PM_STATUSES = ["Permitting", "Construction"] as const;
+export const PM_STATUSES = ["Preconstruction", "Permitting", "Construction"] as const;
 export const JOB_TYPES = ["New Build Out", "Interior Fit-Out", "Cosmetic Renovation", "Minor Renovation", "Weekend Project", "Preconstruction Package"] as const;
 
 export const FOLDERS = ["Drawings", "Submittals", "Permits & inspections", "Photos", "Contracts"] as const;

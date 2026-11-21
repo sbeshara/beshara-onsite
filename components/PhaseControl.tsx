@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 
 // The project's stage bar. Clients see it read-only. The office (Owner, Admin,
 // Senior PM, Preconstruction Manager) sets the job status, which moves the
-// stage. PMs can switch a job between Permitting and Construction.
+// stage. PMs can switch a job between Preconstruction, Permitting and Construction.
 export default function PhaseControl({
   projectId,
   phase,
@@ -55,12 +55,12 @@ export default function PhaseControl({
           "Project Phase"
         )}
         {mode === "office" && <span>The client sees the stage below on their home screen.</span>}
-        {mode === "pm" && <span>Tap Permits or Construction to switch. The client sees this on their home screen.</span>}
+        {mode === "pm" && <span>Tap Preconstruction, Permits or Construction to switch. The client sees this on their home screen.</span>}
       </div>
       <div className="phasebar">
         {STAGES.map((ph, i) => {
           const cls = `pstep ${i < stage ? "done" : i === stage ? "now" : ""}`;
-          const target = ph === 1 ? "Permitting" : ph === 2 ? "Construction" : null;
+          const target = ph === 0 ? "Preconstruction" : ph === 1 ? "Permitting" : ph === 2 ? "Construction" : null;
           return mode === "pm" && target && (PM_STATUSES as readonly string[]).includes(target) ? (
             <button key={ph} type="button" className={cls} title={`Set to ${target}`} onClick={() => setStatus(target)}>
               <i />

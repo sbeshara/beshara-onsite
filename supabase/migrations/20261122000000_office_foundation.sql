@@ -4,7 +4,8 @@
 --   * Preconstruction Manager: a team member who builds bids and scopes.
 --   * Who sees numbers (prices, costs, margins) and leads: the Owner, Admins,
 --     Senior PMs and Preconstruction Managers. PMs (Construction Management)
---     see only their own jobs while they're in Permitting or Construction, and
+--     see only their own jobs while they're in Preconstruction, Permitting or
+--     Construction, and
 --     never see dollar amounts.
 --   * One job status list replaces JobTread's Status field. OnSite's project
 --     phase (what clients see) now follows the status; there's no Punch List
@@ -129,7 +130,7 @@ create trigger projects_a_sync_phase
   for each row execute function public.sync_project_phase();
 
 -- Only people who see numbers change a job's details, number or customer;
--- PMs may still move the status between Permitting and Construction.
+-- PMs may move a job between Preconstruction, Permitting and Construction.
 create or replace function public.guard_project_office_fields() returns trigger
 language plpgsql security definer set search_path = ''
 as $$
@@ -144,7 +145,7 @@ begin
     raise exception 'Only the Owner, Admin, Senior PM or Preconstruction Manager can edit job details';
   end if;
   if new.status is distinct from old.status
-     and not (old.status in ('Permitting', 'Construction') and new.status in ('Permitting', 'Construction')) then
+     and not (old.status in ('Preconstruction', 'Permitting', 'Construction') and new.status in ('Preconstruction', 'Permitting', 'Construction')) then
     raise exception 'Only the Owner, Admin, Senior PM or Preconstruction Manager can move a job to %', new.status;
   end if;
   return new;
@@ -176,7 +177,7 @@ $$;
 
 -- Who can open a project:
 --   Owner, Admin, Senior PM, Preconstruction Manager: every project and lead
---   PM (Construction Management): their assigned jobs in Permitting or Construction
+--   PM (Construction Management): their assigned jobs in Preconstruction, Permitting or Construction
 --   Client: the projects they're on, never leads
 create or replace function public.can_access_project(p_project uuid) returns boolean
 language sql stable security definer set search_path = ''
@@ -188,7 +189,7 @@ as $$
         join public.profiles me on me.id = m.user_id
         where m.project_id = p_project and m.user_id = auth.uid()
           and case me.role
-                when 'construction' then p.status in ('Permitting', 'Construction')
+                when 'construction' then p.status in ('Preconstruction', 'Permitting', 'Construction')
                 when 'client' then not public.is_lead_status(p.status)
                 else true end
       )
