@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
-import { inviteTeamMember, removeTeamMember, resendInvite, setAssignment, setRole, setSeniorPm, type Result } from "@/app/actions";
+import { inviteTeamMember, removeTeamMember, resendInvite, setAssignment, setPrecon, setRole, setSeniorPm, type Result } from "@/app/actions";
 import Avatar from "@/components/Avatar";
 import { ROLE_LABEL } from "@/lib/constants";
 import { plural } from "@/lib/format";
@@ -14,12 +14,14 @@ type Props = {
   assigned: Record<string, string[]>;
   lastSignIn: Record<string, string | null>;
   senior: string[]; // Senior PMs: see every project and HQ's team check-in board
+  precon: string[]; // Preconstruction Managers: every job and lead, plus numbers, customers and catalog
 };
 
 const since = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
-export default function TeamManager({ me, people, projects, assigned: initial, lastSignIn, senior: initialSenior }: Props) {
+export default function TeamManager({ me, people, projects, assigned: initial, lastSignIn, senior: initialSenior, precon: initialPrecon }: Props) {
   const [senior, setSenior] = useState(initialSenior);
+  const [precon, setPreconList] = useState(initialPrecon);
   // Ticks update right away; the server saves each one.
   const [assigned, setAssigned] = useState(initial);
   const toggle = (userId: string, projectId: string, on: boolean) => {
@@ -51,7 +53,7 @@ export default function TeamManager({ me, people, projects, assigned: initial, l
                   <b>{p.full_name || p.email}</b>
                   <small>
                     {p.email}
-                    {p.role === "construction" ? ` · ${senior.includes(p.id) ? "Senior PM · " : ""}${plural(assigned[p.id]?.length ?? 0, "job")}` : " · sees every job"}
+                    {p.role === "construction" ? ` · ${senior.includes(p.id) ? "Senior PM · " : ""}${precon.includes(p.id) ? "Preconstruction Manager · " : ""}${plural(assigned[p.id]?.length ?? 0, "job")}` : " · sees every job"}
                   </small>
                   <small className={`signin ${lastSignIn[p.id] ? "in" : ""}`}>
                     {lastSignIn[p.id] ? `Signed in · last on ${since(lastSignIn[p.id]!)}` : "Invite pending · hasn't signed in yet"}
@@ -108,7 +110,28 @@ export default function TeamManager({ me, people, projects, assigned: initial, l
                       }}
                     />
                     <span>
-                      <b>Senior PM</b> · oversees every project: all chats, files and progress reports, plus the team check-in board on HQ. Daily logs, emails and notifications stay with the jobs checked below. No access to Team &amp; Access or other admin tools.
+                      <b>Senior PM</b> · oversees every project and lead: all chats, files and progress reports, all proposal numbers, customers and the catalog, plus the team check-in board on HQ. Daily logs, emails and notifications stay with the jobs checked below. No access to Team &amp; Access or other admin tools.
+                    </span>
+                  </label>
+                )}
+                {p.role === "construction" && (
+                  <label className="senior-pick">
+                    <input
+                      type="checkbox"
+                      checked={precon.includes(p.id)}
+                      disabled={pending}
+                      onChange={(e) => {
+                        const on = e.target.checked;
+                        setPreconList((s) => (on ? [...s, p.id] : s.filter((x) => x !== p.id)));
+                        start(async () => {
+                          const r = await setPrecon(p.id, on);
+                          setMsg(r);
+                          if (r.error) setPreconList((s) => (on ? s.filter((x) => x !== p.id) : [...s, p.id]));
+                        });
+                      }}
+                    />
+                    <span>
+                      <b>Preconstruction Manager</b> · builds bids and scopes: sees every job and lead, all proposal numbers (prices, costs and margins), customers and the catalog.
                     </span>
                   </label>
                 )}

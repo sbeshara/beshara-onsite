@@ -5,7 +5,8 @@ import NotifyPrompt from "@/components/NotifyPrompt";
 import { getMe } from "@/lib/auth";
 import { getPreview } from "@/lib/preview";
 import { getViewAs } from "@/lib/viewas";
-import { PHASES, ROLE_LABEL } from "@/lib/constants";
+import { PHASES, ROLE_LABEL, STAGES, stageNumber } from "@/lib/constants";
+import { LEAD_FILTER } from "@/lib/jobs";
 import { dayLabel, fileExt, isImage, plainText, plural, shortDate, todayLabel } from "@/lib/format";
 import { signUrls } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
@@ -25,8 +26,8 @@ type Latest = { chat_id: string; project_id: string; chat_name: string; is_inter
 function PhaseBar({ phase }: { phase: number }) {
   return (
     <div className="bar" aria-hidden="true">
-      {PHASES.map((_, i) => (
-        <i key={i} className={i < phase ? "on" : i === phase ? "now" : ""} />
+      {STAGES.map((_, i) => (
+        <i key={i} className={i < stageNumber(phase) - 1 ? "on" : i === stageNumber(phase) - 1 ? "now" : ""} />
       ))}
     </div>
   );
@@ -84,7 +85,8 @@ async function TeamDashboard({ me, only = null }: { me: Profile; only?: string[]
   const supabase = await createClient();
   const weekAgo = new Date(Date.now() - 7 * 864e5).toISOString();
   const ids = only ? (only.length ? only : [NO_PROJECT]) : null;
-  let projectsQ = supabase.from("projects").select("id, name, town, scope, phase, project_members(user_id)").order("created_at");
+  // Leads live in the office tools, not on the OnSite dashboard.
+  let projectsQ = supabase.from("projects").select("id, name, town, scope, phase, project_members(user_id)").not("status", "in", LEAD_FILTER).order("created_at");
   let filesQ = supabase.from("files").select("*").order("created_at", { ascending: false }).limit(40);
   let weekQ = supabase.from("files").select("id", { count: "exact", head: true }).gte("created_at", weekAgo);
   if (ids) {
@@ -173,7 +175,7 @@ async function TeamDashboard({ me, only = null }: { me: Profile; only?: string[]
                       </span>
                       <span className="ph">
                         <PhaseBar phase={p.phase} />
-                        <span className="pl"><b>{PHASES[p.phase]}</b> · step {p.phase + 1} of 5</span>
+                        <span className="pl"><b>{PHASES[p.phase]}</b> · step {stageNumber(p.phase)} of {STAGES.length}</span>
                       </span>
                       <span className="stack">
                         {team.map((t) => <Avatar key={t.id} id={t.id} name={t.full_name || t.email} url={t.avatar_url} />)}
@@ -250,15 +252,15 @@ async function ClientDashboard({ viewerName, projectId, viewerId }: { viewerName
       {!projectId && <NotifyPrompt />}
       <section className="hello">
         <p className="summary">
-          Your project is in <b>{PHASES[project.phase]}</b>, step {project.phase + 1} of 5. Everything your Beshara team shares with you is here.
+          Your project is in <b>{PHASES[project.phase]}</b>, step {stageNumber(project.phase)} of {STAGES.length}. Everything your Beshara team shares with you is here.
         </p>
       </section>
       <div className="box">
         <div className="steps">
-          {PHASES.map((ph, i) => (
-            <div key={ph} className={`step ${i < project.phase ? "done" : i === project.phase ? "now" : ""}`}>
+          {STAGES.map((ph, i) => (
+            <div key={ph} className={`step ${i < stageNumber(project.phase) - 1 ? "done" : i === stageNumber(project.phase) - 1 ? "now" : ""}`}>
               <i />
-              <span>{ph}</span>
+              <span>{PHASES[ph]}</span>
             </div>
           ))}
         </div>

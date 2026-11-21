@@ -11,14 +11,14 @@ import { isAdminRole, type Profile } from "@/lib/types";
 import { getPermissions, PERMISSIONS } from "@/lib/permissions";
 import { dailyLogOwners } from "@/lib/checklist";
 import DailyLogPicker from "./DailyLogPicker";
-import { seniorPmIds } from "@/lib/senior";
+import { preconIds, seniorPmIds } from "@/lib/senior";
 import PermissionsPanel from "./PermissionsPanel";
 import TeamManager from "./TeamManager";
 
 export const metadata = { title: "Team & Access · Beshara OnSite" };
 
 // Jobs in construction first, as in the side menu.
-const GROUP_ORDER = [2, 3, 1, 0, 4];
+const GROUP_ORDER = [2, 1, 0, 4];
 
 export default async function TeamPage({ searchParams }: { searchParams: Promise<{ view?: string; job?: string }> }) {
   const me = await getMe();
@@ -73,7 +73,8 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
           <div className="box rowlist">
             <div className="rowitem perm-row"><span className="perm-role">Principal Contractor</span><span>Everything, including roles, permissions and removing Admins.</span><span /></div>
             <div className="rowitem perm-row"><span className="perm-role">Admin</span><span>Every job: create projects, invite clients and the team, link JobTread jobs, approve and send reports, Basecamp import, View As.</span><span /></div>
-            <div className="rowitem perm-row"><span className="perm-role">Construction Management</span><span>Only their assigned jobs: chats (including Internal Only), files, the project phase, Daily Check-In, and editing and approving their jobs&apos; progress reports.</span><span /></div>
+            <div className="rowitem perm-row"><span className="perm-role">Senior PM · Preconstruction Manager</span><span>Every job and lead, all proposal numbers (prices, costs and margins), customers and the catalog, plus everything Construction Management can do.</span><span /></div>
+            <div className="rowitem perm-row"><span className="perm-role">Construction Management (PM)</span><span>Only their assigned jobs while they&apos;re in Permitting or Construction: chats (including Internal Only), files, Daily Check-In, and their jobs&apos; progress reports. They see proposals as scope only, never dollar amounts, and can move a job between Permitting and Construction.</span><span /></div>
             <div className="rowitem perm-row"><span className="perm-role">Clients</span><span>Only their project: client chats and files shared with them. Never internal chats or team-only files.</span><span /></div>
           </div>
         </section>
@@ -92,7 +93,7 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
           </p>
         </div>
         {tabs}
-        <TeamManager me={{ id: me.id, role: me.role }} people={team} projects={projects ?? []} assigned={assigned} lastSignIn={lastSignIn} senior={await seniorPmIds()} />
+        <TeamManager me={{ id: me.id, role: me.role }} people={team} projects={projects ?? []} assigned={assigned} lastSignIn={lastSignIn} senior={await seniorPmIds()} precon={await preconIds()} />
       </div>
     );
   }

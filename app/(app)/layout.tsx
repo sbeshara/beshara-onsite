@@ -5,6 +5,8 @@ import InstallNudge from "@/components/InstallNudge";
 import ServiceWorker from "@/components/ServiceWorker";
 import { HQ_URL } from "@/lib/apps";
 import { getMe } from "@/lib/auth";
+import { getAccess } from "@/lib/access";
+import { LEAD_FILTER } from "@/lib/jobs";
 import { ROLE_LABEL } from "@/lib/constants";
 import { getPreview } from "@/lib/preview";
 import { getViewAs } from "@/lib/viewas";
@@ -20,7 +22,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const preview = await getPreview();
   const viewAs = preview ? null : await getViewAs();
   const supabase = await createClient();
-  const { data } = await supabase.from("projects").select("id, name, town, phase, primary_client_id").order("created_at");
+  // Leads live in the office tools, not in the project list.
+  const { data } = await supabase.from("projects").select("id, name, town, phase, primary_client_id").not("status", "in", LEAD_FILTER).order("created_at");
   const all = data ?? [];
   const unreadRows = preview || viewAs ? [] : await myUnread();
   const unreadProjects = [...new Set(((unreadRows ?? []) as { project_id: string }[]).map((r) => r.project_id))];
@@ -86,6 +89,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           isClient={isClient}
           isAdmin={isAdmin}
           canCreate={canCreate}
+          office={!isClient && !previewProject && !viewAs && (await getAccess()).seesNumbers}
           unread={unreadProjects}
         />
         <main className="panel work">{children}</main>

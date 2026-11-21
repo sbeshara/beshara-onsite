@@ -24,3 +24,9 @@ export const ChatIcon = () => (
 export const GridIcon = () => (
   <svg width="16" height="16" viewBox="0 0 16 16" {...s} strokeWidth="1.6" aria-hidden="true"><rect x="2" y="2" width="5" height="5" rx="1" /><rect x="9" y="2" width="5" height="5" rx="1" /><rect x="2" y="9" width="5" height="5" rx="1" /><rect x="9" y="9" width="5" height="5" rx="1" /></svg>
 );
+export const HardHatIcon = () => (
+  <svg width="15" height="15" viewBox="0 0 16 16" {...s} strokeWidth="1.6" aria-hidden="true"><path d="M2 12.5h12M3.5 12.5V10a4.5 4.5 0 0 1 9 0v2.5M6.5 6V4h3v2" /></svg>
+);
+export const BookIcon = () => (
+  <svg width="15" height="15" viewBox="0 0 16 16" {...s} strokeWidth="1.6" aria-hidden="true"><path d="M2.5 3h4a1.5 1.5 0 0 1 1.5 1.5V13a1 1 0 0 0-1-1H2.5zM13.5 3h-4A1.5 1.5 0 0 0 8 4.5V13a1 1 0 0 1 1-1h4.5z" /></svg>
+);

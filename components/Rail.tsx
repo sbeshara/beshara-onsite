@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { PHASES } from "@/lib/constants";
-import { DocIcon, GridIcon, PeopleIcon, UploadIcon, ChatIcon } from "./Icons";
+import { BookIcon, DocIcon, GridIcon, HardHatIcon, PeopleIcon, UploadIcon, ChatIcon } from "./Icons";
 
 type P = { id: string; name: string; town: string; phase: number };
 
 // The team sees projects grouped by phase, jobs in construction first.
-const GROUP_ORDER = [2, 3, 1, 0, 4];
+const GROUP_ORDER = [2, 1, 0, 4];
 
 // Side menu: Dashboard, then Projects (grouped by phase for the team), then
 // the team's tools, which stay pinned at the bottom while projects scroll.
@@ -18,12 +18,14 @@ export default function Rail({
   isClient,
   isAdmin,
   canCreate = isAdmin,
+  office = false,
   unread,
 }: {
   projects: P[];
   isClient: boolean;
   isAdmin: boolean;
   canCreate?: boolean;
+  office?: boolean; // sees the office tools: jobs and leads, customers, catalog
   unread: string[];
 }) {
   const path = usePathname();
@@ -78,6 +80,25 @@ export default function Rail({
         </div>
       </div>
 
+      {office && (
+        <div className="rail-sec rail-tools">
+          <h2>Office</h2>
+          <Link className="navi" href="/office" aria-current={path === "/office" || path.startsWith("/office/jobs") ? "page" : undefined}>
+            <HardHatIcon /> Jobs &amp; Leads
+          </Link>
+          <Link className="navi" href="/office/customers" aria-current={path.startsWith("/office/customers") ? "page" : undefined}>
+            <PeopleIcon /> Customers
+          </Link>
+          <Link className="navi" href="/office/catalog" aria-current={path.startsWith("/office/catalog") ? "page" : undefined}>
+            <BookIcon /> Catalog
+          </Link>
+          {isAdmin && (
+            <Link className="navi" href="/office/import" aria-current={path.startsWith("/office/import") ? "page" : undefined}>
+              <UploadIcon /> JobTread Import
+            </Link>
+          )}
+        </div>
+      )}
       {!isClient && (
         <div className="rail-sec rail-tools">
           <h2>Manage</h2>

@@ -18,3 +18,14 @@ export async function isSeniorPm(userId: string): Promise<boolean> {
   const { data } = await createAdminClient().from("app_settings").select("key").eq("key", SENIOR_KEY(userId)).maybeSingle();
   return !!data;
 }
+
+// A Preconstruction Manager builds bids and scopes: like a Senior PM they see
+// every job and lead, plus every number (prices, costs, margins), the
+// customers and the catalog. Kept in app_settings as 'precon:<user id>'; the
+// database checks it through is_precon().
+export const PRECON_KEY = (userId: string) => `precon:${userId}`;
+
+export async function preconIds(): Promise<string[]> {
+  const { data } = await createAdminClient().from("app_settings").select("key").like("key", "precon:%");
+  return (data ?? []).map((r) => String(r.key).slice("precon:".length));
+}
