@@ -3,12 +3,46 @@
 import { useActionState, useState } from "react";
 import { createEstimate, type Result } from "../../../actions";
 
-export default function NewEstimate({ projectId, templates, hasProposal }: { projectId: string; templates: { id: string; name: string }[]; hasProposal: boolean }) {
+type Template = { id: string; name: string; groups: string[]; items: number };
+
+// New estimate: pick the budget template first, then the type and name.
+export default function NewEstimate({ projectId, templates, hasProposal }: { projectId: string; templates: Template[]; hasProposal: boolean }) {
   const [state, action, pending] = useActionState<Result, FormData>(createEstimate, {});
+  const [template, setTemplate] = useState<string | null>(null); // "" = blank
   const [kind, setKind] = useState(hasProposal ? "Change Order" : "Proposal");
+  const chosen = templates.find((t) => t.id === template);
+
+  if (template === null) {
+    return (
+      <div style={{ display: "grid", gap: 10 }}>
+        <p className="fine">Step 1 of 2: which budget should it start from? Its cost groups, client descriptions and line items come in, ready for quantities.</p>
+        <div className="tpl-grid">
+          {templates.map((t) => (
+            <button key={t.id} type="button" className="tpl" onClick={() => setTemplate(t.id)}>
+              <b>{t.name}</b>
+              <small>{t.groups.length} groups · {t.items} items</small>
+              <span>{t.groups.slice(0, 6).join(" · ")}{t.groups.length > 6 ? " …" : ""}</span>
+            </button>
+          ))}
+          <button type="button" className="tpl blank" onClick={() => setTemplate("")}>
+            <b>Blank</b>
+            <small>Start with one empty group</small>
+            <span>Add groups and items from the catalog as you go.</span>
+          </button>
+        </div>
+        {!templates.length && <p className="fine">No templates yet. In the catalog, a cost group that holds other groups (like an Interior Fit-Out with its trades) works as a template.</p>}
+      </div>
+    );
+  }
+
   return (
-    <form className="form" action={action} style={{ maxWidth: "none" }}>
+    <form className="form" action={action} style={{ maxWidth: 620 }}>
       <input type="hidden" name="project_id" value={projectId} />
+      <input type="hidden" name="template" value={template} />
+      <p className="fine">
+        Step 2 of 2 · Starting from <b style={{ color: "var(--ink)" }}>{chosen ? chosen.name : "a blank estimate"}</b>{chosen ? ` (${chosen.groups.length} groups, ${chosen.items} items)` : ""}.{" "}
+        <button type="button" className="textbtn" onClick={() => setTemplate(null)}>Change</button>
+      </p>
       <div className="row2">
         <label className="field">
           Type
@@ -20,17 +54,9 @@ export default function NewEstimate({ projectId, templates, hasProposal }: { pro
         </label>
         <label className="field">
           Name
-          <input name="name" placeholder={kind === "Proposal" ? "e.g. Interior Fit-Out Proposal" : kind} />
+          <input name="name" placeholder={chosen ? `${chosen.name} ${kind}` : kind} defaultValue={chosen ? `${chosen.name} ${kind}` : ""} />
         </label>
       </div>
-      <label className="field">
-        Start from
-        <select name="template" defaultValue="">
-          <option value="">A blank group</option>
-          {templates.map((t) => <option key={t.id} value={t.id}>Catalog template: {t.name}</option>)}
-        </select>
-      </label>
-      <p className="fine">A template copies its cost groups, client descriptions and items. Quantities start at 0 until you type them or link a takeoff.</p>
       {state.error && <p className="err" role="alert">{state.error}</p>}
       <div className="actions" style={{ justifyContent: "flex-start" }}>
         <button className="btn" type="submit" disabled={pending}>{pending ? "Creating…" : `Create ${kind.toLowerCase()}`}</button>

@@ -9,7 +9,7 @@ export default function JobTabs({ id }: { id: string }) {
   const tabs = [
     { href: base, label: "Details", on: path === base },
     { href: `${base}/estimates`, label: "Estimates", on: path.startsWith(`${base}/estimates`) },
-    { href: `${base}/plans`, label: "Plans & Takeoff", on: path.startsWith(`${base}/plans`) },
+    { href: `/projects/${id}/plans`, label: "Plans & Takeoff", on: false },
   ];
   return (
     <nav className="tabs jobtabs" aria-label="Job sections">

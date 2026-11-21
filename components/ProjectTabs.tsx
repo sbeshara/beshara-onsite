@@ -2,20 +2,33 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChatIcon, DocIcon } from "./Icons";
+import { BookIcon, ChatIcon, DocIcon, HardHatIcon } from "./Icons";
 
-export default function ProjectTabs({ projectId, fileCount }: { projectId: string; fileCount: number }) {
+// Chat and Files for everyone on the project. The team also gets Plans &
+// Takeoff and the job's proposals (the office opens the estimates; PMs see
+// the scope without any numbers). Clients never see those two.
+export default function ProjectTabs({ projectId, fileCount, team = false, office = false }: { projectId: string; fileCount: number; team?: boolean; office?: boolean }) {
   const path = usePathname();
-  const onFiles = path.endsWith("/files");
-  const onPeople = path.endsWith("/people");
+  const on = (seg: string) => path.endsWith(`/${seg}`);
+  const onChat = !["files", "people", "plans", "scope"].some(on);
   return (
     <div className="tabs" role="tablist">
-      <Link className="tab" role="tab" href={`/projects/${projectId}`} aria-selected={!onFiles && !onPeople}>
+      <Link className="tab" role="tab" href={`/projects/${projectId}`} aria-selected={onChat}>
         <ChatIcon /> Chat
       </Link>
-      <Link className="tab" role="tab" href={`/projects/${projectId}/files`} aria-selected={onFiles}>
+      <Link className="tab" role="tab" href={`/projects/${projectId}/files`} aria-selected={on("files")}>
         <DocIcon /> Files <span className="count">{fileCount}</span>
       </Link>
+      {team && (
+        <Link className="tab" role="tab" href={`/projects/${projectId}/plans`} aria-selected={on("plans")}>
+          <HardHatIcon /> Plans &amp; Takeoff
+        </Link>
+      )}
+      {team && (
+        <Link className="tab" role="tab" href={office ? `/office/jobs/${projectId}/estimates` : `/projects/${projectId}/scope`} aria-selected={on("scope")}>
+          <BookIcon /> {office ? "Estimates" : "Scope"}
+        </Link>
+      )}
     </div>
   );
 }

@@ -62,7 +62,7 @@ export default async function ProjectLayout({ children, params }: { children: Re
           <InviteClientButton projectId={id} projectName={project.name} reminder hasClient={memberProfiles.some((p) => p.role === "client")} />
         )}
       </div>
-      <ProjectTabs projectId={id} fileCount={fileCount ?? 0} />
+      <ProjectTabs projectId={id} fileCount={fileCount ?? 0} team={isTeamRole(me.role) && !v.clientOnly} office={access.seesNumbers && !v.readOnly} />
       {children}
     </div>
   );

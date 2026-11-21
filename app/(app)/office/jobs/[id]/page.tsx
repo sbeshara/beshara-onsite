@@ -50,7 +50,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
             <p className="fine">Build proposals, change orders and additional scope, and take quantities off the plans.</p>
             <div className="actions" style={{ justifyContent: "flex-start" }}>
               <Link className="btn ghost" href={`/office/jobs/${job.id}/estimates`}>Estimates</Link>
-              <Link className="btn ghost" href={`/office/jobs/${job.id}/plans`}>Plans &amp; Takeoff</Link>
+              <Link className="btn ghost" href={`/projects/${job.id}/plans`}>Plans &amp; Takeoff</Link>
             </div>
           </section>
         </div>

@@ -6,7 +6,7 @@ import type { PDFDocumentProxy } from "pdfjs-dist";
 import { createClient } from "@/lib/supabase/client";
 import { FILES_BUCKET } from "@/lib/constants";
 import { storagePath } from "@/lib/format";
-import { MARKUP_COLORS, markupPaths, type Markup, type MarkupKind } from "@/lib/plan-shapes";
+import { MARKUP_COLORS, calloutBox, markupPaths, type Markup, type MarkupKind } from "@/lib/plan-shapes";
 import {
   KIND_UNIT, SCALE_PRESETS, labelPoint, TAKEOFF_COLORS, feetInches, fmtQty, measurementValue, pointsPerFoot, scaleLabel,
   type MeasureKind, type Measurement, type Pt,
@@ -41,6 +41,7 @@ const HINTS: Record<Tool, string> = {
   arrow: "Arrow: drag from the tail to the point.",
   rect: "Box: drag from corner to corner.",
   cloud: "Cloud: drag around the area to call out.",
+  callout: "Callout: drag from the spot you mean to where the note goes, then type the note.",
   text: "Text: click where the note goes, type it, press Enter.",
 };
 
@@ -79,6 +80,7 @@ export default function PlansWorkspace(props: {
   const drag = useRef<Drag>(null);
   const ruler = useRef<Pt[] | null>(null);
   const shift = useRef(false);
+  const pendingCallout = useRef<Pt[] | null>(null);
 
   const loadDoc = useCallback(
     (file: PlanFile) => {
@@ -151,6 +153,17 @@ export default function PlansWorkspace(props: {
       for (const pts of markupPaths(m)) {
         poly(pts);
         ctx.stroke();
+      }
+      if (m.kind === "callout") {
+        const b = calloutBox(m), [bx, by] = T([b.x, b.y]);
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(bx, by, b.w * k, b.h * k);
+        ctx.strokeRect(bx, by, b.w * k, b.h * k);
+        ctx.fillStyle = m.color;
+        ctx.font = `700 ${b.size * k}px "Hanken Grotesk", Arial, sans-serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(b.text, bx + (b.w * k) / 2, by + (b.h * k) / 2);
       }
     }
     const dg = drag.current;
@@ -427,7 +440,7 @@ export default function PlansWorkspace(props: {
       drag.current = null;
       return;
     }
-    const markupDrag = ["pen", "line", "arrow", "rect", "cloud"].includes(tool);
+    const markupDrag = ["pen", "line", "arrow", "rect", "cloud", "callout"].includes(tool);
     if (markupDrag && e.button === 0) {
       drag.current = { kind: tool as MarkupKind, points: [toPt(e)] };
       return;
@@ -466,6 +479,12 @@ export default function PlansWorkspace(props: {
       drag.current = null;
       const pts = dg.kind === "pen" ? dg.points : [dg.points[0], toPt(e)];
       const big = Math.hypot(pts.at(-1)![0] - pts[0][0], pts.at(-1)![1] - pts[0][1]) * view.current.k > 6;
+      if (dg.kind === "callout") {
+        // Ask for the note, placed where the drag ended.
+        if (big) { pendingCallout.current = pts; setTextAt(pts[1]); }
+        draw();
+        return;
+      }
       if (big || (dg.kind === "pen" && pts.length > 3)) saveMarkup(dg.kind, { points: pts.map(([x, y]) => [Math.round(x * 10) / 10, Math.round(y * 10) / 10] as Pt) });
       draw();
       return;
@@ -530,7 +549,7 @@ export default function PlansWorkspace(props: {
     setCalib(null);
     setTextAt(null);
     setTool(t);
-    if (["pen", "line", "arrow", "rect", "cloud", "text"].includes(t)) setTab("markup");
+    if (["pen", "line", "arrow", "rect", "cloud", "text", "callout"].includes(t)) setTab("markup");
     if (["linear", "area", "count"].includes(t)) setTab("takeoff");
   }
 
@@ -565,7 +584,7 @@ export default function PlansWorkspace(props: {
             <button key={t} className="pl-tool" aria-pressed={tool === t} onClick={() => pickTool(t)} disabled={!cur}>{l}</button>
           ))}
           <span className="pl-sep" />
-          {([["pen", "Pen"], ["arrow", "Arrow"], ["line", "Line"], ["rect", "Box"], ["cloud", "Cloud"], ["text", "Text"]] as [Tool, string][]).map(([t, l]) => (
+          {([["cloud", "Cloud"], ["callout", "Callout"], ["arrow", "Arrow"], ["rect", "Box"], ["line", "Line"], ["pen", "Pen"], ["text", "Text"]] as [Tool, string][]).map(([t, l]) => (
             <button key={t} className="pl-tool" aria-pressed={tool === t} onClick={() => pickTool(t)} disabled={!cur}>{l}</button>
           ))}
           <span className="pl-colors" role="group" aria-label="Markup color">
@@ -627,8 +646,14 @@ export default function PlansWorkspace(props: {
           {textAt && (
             <TextBox
               at={[view.current.x + textAt[0] * view.current.k, view.current.y + textAt[1] * view.current.k]}
-              onCancel={() => setTextAt(null)}
-              onSave={(text) => { saveMarkup("text", { x: textAt[0], y: textAt[1], text, size: 14 }); setTextAt(null); }}
+              onCancel={() => { pendingCallout.current = null; setTextAt(null); }}
+              onSave={(text) => {
+                const pc = pendingCallout.current;
+                pendingCallout.current = null;
+                if (pc) saveMarkup("callout", { points: pc.map(([x, y]) => [Math.round(x * 10) / 10, Math.round(y * 10) / 10] as Pt), text, size: 14 });
+                else saveMarkup("text", { x: textAt[0], y: textAt[1], text, size: 14 });
+                setTextAt(null);
+              }}
             />
           )}
         </div>
@@ -763,6 +788,8 @@ function ExportDialog(props: {
   const supabase = useMemo(() => createClient(), []);
   const [which, setWhich] = useState<"this" | "marked" | "all">("this");
   const [withMeasures, setWithMeasures] = useState(false);
+  // Which takeoffs go on the PDF (each keeps its color). All visible ones to start.
+  const [picked, setPicked] = useState<string[]>(() => props.measures.filter((m) => !m.hidden).map((m) => m.id));
   const [name, setName] = useState(`${props.jobLabel || "Plans"} - ${props.sheet.name}`.replace(/[\\/:*?"<>|]/g, "-"));
   const [dest, setDest] = useState<"download" | "client">("download");
   const [chat, setChat] = useState(props.chats[0]?.id ?? "");
@@ -784,7 +811,7 @@ function ExportDialog(props: {
       const out = await exportPlanPdf(
         bytes,
         doc,
-        pages.map((s) => ({ pageNumber: s.page_number, sheet: s, markups: props.markups.filter((m) => m.sheet_id === s.id), measurements: props.measures.filter((m) => m.sheet_id === s.id) })),
+        pages.map((s) => ({ pageNumber: s.page_number, sheet: s, markups: props.markups.filter((m) => m.sheet_id === s.id), measurements: props.measures.filter((m) => m.sheet_id === s.id && picked.includes(m.id)).map((m) => ({ ...m, hidden: false })) })),
         withMeasures,
       );
       const fileName = `${name.trim() || "Plans"}.pdf`;
@@ -834,8 +861,20 @@ function ExportDialog(props: {
             ))}
           </fieldset>
           <label style={{ display: "flex", gap: 8, fontSize: 14 }}>
-            <input type="checkbox" checked={withMeasures} onChange={(e) => setWithMeasures(e.target.checked)} /> Include takeoff measurements (lengths, areas and counts)
+            <input type="checkbox" checked={withMeasures} onChange={(e) => setWithMeasures(e.target.checked)} /> Include color-coded takeoff measurements
           </label>
+          {withMeasures && (
+            <div className="pl-picks">
+              {props.measures.filter((m) => pages.some((s) => s.id === m.sheet_id)).map((m) => (
+                <label key={m.id}>
+                  <input type="checkbox" checked={picked.includes(m.id)} onChange={(e) => setPicked((p) => (e.target.checked ? [...p, m.id] : p.filter((x) => x !== m.id)))} />
+                  <span className="pl-dot" style={{ background: m.color }} />
+                  {m.name}
+                </label>
+              ))}
+              {!props.measures.some((m) => pages.some((s) => s.id === m.sheet_id)) && <span className="fine">No takeoffs on these sheets.</span>}
+            </div>
+          )}
           <label className="field">File name<input value={name} onChange={(e) => setName(e.target.value)} /></label>
           <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
             <legend>Then</legend>

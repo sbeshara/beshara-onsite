@@ -3,7 +3,7 @@ import type { Pt } from "./takeoff";
 // Markup shapes, shared by the on-screen canvas and the PDF export so both
 // draw exactly the same thing. Coordinates are PDF points, top-left origin.
 
-export type MarkupKind = "pen" | "line" | "arrow" | "rect" | "cloud" | "text";
+export type MarkupKind = "pen" | "line" | "arrow" | "rect" | "cloud" | "text" | "callout";
 export type Markup = { id: string; sheet_id: string; kind: MarkupKind; color: string; data: { points?: Pt[]; x?: number; y?: number; text?: string; size?: number } };
 
 export const MARKUP_COLORS = ["#C2416D", "#C0643A", "#2D7FB8", "#3F8A5A", "#111111"];
@@ -57,6 +57,11 @@ export function markupPaths(m: Pick<Markup, "kind" | "data">): Pt[][] {
   }
   if (m.kind === "rect") return [rectPoints(a, b)];
   if (m.kind === "cloud") return [[...cloudPoints(a, b), cloudPoints(a, b)[0]]];
+  if (m.kind === "callout") {
+    // points: [arrow tip, note position]; the leader runs from the note to the tip.
+    const [l, r] = arrowHead(b, a);
+    return [[b, a], [l, a, r]];
+  }
   return [];
 }
 
@@ -65,3 +70,12 @@ export const hexToRgb = (hex: string) => {
   const n = parseInt(h.length === 3 ? h.split("").map((c) => c + c).join("") : h, 16);
   return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255] as const;
 };
+
+// A callout's note box, centered on its second point. Width is estimated from
+// the text so the canvas and the PDF agree.
+export function calloutBox(m: Pick<Markup, "data">) {
+  const size = m.data.size ?? 14, text = m.data.text ?? "";
+  const [x, y] = m.data.points?.[1] ?? [0, 0];
+  const w = Math.max(40, text.length * size * 0.56 + 16), h = size + 12;
+  return { x: x - w / 2, y: y - h / 2, w, h, size, text };
+}
