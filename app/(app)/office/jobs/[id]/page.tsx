@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { isLead } from "@/lib/constants";
-import { statusClass } from "@/lib/office";
 import { createClient } from "@/lib/supabase/server";
 import JobForm from "../../JobForm";
 
@@ -18,11 +17,6 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
   const contact = customer?.customer_contacts.find((c) => c.is_primary) ?? customer?.customer_contacts[0];
   return (
     <div className="page">
-      <div className="page-h">
-        <Link className="textbtn" href={`/office?view=${isLead(job.status) ? "leads" : "active"}`}>← Jobs &amp; Leads</Link>
-        <h1 style={{ marginTop: 6 }}>{job.job_number ? `${job.job_number} · ` : ""}{job.name}</h1>
-        <p><span className={statusClass(job.status)}>{job.status}</span>{customer ? ` · ${customer.name}` : ""}{job.town ? ` · ${job.town}` : ""}</p>
-      </div>
       <div className="ogrid">
         <section className="ocard">
           <h2>Job details</h2>
@@ -52,8 +46,12 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
             <Link className="btn ghost" href={`/projects/${job.id}`}>Open project</Link>
           </section>
           <section className="ocard">
-            <h2>Estimates</h2>
-            <p className="fine">Proposals, change orders and additional scope for this job will live here in the next step of the build.</p>
+            <h2>Estimates &amp; plans</h2>
+            <p className="fine">Build proposals, change orders and additional scope, and take quantities off the plans.</p>
+            <div className="actions" style={{ justifyContent: "flex-start" }}>
+              <Link className="btn ghost" href={`/office/jobs/${job.id}/estimates`}>Estimates</Link>
+              <Link className="btn ghost" href={`/office/jobs/${job.id}/plans`}>Plans &amp; Takeoff</Link>
+            </div>
           </section>
         </div>
       </div>

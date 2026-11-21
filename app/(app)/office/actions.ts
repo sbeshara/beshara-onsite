@@ -283,3 +283,87 @@ export async function runJobTreadImport(): Promise<Result> {
     return { error: (e as Error).message };
   }
 }
+
+// ---------------------------------------------------------------------------
+// Estimates
+// ---------------------------------------------------------------------------
+
+const DEFAULT_STEPS: Record<string, { name: string; percent: number }[]> = {
+  Proposal: [
+    { name: "Deposit on signing", percent: 10 },
+    { name: "Rough-in complete", percent: 30 },
+    { name: "Finishes complete", percent: 50 },
+    { name: "Final walkthrough", percent: 10 },
+  ],
+  "Change Order": [{ name: "Due on approval", percent: 100 }],
+  "Additional Scope": [{ name: "Due on approval", percent: 100 }],
+};
+
+export async function createEstimate(_prev: Result, form: FormData): Promise<Result> {
+  let path: string;
+  try {
+    const { me } = await requireOffice();
+    const projectId = clean(form.get("project_id"));
+    const kind = clean(form.get("kind")) || "Proposal";
+    if (!DEFAULT_STEPS[kind]) return { error: "Pick a document type." };
+    const template = orNull(form.get("template"));
+    const supabase = await createClient();
+    const { data: est, error } = await supabase
+      .from("estimates")
+      .insert({ project_id: projectId, kind, name: clean(form.get("name")) || kind, created_by: me.id })
+      .select("id")
+      .single();
+    if (error || !est) return { error: "Couldn't create the estimate. Try again." };
+    await supabase.from("estimate_payment_steps").insert(DEFAULT_STEPS[kind].map((s, i) => ({ ...s, estimate_id: est.id, position: i })));
+
+    // Start from a catalog group: its sub-groups become the estimate's groups,
+    // each with its catalog items (quantity 0 until measured or typed in).
+    if (template) {
+      const [{ data: groups }, { data: items }] = await Promise.all([
+        supabase.from("cost_groups").select("id, parent_id, name, description, position").eq("archived", false),
+        supabase.from("cost_items").select("id, cost_group_id, name, description, cost_type_id, unit_id, quantity, unit_cost, unit_price, position").eq("archived", false),
+      ]);
+      const root = (groups ?? []).find((g) => g.id === template);
+      if (root) {
+        const kids = (groups ?? []).filter((g) => g.parent_id === root.id).sort((a, b) => a.position - b.position);
+        const use = kids.length ? kids : [root];
+        for (const [i, g] of use.entries()) {
+          const { data: eg } = await supabase
+            .from("estimate_groups")
+            .insert({ estimate_id: est.id, name: g.name, description: g.description, position: i, client_view: kind === "Proposal" ? "total" : "items" })
+            .select("id")
+            .single();
+          if (!eg) continue;
+          const its = (items ?? []).filter((x) => x.cost_group_id === g.id).sort((a, b) => a.position - b.position);
+          if (its.length)
+            await supabase.from("estimate_items").insert(
+              its.map((x, n) => ({
+                estimate_id: est.id, group_id: eg.id, catalog_item_id: x.id, name: x.name, description: x.description,
+                cost_type_id: x.cost_type_id, unit_id: x.unit_id, quantity: x.quantity ?? 0, unit_cost: x.unit_cost ?? 0, unit_price: x.unit_price ?? 0, position: n,
+              })),
+            );
+        }
+      }
+    } else {
+      await supabase.from("estimate_groups").insert({ estimate_id: est.id, name: "New group", position: 0, client_view: kind === "Proposal" ? "total" : "items" });
+    }
+    // A lead that gets its first estimate is being estimated.
+    await supabase.from("projects").update({ status: "Estimating" }).eq("id", projectId).eq("status", "New Lead");
+    path = `/office/jobs/${projectId}/estimates/${est.id}`;
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+  redirect(path);
+}
+
+export async function deleteEstimate(id: string, projectId: string): Promise<Result> {
+  try {
+    await requireOffice();
+    const { error } = await (await createClient()).from("estimates").delete().eq("id", id).neq("status", "approved");
+    if (error) return { error: "Couldn't delete it. Signed estimates can't be deleted." };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+  revalidatePath(`/office/jobs/${projectId}/estimates`);
+  redirect(`/office/jobs/${projectId}/estimates`);
+}
