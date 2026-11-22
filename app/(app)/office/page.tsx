@@ -77,7 +77,7 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
               {rows.map((r) => (
                 <tr key={r.id}>
                   <td>
-                    <Link className="rowlink" href={`/office/jobs/${r.id}`}>{r.job_number ? `${r.job_number} · ` : ""}{r.name}</Link>
+                    <Link className="rowlink" href={`/projects/${r.id}`}>{r.job_number ? `${r.job_number} · ` : ""}{r.name}</Link>
                   </td>
                   <td>{r.customers ? <Link className="rowlink" style={{ fontWeight: 500 }} href={`/office/customers/${r.customers.id}`}>{r.customers.name}</Link> : <span className="fine">None</span>}</td>
                   <td><span className={statusClass(r.status)}>{r.status}</span></td>

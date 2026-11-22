@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { CLIENT_VIEWS, docNumber, STATUS_LABEL, totals, type EstGroup, type EstItem, type EstStep } from "@/lib/estimates";
 import { usd } from "@/lib/office";
 import { KIND_UNIT, fmtQty, linkedQuantity, type MeasureKind } from "@/lib/takeoff";
-import { deleteEstimate, recallEstimate, sendEstimate } from "../../../../actions";
+import { deleteEstimate, recallEstimate, sendEstimate } from "@/app/(app)/office/actions";
 
 type Opt = { id: number; name: string; abbr?: string };
 type CatGroup = { id: string; name: string; parent_id: string | null; description: string };
@@ -127,7 +127,7 @@ export default function EstimateEditor(props: {
   return (
     <div className="page est">
       <div className="est-bar">
-        <Link className="textbtn" href={`/office/jobs/${props.projectId}/estimates`}>← Estimates</Link>
+        <Link className="textbtn" href={`/projects/${props.projectId}/estimates`}>← Estimates</Link>
         <input
           className="est-title"
           defaultValue={est.name}
@@ -139,7 +139,7 @@ export default function EstimateEditor(props: {
         <span className="pill">{STATUS_LABEL[est.status]}</span>
         <span className="fine" aria-live="polite">{saved}</span>
         <span style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-          <Link className="btn ghost" href={`/office/jobs/${props.projectId}/estimates/${est.id}/preview`}>Preview client copy</Link>
+          <Link className="btn ghost" href={`/projects/${props.projectId}/estimates/${est.id}/preview`}>Preview client copy</Link>
           {est.status === "pending" && (
             <button className="btn ghost" disabled={pending} onClick={() => start(async () => { const r = await recallEstimate(est.id, props.projectId); if (r.error) setError(r.error); else { setEst({ ...est, status: "draft" }); setNote(r.ok ?? ""); } })}>Take back</button>
           )}
@@ -391,7 +391,7 @@ function LinkDialog({ item, unit, measures, projectId, onClose, onSave }: {
         ) : (
           <>
             <p>There are no takeoffs on this job yet.</p>
-            <div className="actions"><button className="btn ghost" onClick={onClose}>Close</button><Link className="btn" href={`/office/jobs/${projectId}/plans`}>Open Plans &amp; Takeoff</Link></div>
+            <div className="actions"><button className="btn ghost" onClick={onClose}>Close</button><Link className="btn" href={`/projects/${projectId}/plans`}>Open Plans &amp; Takeoff</Link></div>
           </>
         )}
       </div>

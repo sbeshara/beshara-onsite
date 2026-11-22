@@ -972,3 +972,6 @@ body.chat-expanded{overflow:hidden}
 .kvrow b{font-family:var(--f-display);font-size:22px;font-weight:500;font-variant-numeric:tabular-nums}
 .kvrow small{font-size:12px;color:var(--muted)}
 .otable td small.err{color:#B3261E}
+.paper-intro.md,.paper-terms.md{white-space:normal}
+.paper-terms.md h2{font-family:var(--f-display);font-weight:600;font-size:18px;margin:22px 0 6px;color:var(--ink)}
+.paper-intro.md p,.paper-terms.md p{margin:0 0 10px}

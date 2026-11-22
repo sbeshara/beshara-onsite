@@ -34,7 +34,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
             {jobs.length ? (
               <div className="box rowlist">
                 {jobs.map((j) => (
-                  <Link key={j.id} href={`/office/jobs/${j.id}`} className="rowitem" style={{ gridTemplateColumns: "minmax(0,1fr) auto", color: "inherit", textDecoration: "none" }}>
+                  <Link key={j.id} href={`/projects/${j.id}`} className="rowitem" style={{ gridTemplateColumns: "minmax(0,1fr) auto", color: "inherit", textDecoration: "none" }}>
                     <span style={{ minWidth: 0 }}><b>{j.job_number ? `${j.job_number} · ` : ""}{j.name}</b><small>{j.town}</small></span>
                     <span className={statusClass(j.status)}>{j.status}</span>
                   </Link>

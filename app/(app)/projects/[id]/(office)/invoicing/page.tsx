@@ -3,7 +3,7 @@ import { billing, INVOICE_LABEL } from "@/lib/billing";
 import { docNumber } from "@/lib/estimates";
 import { usd } from "@/lib/office";
 import { createClient } from "@/lib/supabase/server";
-import { InvoiceButton, InvoiceRowActions, StepReached } from "../../../InvoiceBits";
+import { InvoiceButton, InvoiceRowActions, StepReached } from "@/app/(app)/office/InvoiceBits";
 
 export const metadata = { title: "Invoicing · Beshara OnSite" };
 const day = (d: string) => new Date(d.length === 10 ? d + "T12:00:00" : d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });

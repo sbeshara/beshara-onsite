@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { runJobTreadImport, type Result } from "../actions";
+import { runDocumentImport, runJobTreadImport, type Result } from "../actions";
 
 export default function RunImport() {
   const [pending, start] = useTransition();
@@ -18,5 +18,36 @@ export default function RunImport() {
       {r.error && <p className="err" role="alert">{r.error}</p>}
       {r.ok && <p className="ok" role="status">{r.ok}</p>}
     </section>
+  );
+}
+
+// Imports documents 15 at a time until none are left, showing progress.
+export function RunDocuments() {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ error?: string; ok?: string }>({});
+  async function go() {
+    setBusy(true);
+    setMsg({});
+    let total = 0;
+    try {
+      for (let i = 0; i < 40; i++) {
+        const r = await runDocumentImport();
+        if (r.error) { setMsg({ error: r.error }); break; }
+        total += r.done ?? 0;
+        setMsg({ ok: `Imported ${total} documents${r.remaining ? `, ${r.remaining} to go…` : "."}${!r.remaining && r.skipped?.length ? ` Skipped ${r.skipped.length} whose job isn't in OnSite: ${r.skipped.join(", ")}.` : ""}` });
+        if (!r.remaining) break;
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <>
+      <div className="actions" style={{ justifyContent: "flex-start" }}>
+        <button className="btn" disabled={busy} onClick={go}>{busy ? "Importing…" : "Import proposals and templates"}</button>
+      </div>
+      {msg.error && <p className="err" role="alert">{msg.error}</p>}
+      {msg.ok && <p className="ok" role="status">{msg.ok}</p>}
+    </>
   );
 }

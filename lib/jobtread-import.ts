@@ -236,3 +236,159 @@ export async function runImport(byUserId: string): Promise<ImportResult> {
   }
   return { catalog: data.groups.length + data.items.length, customers: data.accounts.length, contacts: contacts.length, jobsCreated, jobsUpdated, merged: [...matches.values()].filter((m) => m.real).length };
 }
+
+// ---------------------------------------------------------------------------
+// Document templates and approved / pending documents
+// ---------------------------------------------------------------------------
+
+// JobTread marks bold with single asterisks; OnSite's documents use Markdown.
+export const jtMarkdown = (s: string | null | undefined) =>
+  (s ?? "").replace(/(^|[^*])\*([^*\n]+?)\*(?!\*)/g, "$1**$2**").trim();
+
+const kindOf = (name: string) => (/change order/i.test(name) ? "Change Order" : /additional scope/i.test(name) ? "Additional Scope" : "Proposal");
+
+type JTTemplate = { id: string; name: string; type: string; description: string | null; footer: string | null; dueDays: number | null };
+type JTDocGroup = { id: string; name: string; description: string | null; parentCostGroup: { id: string } | null };
+type JTDocItem = { id: string; name: string; description: string | null; quantity: number | null; unitCost: number | null; unitPrice: number | null; costGroup: { id: string } | null; unit: { name: string } | null; costType: { name: string } | null };
+type JTDoc = {
+  id: string; name: string; number: number; status: string; issueDate: string | null; signedAt: string | null; description: string | null; footer: string | null; showQuantity: boolean | null;
+  job: { id: string } | null; costGroups: { nodes: JTDocGroup[] }; costItems: { nodes: JTDocItem[] };
+};
+
+async function fetchDocs() {
+  const org = await orgId();
+  const o = (inner: Record<string, unknown>) => ({ organization: { $: { id: org }, ...inner } });
+  const pick = (key: string) => (r: Record<string, unknown>) => (r.organization as Record<string, Page<never>>)[key];
+  const [templates, docs, schedules] = await Promise.all([
+    all<JTTemplate>((page) => o({ documentTemplates: { $: { size: 50, ...(page ? { page } : {}) }, nodes: { id: {}, name: {}, type: {}, description: {}, footer: {}, dueDays: {} }, nextPage: {} } }), pick("documentTemplates")),
+    all<JTDoc>((page) => o({ documents: { $: { size: 5, where: { and: [["type", "customerOrder"], ["status", "in", ["approved", "pending"]], ["name", "!=", "Payment Schedule"]] }, ...(page ? { page } : {}) },
+      nodes: { id: {}, name: {}, number: {}, status: {}, issueDate: {}, signedAt: {}, description: {}, footer: {}, showQuantity: {}, job: { id: {} },
+        costGroups: { $: { size: 50 }, nodes: { id: {}, name: {}, description: {}, parentCostGroup: { id: {} } } },
+        costItems: { $: { size: 100 }, nodes: { id: {}, name: {}, description: {}, quantity: {}, unitCost: {}, unitPrice: {}, costGroup: { id: {} }, unit: { name: {} }, costType: { name: {} } } } },
+      nextPage: {} } }), pick("documents")),
+    all<{ job: { id: string } | null; costItems: { nodes: { name: string }[] } }>((page) => o({ documents: { $: { size: 20, where: { and: [["type", "customerOrder"], ["status", "approved"], ["name", "Payment Schedule"]] }, ...(page ? { page } : {}) },
+      nodes: { job: { id: {} }, costItems: { $: { size: 30 }, nodes: { name: {} } } }, nextPage: {} } }), pick("documents")),
+  ]);
+  return { templates: templates.filter((t) => t.type === "customerOrder" && t.name !== "Payment Schedule"), docs, schedules };
+}
+
+export type DocPlan = { templates: number; approved: number; pending: number; imported: number };
+
+export async function planDocuments(): Promise<DocPlan> {
+  const { templates, docs } = await fetchDocs();
+  const { data } = await createAdminClient().from("estimates").select("jobtread_document_id").not("jobtread_document_id", "is", null);
+  const done = new Set((data ?? []).map((r) => r.jobtread_document_id as string));
+  return { templates: templates.length, approved: docs.filter((d) => d.status === "approved").length, pending: docs.filter((d) => d.status === "pending").length, imported: docs.filter((d) => done.has(d.id)).length };
+}
+
+// Imports templates, then up to `batch` documents not imported yet. Call it
+// again until `remaining` is 0 (keeps each run short).
+export async function importDocuments(batch = 15): Promise<{ done: number; remaining: number; skipped: string[] }> {
+  const db = createAdminClient();
+  const check = <T>(r: { data: T; error: { message: string } | null }, what: string) => {
+    if (r.error) throw new Error(`Couldn't import ${what}: ${r.error.message}`);
+    return r.data;
+  };
+  const { templates, docs, schedules } = await fetchDocs();
+
+  check(await db.from("document_templates").upsert(templates.map((t, n) => ({
+    jobtread_id: t.id, name: t.name.slice(0, 120), kind: kindOf(t.name), intro: jtMarkdown(t.description), terms: jtMarkdown(t.footer), due_days: t.dueDays, position: n,
+  })), { onConflict: "jobtread_id" }), "document templates");
+  const tplByName = new Map((check(await db.from("document_templates").select("id, name"), "document templates") ?? []).map((t) => [t.name as string, t.id as string]));
+
+  const [{ data: done }, { data: projects }, { data: units }, { data: types }] = await Promise.all([
+    db.from("estimates").select("jobtread_document_id").not("jobtread_document_id", "is", null),
+    db.from("projects").select("id, jobtread_job_id, jobtread_invoice_job_ids").not("jobtread_job_id", "is", null),
+    db.from("units").select("id, name"),
+    db.from("cost_types").select("id, name"),
+  ]);
+  const imported = new Set((done ?? []).map((r) => r.jobtread_document_id as string));
+  const projectOf = new Map<string, string>();
+  for (const p of projects ?? []) {
+    projectOf.set(p.jobtread_job_id as string, p.id as string);
+    for (const t of (p.jobtread_invoice_job_ids as string[]) ?? []) if (!projectOf.has(t)) projectOf.set(t, p.id as string);
+  }
+  const unitId = new Map((units ?? []).map((u) => [u.name as string, u.id as number]));
+  const typeId = new Map((types ?? []).map((t) => [t.name as string, t.id as number]));
+
+  // Each job's percentage payment plan from its JobTread "Payment Schedule"
+  // (lines like "Deposit 10%"). Used for the job's main signed proposal when
+  // the percentages add up to 100.
+  const planFor = new Map<string, { name: string; percent: number }[]>();
+  for (const s of schedules) {
+    const pid = s.job ? projectOf.get(s.job.id) : undefined;
+    if (!pid || planFor.has(pid)) continue;
+    const steps = s.costItems.nodes
+      .map((i) => ({ i, m: i.name.match(/(\d+(?:\.\d+)?)\s*%/) }))
+      .filter((x) => x.m && Number(x.m[1]) < 100)
+      .map((x) => ({ name: x.i.name.replace(/\s*\d+(?:\.\d+)?\s*%\s*/, " ").trim() || x.i.name, percent: Number(x.m![1]) }));
+    if (steps.length && Math.abs(steps.reduce((a, b) => a + b.percent, 0) - 100) < 0.5) planFor.set(pid, steps);
+  }
+  // The proposal that gets the job's plan: its largest approved proposal.
+  const mainProposal = new Map<string, string>();
+  const value = (d: JTDoc) => d.costItems.nodes.reduce((s, i) => s + (i.quantity ?? 1) * (i.unitPrice ?? 0), 0);
+  for (const d of docs.filter((d) => d.status === "approved" && kindOf(d.name) === "Proposal")) {
+    const pid = d.job ? projectOf.get(d.job.id) : undefined;
+    if (!pid) continue;
+    const cur = docs.find((x) => x.id === mainProposal.get(pid));
+    if (!cur || value(d) > value(cur)) mainProposal.set(pid, d.id);
+  }
+
+  const { buildClientCopy } = await import("@/app/(app)/projects/[id]/(office)/estimates/load");
+  // Documents whose job isn't in OnSite are reported, not retried forever.
+  const mapped = (d: JTDoc) => !!(d.job && projectOf.get(d.job.id));
+  const skipped = docs.filter((d) => !mapped(d)).map((d) => `${d.name} #${d.number}`);
+  const todo = docs.filter((d) => !imported.has(d.id) && mapped(d));
+  let count = 0;
+  for (const d of todo.slice(0, batch)) {
+    const pid = projectOf.get(d.job!.id)!;
+    const kind = kindOf(d.name);
+    const { data: taken } = await db.from("estimates").select("id").eq("project_id", pid).eq("seq", d.number).maybeSingle();
+    const est = check(await db.from("estimates").insert({
+      project_id: pid, seq: taken ? null : d.number, kind, name: d.name.slice(0, 160), status: "draft",
+      intro: jtMarkdown(d.description), terms: jtMarkdown(d.footer), issued_on: d.issueDate ?? undefined,
+      template_id: tplByName.get(d.name) ?? null, jobtread_document_id: d.id,
+      imported_note: d.status === "approved" ? "Signed in JobTread" : "Sent from JobTread, not signed there yet",
+    }).select("id").single(), `${d.name} #${d.number}`) as { id: string };
+
+    // Groups: each JobTread group with line items becomes a group here (nested
+    // groups are listed in order); items with no group go in a general group.
+    const groups = d.costGroups.nodes;
+    const items = d.costItems.nodes;
+    const view = d.showQuantity === false ? "total" : "items";
+    const buckets: { name: string; description: string; items: JTDocItem[] }[] = [];
+    for (const g of groups) {
+      const its = items.filter((i) => i.costGroup?.id === g.id);
+      if (its.length || g.description) buckets.push({ name: g.name, description: jtMarkdown(g.description), items: its });
+    }
+    const loose = items.filter((i) => !i.costGroup || !groups.some((g) => g.id === i.costGroup!.id));
+    if (loose.length) buckets.push({ name: kind === "Proposal" ? "Scope" : kind, description: "", items: loose });
+    for (const [gi, b] of buckets.entries()) {
+      const g = check(await db.from("estimate_groups").insert({ estimate_id: est.id, name: b.name.slice(0, 120), description: b.description, client_view: view, position: gi }).select("id").single(), "a group") as { id: string };
+      if (b.items.length)
+        check(await db.from("estimate_items").insert(b.items.map((i, n) => ({
+          estimate_id: est.id, group_id: g.id, name: i.name.slice(0, 200), description: i.description ?? "",
+          unit_id: i.unit ? unitId.get(i.unit.name) ?? null : unitId.get("Lump Sum") ?? null,
+          cost_type_id: i.costType ? typeId.get(i.costType.name) ?? null : null,
+          quantity: i.quantity ?? 1, unit_cost: i.unitCost ?? 0, unit_price: i.unitPrice ?? 0, position: n,
+        }))), "line items");
+    }
+
+    const steps = kind !== "Proposal" ? [{ name: "Due on approval", percent: 100 }]
+      : mainProposal.get(pid) === d.id && planFor.get(pid) ? planFor.get(pid)!
+      : d.status === "approved" ? [{ name: "Per contract", percent: 100 }]
+      : [{ name: "Deposit on signing", percent: 10 }, { name: "Rough-in complete", percent: 30 }, { name: "Finishes complete", percent: 50 }, { name: "Final walkthrough", percent: 10 }];
+    check(await db.from("estimate_payment_steps").insert(steps.map((s, n) => ({ ...s, estimate_id: est.id, position: n }))), "payment steps");
+
+    // Signed ones are frozen as signed, with the client's copy for invoicing.
+    if (d.status === "approved") {
+      const copy = await buildClientCopy(db, pid, est.id);
+      check(await db.from("estimates").update({
+        status: "approved", client_copy: copy, signed_at: d.signedAt ?? (d.issueDate ? `${d.issueDate}T12:00:00Z` : new Date().toISOString()),
+        signed_by_name: "Signed in JobTread", sent_at: d.issueDate ? `${d.issueDate}T12:00:00Z` : null,
+      }).eq("id", est.id), "signature");
+    }
+    count++;
+  }
+  return { done: count, remaining: Math.max(0, todo.length - batch), skipped };
+}

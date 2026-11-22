@@ -1,18 +1,20 @@
 import { redirect } from "next/navigation";
 import { getAccess } from "@/lib/access";
-import { planImport, type ImportPlan } from "@/lib/jobtread-import";
-import RunImport from "./RunImport";
+import { planDocuments, planImport, type DocPlan, type ImportPlan } from "@/lib/jobtread-import";
+import RunImport, { RunDocuments } from "./RunImport";
 
 export const metadata = { title: "JobTread Import · Beshara OnSite" };
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 export default async function ImportPage() {
   const { me } = await getAccess();
   if (me.role !== "owner" && me.role !== "admin") redirect("/office");
   let plan: ImportPlan | null = null;
+  let docs: DocPlan | null = null;
   let error = "";
   try {
-    plan = await planImport();
+    [plan, docs] = await Promise.all([planImport(), planDocuments()]);
   } catch (e) {
     error = (e as Error).message;
   }
@@ -74,6 +76,21 @@ export default async function ImportPage() {
             </div>
           </section>
           <RunImport />
+          {docs && (
+            <section className="ocard">
+              <h2>2. Proposals, change orders and templates</h2>
+              <p>
+                {docs.templates} document templates (with their intros and terms), {docs.approved} signed documents and {docs.pending} sent but not signed.
+                {docs.imported ? ` ${docs.imported} already imported.` : ""}
+              </p>
+              <p className="fine">
+                Run this after step 1. Signed documents arrive signed and locked, keeping their JobTread number (e.g. 2714-9), groups, items and prices.
+                Each job&apos;s JobTread &quot;Payment Schedule&quot; becomes its main proposal&apos;s payment steps when the percentages add up to 100%.
+                Documents sent but not signed in JobTread arrive as drafts you can send from OnSite.
+              </p>
+              <RunDocuments />
+            </section>
+          )}
         </>
       )}
     </div>

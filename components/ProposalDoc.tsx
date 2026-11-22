@@ -1,3 +1,5 @@
+import ReactMarkdown from "react-markdown";
+import remarkBreaks from "remark-breaks";
 import type { ClientCopy } from "@/lib/client-copy";
 
 const usd = (n: number) => n.toLocaleString("en-US", { style: "currency", currency: "USD" });
@@ -17,7 +19,7 @@ export default function ProposalDoc({ copy, children }: { copy: ClientCopy; chil
         <div><span>Prepared for</span>{copy.prepared_for.map((l, i) => <div key={i}>{l}</div>)}</div>
         <div><span>Project</span>{copy.project.map((l, i) => <div key={i}>{l}</div>)}</div>
       </div>
-      {copy.intro && <p className="paper-intro">{copy.intro}</p>}
+      {copy.intro && <div className="paper-intro md"><ReactMarkdown remarkPlugins={[remarkBreaks]}>{copy.intro}</ReactMarkdown></div>}
       {copy.groups.map((g, gi) => (
         <section key={gi} className="pblock">
           <div className="pblock-h">
@@ -57,7 +59,7 @@ export default function ProposalDoc({ copy, children }: { copy: ClientCopy; chil
           </table>
         </>
       )}
-      {copy.terms && (<><h2>Terms</h2><p className="paper-terms">{copy.terms}</p></>)}
+      {copy.terms && <div className="paper-terms md">{/^\s*#/.test(copy.terms) ? null : <h2>Terms</h2>}<ReactMarkdown remarkPlugins={[remarkBreaks]}>{copy.terms}</ReactMarkdown></div>}
       {children}
     </article>
   );

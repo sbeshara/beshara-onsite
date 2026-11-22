@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { isLead } from "@/lib/constants";
 import { createClient } from "@/lib/supabase/server";
-import JobForm from "../../JobForm";
+import JobForm from "@/app/(app)/office/JobForm";
 
 export default async function JobPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -37,19 +37,10 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
             )}
           </section>
           <section className="ocard">
-            <h2>In OnSite</h2>
-            <p className="fine">
-              {isLead(job.status)
-                ? "Leads stay internal. Once it's a job, invite the client from the project page to open their chats and files."
-                : "The project's chats, files and client access."}
-            </p>
-            <Link className="btn ghost" href={`/projects/${job.id}`}>Open project</Link>
-          </section>
-          <section className="ocard">
             <h2>Estimates &amp; plans</h2>
             <p className="fine">Build proposals, change orders and additional scope, and take quantities off the plans.</p>
             <div className="actions" style={{ justifyContent: "flex-start" }}>
-              <Link className="btn ghost" href={`/office/jobs/${job.id}/estimates`}>Estimates</Link>
+              <Link className="btn ghost" href={`/projects/${job.id}/estimates`}>Estimates</Link>
               <Link className="btn ghost" href={`/projects/${job.id}/plans`}>Plans &amp; Takeoff</Link>
             </div>
           </section>

@@ -81,7 +81,7 @@ export default async function InvoicingPage({ searchParams }: { searchParams: Pr
                 const j = job.get(i.project_id), last = i.invoice_payments.at(-1);
                 return (
                   <tr key={i.id}>
-                    <td><Link className="rowlink" href={`/office/jobs/${i.project_id}/invoicing`}>{docNumber(j?.job_number, i.seq)}</Link><small>{i.description}</small></td>
+                    <td><Link className="rowlink" href={`/projects/${i.project_id}/invoicing`}>{docNumber(j?.job_number, i.seq)}</Link><small>{i.description}</small></td>
                     <td>{j?.customers?.name ?? j?.name}</td>
                     <td><span className={`pill ${i.status === "paid" ? "bc-done" : i.status === "draft" ? "" : "warn"}`}>{INVOICE_LABEL[i.status]}</span>{i.qbo_error && <small className="err">{i.qbo_error}</small>}</td>
                     <td>{i.sent_at ? day(i.sent_at) : ""}{i.sent_at && i.status !== "paid" && <small>{Math.floor((today - new Date(i.sent_at).getTime()) / 864e5)} days out</small>}</td>

@@ -22,7 +22,7 @@ export default async function ProjectLayout({ children, params }: { children: Re
   const supabase = await createClient();
   const fileCountQuery = supabase.from("files").select("id", { count: "exact", head: true }).eq("project_id", id);
   const [{ data: project }, { data: members }, { data: owners }, { count: fileCount }] = await Promise.all([
-    supabase.from("projects").select("id, name, town, scope, phase, status").eq("id", id).maybeSingle(),
+    supabase.from("projects").select("id, name, town, scope, phase, status, job_number").eq("id", id).maybeSingle(),
     supabase.from("project_members").select("user_id, profiles(*)").eq("project_id", id),
     supabase.from("profiles").select("*").eq("role", "owner"),
     v.clientOnly ? fileCountQuery.eq("is_internal", false) : fileCountQuery,
@@ -43,7 +43,7 @@ export default async function ProjectLayout({ children, params }: { children: Re
       <div className="phead">
         <div className="phead-row">
           <div>
-            <h1>{project.name}</h1>
+            <h1>{isTeamRole(me.role) && !v.clientOnly && project.job_number ? <span style={{ color: "var(--muted)" }}>{project.job_number} · </span> : null}{project.name}</h1>
             <div className="sub">{[project.town ? `${project.town}, NJ` : "", project.scope].filter(Boolean).join(" · ")}</div>
           </div>
           <div className="people">

@@ -10,12 +10,13 @@ export const metadata = { title: "Estimates · Beshara OnSite" };
 export default async function EstimatesPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
-  const [{ data: job }, { data: ests }, { data: items }, { data: groups }, { data: catItems }, measures] = await Promise.all([
+  const [{ data: job }, { data: ests }, { data: items }, { data: groups }, { data: catItems }, { data: docTemplates }, measures] = await Promise.all([
     supabase.from("projects").select("job_number").eq("id", id).maybeSingle(),
     supabase.from("estimates").select("id, seq, kind, name, status, issued_on, signed_at").eq("project_id", id).order("seq"),
     supabase.from("estimate_items").select("estimate_id, quantity, unit_cost, unit_price, measurement_id, qty_factor, waste_pct, estimates!inner(project_id)").eq("estimates.project_id", id),
     supabase.from("cost_groups").select("id, name, parent_id").eq("archived", false).order("position"),
     supabase.from("cost_items").select("cost_group_id").eq("archived", false),
+    supabase.from("document_templates").select("id, name, kind, intro").eq("archived", false).order("position"),
     jobMeasures(supabase, id),
   ]);
   const sum = (eid: string) =>
@@ -45,7 +46,7 @@ export default async function EstimatesPage({ params }: { params: Promise<{ id: 
                 const t = sum(e.id);
                 return (
                   <tr key={e.id}>
-                    <td><Link className="rowlink" href={`/office/jobs/${id}/estimates/${e.id}`}>{e.name}</Link><small>{e.kind} {docNumber(job?.job_number, e.seq)}</small></td>
+                    <td><Link className="rowlink" href={`/projects/${id}/estimates/${e.id}`}>{e.name}</Link><small>{e.kind} {docNumber(job?.job_number, e.seq)}</small></td>
                     <td><span className="pill">{STATUS_LABEL[e.status]}</span></td>
                     <td>{new Date(e.issued_on + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</td>
                     <td className="r">{usd(t.cost)}</td>
@@ -62,7 +63,7 @@ export default async function EstimatesPage({ params }: { params: Promise<{ id: 
       </div>
       <section className="ocard" id="new">
         <h2>New estimate</h2>
-        <NewEstimate projectId={id} templates={templates} hasProposal={(ests ?? []).some((e) => e.kind === "Proposal")} />
+        <NewEstimate projectId={id} templates={templates} docTemplates={(docTemplates ?? []).map((t) => ({ id: t.id, name: t.name, kind: t.kind, intro: t.intro.slice(0, 160) }))} hasProposal={(ests ?? []).some((e) => e.kind === "Proposal")} />
       </section>
     </div>
   );

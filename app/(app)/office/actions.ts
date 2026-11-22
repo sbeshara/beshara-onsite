@@ -74,7 +74,7 @@ export async function createLead(_prev: Result, form: FormData): Promise<Result>
     return { error: (e as Error).message };
   }
   revalidatePath("/", "layout");
-  redirect(`/office/jobs/${id}`);
+  redirect(`/projects/${id}/details`);
 }
 
 export async function updateJob(_prev: Result, form: FormData): Promise<Result> {
@@ -304,13 +304,16 @@ export async function createEstimate(_prev: Result, form: FormData): Promise<Res
   try {
     const { me } = await requireOffice();
     const projectId = clean(form.get("project_id"));
-    const kind = clean(form.get("kind")) || "Proposal";
-    if (!DEFAULT_STEPS[kind]) return { error: "Pick a document type." };
     const template = orNull(form.get("template"));
     const supabase = await createClient();
+    // The document template sets the type, intro and terms.
+    const docTplId = orNull(form.get("doc_template"));
+    const { data: docTpl } = docTplId ? await supabase.from("document_templates").select("id, name, kind, intro, terms").eq("id", docTplId).maybeSingle() : { data: null };
+    const kind = docTpl?.kind ?? (clean(form.get("kind")) || "Proposal");
+    if (!DEFAULT_STEPS[kind]) return { error: "Pick a document type." };
     const { data: est, error } = await supabase
       .from("estimates")
-      .insert({ project_id: projectId, kind, name: clean(form.get("name")) || kind, created_by: me.id })
+      .insert({ project_id: projectId, kind, name: clean(form.get("name")) || docTpl?.name || kind, intro: docTpl?.intro ?? "", terms: docTpl?.terms ?? "", template_id: docTpl?.id ?? null, created_by: me.id })
       .select("id")
       .single();
     if (error || !est) return { error: "Couldn't create the estimate. Try again." };
@@ -349,7 +352,7 @@ export async function createEstimate(_prev: Result, form: FormData): Promise<Res
     }
     // A lead that gets its first estimate is being estimated.
     await supabase.from("projects").update({ status: "Estimating" }).eq("id", projectId).eq("status", "New Lead");
-    path = `/office/jobs/${projectId}/estimates/${est.id}`;
+    path = `/projects/${projectId}/estimates/${est.id}`;
   } catch (e) {
     return { error: (e as Error).message };
   }
@@ -364,8 +367,8 @@ export async function deleteEstimate(id: string, projectId: string): Promise<Res
   } catch (e) {
     return { error: (e as Error).message };
   }
-  revalidatePath(`/office/jobs/${projectId}/estimates`);
-  redirect(`/office/jobs/${projectId}/estimates`);
+  revalidatePath(`/projects/${projectId}/estimates`);
+  redirect(`/projects/${projectId}/estimates`);
 }
 
 // ---------------------------------------------------------------------------
@@ -379,7 +382,7 @@ export async function sendEstimate(estimateId: string, projectId: string, chatId
     const { data: est } = await supabase.from("estimates").select("status, kind, name").eq("id", estimateId).maybeSingle();
     if (!est) return { error: "Estimate not found." };
     if (est.status === "approved") return { error: "It's already signed." };
-    const { buildClientCopy } = await import("./jobs/[id]/estimates/load");
+    const { buildClientCopy } = await import("@/app/(app)/projects/[id]/(office)/estimates/load");
     const copy = await buildClientCopy(supabase, projectId, estimateId);
     if (!copy) return { error: "Couldn't build the client's copy." };
     if (!copy.groups.length || copy.total <= 0) return { error: "Add some priced items before sending." };
@@ -398,7 +401,7 @@ export async function sendEstimate(estimateId: string, projectId: string, chatId
       if (mErr) return { ok: "Sent. It's waiting in the client's Proposals tab, but the chat message didn't post." };
     }
     const { count } = await createAdminClient().from("project_members").select("user_id, profiles!inner(role)", { count: "exact", head: true }).eq("project_id", projectId).eq("profiles.role", "client");
-    revalidatePath(`/office/jobs/${projectId}/estimates`, "layout");
+    revalidatePath(`/projects/${projectId}/estimates`, "layout");
     return { ok: count ? `Sent ${est.kind} ${copy.number}. The client can review and sign it in OnSite.` : `Sent, but no client is invited to this project yet. Invite them from the project page so they can sign.` };
   } catch (e) {
     return { error: (e as Error).message };
@@ -411,7 +414,7 @@ export async function recallEstimate(estimateId: string, projectId: string): Pro
     await requireOffice();
     const { error } = await (await createClient()).from("estimates").update({ status: "draft", client_copy: null }).eq("id", estimateId).eq("status", "pending");
     if (error) return { error: "Couldn't take it back. Try again." };
-    revalidatePath(`/office/jobs/${projectId}/estimates`, "layout");
+    revalidatePath(`/projects/${projectId}/estimates`, "layout");
     return { ok: "Taken back to draft. The client no longer sees it." };
   } catch (e) {
     return { error: (e as Error).message };
@@ -436,7 +439,7 @@ export async function setStepReached(stepId: string, projectId: string, on: bool
       .update(on ? { reached_at: new Date().toISOString(), reached_by: me.id } : { reached_at: null, reached_by: null })
       .eq("id", stepId);
     if (error) return { error: "Couldn't update that step. Try again." };
-    revalidatePath(`/office/jobs/${projectId}/invoicing`);
+    revalidatePath(`/projects/${projectId}/invoicing`);
     revalidatePath("/office/invoicing");
     return { ok: on ? "Marked ready to invoice." : "Marked not reached." };
   } catch (e) {
@@ -469,7 +472,7 @@ export async function createInvoice(_prev: Result, form: FormData): Promise<Resu
       .select("id")
       .single();
     if (error || !inv) return { error: error?.code === "23505" ? "That payment step already has an invoice." : "Couldn't create the invoice. Try again." };
-    revalidatePath(`/office/jobs/${projectId}/invoicing`);
+    revalidatePath(`/projects/${projectId}/invoicing`);
     revalidatePath("/office/invoicing");
     if (form.get("send") !== "1") return { ok: "Invoice saved as a draft." };
     const { pushAndSend } = await import("@/lib/invoicing");
@@ -478,7 +481,7 @@ export async function createInvoice(_prev: Result, form: FormData): Promise<Resu
     } catch (e) {
       return { error: `Saved as a draft, but it didn't send: ${(e as Error).message}` };
     }
-    revalidatePath(`/office/jobs/${projectId}/invoicing`);
+    revalidatePath(`/projects/${projectId}/invoicing`);
     revalidatePath("/office/invoicing");
     return { ok: `Sent. It's in QuickBooks Online and on its way to ${emailTo}.` };
   } catch (e) {
@@ -532,6 +535,19 @@ export async function disconnectQuickBooks(): Promise<Result> {
     await disconnect();
     revalidatePath("/office/invoicing");
     return { ok: "QuickBooks disconnected." };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}
+
+export async function runDocumentImport(): Promise<Result & { remaining?: number; done?: number; skipped?: string[] }> {
+  try {
+    const { me } = await requireOffice();
+    if (me.role !== "owner" && me.role !== "admin") return { error: "Only the Owner or Admin can run the import." };
+    const { importDocuments } = await import("@/lib/jobtread-import");
+    const r = await importDocuments(15);
+    revalidatePath("/", "layout");
+    return { ok: "ok", ...r };
   } catch (e) {
     return { error: (e as Error).message };
   }

@@ -13,7 +13,7 @@ export default async function PreviewPage({ params }: { params: Promise<{ id: st
     <div className="page">
       <div className="clientnote">
         <span>Client preview: this is what the client sees and signs. Costs and margins are never shown.</span>
-        <Link className="linkbtn" href={`/office/jobs/${id}/estimates/${eid}`}>Back to editor</Link>
+        <Link className="linkbtn" href={`/projects/${id}/estimates/${eid}`}>Back to editor</Link>
       </div>
       <ProposalDoc copy={copy}>
         <div className="paper-sign">The client approves and signs here in OnSite once you send it.</div>

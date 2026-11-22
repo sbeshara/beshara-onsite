@@ -19,7 +19,7 @@ export default async function ScopePage({ params }: { params: Promise<{ id: stri
   const { me, seesNumbers } = await getAccess();
   const v = await projectViewer(id);
   if (!isTeamRole(me.role) || v.clientOnly) redirect(`/projects/${id}`);
-  if (seesNumbers && !v.readOnly) redirect(`/office/jobs/${id}/estimates`);
+  if (seesNumbers && !v.readOnly) redirect(`/projects/${id}/estimates`);
   const supabase = await createClient();
   const [{ data }, { data: job }, { data: ms }, { data: sheets }] = await Promise.all([
     supabase.rpc("estimate_scope", { p_project: id }),

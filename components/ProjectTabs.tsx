@@ -2,38 +2,35 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookIcon, ChatIcon, DocIcon, HardHatIcon } from "./Icons";
+import { BookIcon, ChatIcon, DocIcon, HardHatIcon, PeopleIcon } from "./Icons";
 
-// Chat and Files for everyone on the project. The team also gets Plans &
-// Takeoff and the job's proposals (the office opens the estimates; PMs see
-// the scope without any numbers). Clients never see those two.
+// One page per job, with a tab for each part of it. Everyone on the project
+// gets Chat and Files. The team also gets Plans & Takeoff. The office (Owner,
+// Admin, Senior PM, Preconstruction Manager) gets Estimates, Invoicing and
+// Details; PMs get Scope (proposals without numbers). Clients get Proposals
+// once one has been sent.
 export default function ProjectTabs({ projectId, fileCount, team = false, office = false, proposals = 0 }: { projectId: string; fileCount: number; team?: boolean; office?: boolean; proposals?: number }) {
   const path = usePathname();
-  const on = (seg: string) => path.endsWith(`/${seg}`);
-  const onChat = !["files", "people", "plans", "scope", "proposals"].some(on);
+  const base = `/projects/${projectId}`;
+  const seg = path.slice(base.length).split("/")[1] ?? "";
+  const tab = (href: string, key: string, label: React.ReactNode, icon: React.ReactNode) => (
+    <Link className="tab" role="tab" href={href} aria-selected={seg === key}>
+      {icon} {label}
+    </Link>
+  );
+  const onChat = seg === "" || seg === "chats";
   return (
-    <div className="tabs" role="tablist">
-      <Link className="tab" role="tab" href={`/projects/${projectId}`} aria-selected={onChat}>
+    <div className="tabs" role="tablist" style={{ overflowX: "auto" }}>
+      <Link className="tab" role="tab" href={base} aria-selected={onChat}>
         <ChatIcon /> Chat
       </Link>
-      <Link className="tab" role="tab" href={`/projects/${projectId}/files`} aria-selected={on("files")}>
-        <DocIcon /> Files <span className="count">{fileCount}</span>
-      </Link>
-      {!team && proposals > 0 && (
-        <Link className="tab" role="tab" href={`/projects/${projectId}/proposals`} aria-selected={on("proposals")}>
-          <BookIcon /> Proposals <span className="count">{proposals}</span>
-        </Link>
-      )}
-      {team && (
-        <Link className="tab" role="tab" href={`/projects/${projectId}/plans`} aria-selected={on("plans")}>
-          <HardHatIcon /> Plans &amp; Takeoff
-        </Link>
-      )}
-      {team && (
-        <Link className="tab" role="tab" href={office ? `/office/jobs/${projectId}/estimates` : `/projects/${projectId}/scope`} aria-selected={on("scope")}>
-          <BookIcon /> {office ? "Estimates" : "Scope"}
-        </Link>
-      )}
+      {tab(`${base}/files`, "files", <>Files <span className="count">{fileCount}</span></>, <DocIcon />)}
+      {!team && proposals > 0 && tab(`${base}/proposals`, "proposals", <>Proposals <span className="count">{proposals}</span></>, <BookIcon />)}
+      {office && tab(`${base}/estimates`, "estimates", "Estimates", <BookIcon />)}
+      {team && !office && tab(`${base}/scope`, "scope", "Scope", <BookIcon />)}
+      {team && tab(`${base}/plans`, "plans", "Plans & Takeoff", <HardHatIcon />)}
+      {office && tab(`${base}/invoicing`, "invoicing", "Invoicing", <DocIcon />)}
+      {office && tab(`${base}/details`, "details", "Details", <PeopleIcon />)}
     </div>
   );
 }
