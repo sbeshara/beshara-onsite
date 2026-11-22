@@ -250,26 +250,43 @@ const kindOf = (name: string) => (/change order/i.test(name) ? "Change Order" : 
 type JTTemplate = { id: string; name: string; type: string; description: string | null; footer: string | null; dueDays: number | null };
 type JTDocGroup = { id: string; name: string; description: string | null; parentCostGroup: { id: string } | null };
 type JTDocItem = { id: string; name: string; description: string | null; quantity: number | null; unitCost: number | null; unitPrice: number | null; costGroup: { id: string } | null; unit: { name: string } | null; costType: { name: string } | null };
-type JTDoc = {
-  id: string; name: string; number: number; status: string; issueDate: string | null; signedAt: string | null; description: string | null; footer: string | null; showQuantity: boolean | null;
-  job: { id: string } | null; costGroups: { nodes: JTDocGroup[] }; costItems: { nodes: JTDocItem[] };
-};
+type JTDocHead = { id: string; name: string; number: number; status: string; issueDate: string | null; signedAt: string | null; showQuantity: boolean | null; price: number | null; job: { id: string } | null };
+type JTDoc = JTDocHead & { description: string | null; footer: string | null; costGroups: { nodes: JTDocGroup[] }; costItems: { nodes: JTDocItem[] } };
 
+// JobTread limits how much one request may ask for (page size times the
+// details asked of each record), so documents are listed first and each
+// one's lines are fetched on their own, only for the documents being imported.
 async function fetchDocs() {
   const org = await orgId();
   const o = (inner: Record<string, unknown>) => ({ organization: { $: { id: org }, ...inner } });
   const pick = (key: string) => (r: Record<string, unknown>) => (r.organization as Record<string, Page<never>>)[key];
   const [templates, docs, schedules] = await Promise.all([
-    all<JTTemplate>((page) => o({ documentTemplates: { $: { size: 50, ...(page ? { page } : {}) }, nodes: { id: {}, name: {}, type: {}, description: {}, footer: {}, dueDays: {} }, nextPage: {} } }), pick("documentTemplates")),
-    all<JTDoc>((page) => o({ documents: { $: { size: 5, where: { and: [["type", "customerOrder"], ["status", "in", ["approved", "pending"]], ["name", "!=", "Payment Schedule"]] }, ...(page ? { page } : {}) },
-      nodes: { id: {}, name: {}, number: {}, status: {}, issueDate: {}, signedAt: {}, description: {}, footer: {}, showQuantity: {}, job: { id: {} },
-        costGroups: { $: { size: 50 }, nodes: { id: {}, name: {}, description: {}, parentCostGroup: { id: {} } } },
-        costItems: { $: { size: 100 }, nodes: { id: {}, name: {}, description: {}, quantity: {}, unitCost: {}, unitPrice: {}, costGroup: { id: {} }, unit: { name: {} }, costType: { name: {} } } } },
-      nextPage: {} } }), pick("documents")),
-    all<{ job: { id: string } | null; costItems: { nodes: { name: string }[] } }>((page) => o({ documents: { $: { size: 20, where: { and: [["type", "customerOrder"], ["status", "approved"], ["name", "Payment Schedule"]] }, ...(page ? { page } : {}) },
+    all<JTTemplate>((page) => o({ documentTemplates: { $: { size: 20, ...(page ? { page } : {}) }, nodes: { id: {}, name: {}, type: {}, description: {}, footer: {}, dueDays: {} }, nextPage: {} } }), pick("documentTemplates")),
+    all<JTDocHead>((page) => o({ documents: { $: { size: 50, where: { and: [["type", "customerOrder"], ["status", "in", ["approved", "pending"]], ["name", "!=", "Payment Schedule"]] }, ...(page ? { page } : {}) },
+      nodes: { id: {}, name: {}, number: {}, status: {}, issueDate: {}, signedAt: {}, showQuantity: {}, price: {}, job: { id: {} } }, nextPage: {} } }), pick("documents")),
+    all<{ job: { id: string } | null; costItems: { nodes: { name: string }[] } }>((page) => o({ documents: { $: { size: 10, where: { and: [["type", "customerOrder"], ["status", "approved"], ["name", "Payment Schedule"]] }, ...(page ? { page } : {}) },
       nodes: { job: { id: {} }, costItems: { $: { size: 30 }, nodes: { name: {} } } }, nextPage: {} } }), pick("documents")),
   ]);
   return { templates: templates.filter((t) => t.type === "customerOrder" && t.name !== "Payment Schedule"), docs, schedules };
+}
+
+async function fetchDocDetail(head: JTDocHead): Promise<JTDoc> {
+  const fields = (page?: string) => ({
+    document: {
+      $: { id: head.id }, description: {}, footer: {},
+      costGroups: { $: { size: 100 }, nodes: { id: {}, name: {}, description: {}, parentCostGroup: { id: {} } } },
+      costItems: { $: { size: 100, ...(page ? { page } : {}) }, nodes: { id: {}, name: {}, description: {}, quantity: {}, unitCost: {}, unitPrice: {}, costGroup: { id: {} }, unit: { name: {} }, costType: { name: {} } }, nextPage: {} },
+    },
+  });
+  type R = { document: { description: string | null; footer: string | null; costGroups: { nodes: JTDocGroup[] }; costItems: { nodes: JTDocItem[]; nextPage: string | null } } };
+  const first = (await pave<R>(fields())).document;
+  const items = [...first.costItems.nodes];
+  for (let page = first.costItems.nextPage, i = 0; page && i < 10; i++) {
+    const more = (await pave<R>(fields(page))).document.costItems;
+    items.push(...more.nodes);
+    page = more.nextPage;
+  }
+  return { ...head, description: first.description, footer: first.footer, costGroups: first.costGroups, costItems: { nodes: items } };
 }
 
 export type DocPlan = { templates: number; approved: number; pending: number; imported: number };
@@ -318,15 +335,24 @@ export async function importDocuments(batch = 15): Promise<{ done: number; remai
   for (const s of schedules) {
     const pid = s.job ? projectOf.get(s.job.id) : undefined;
     if (!pid || planFor.has(pid)) continue;
-    const steps = s.costItems.nodes
+    // Percentage lines in order; a run that adds up to 100% is one plan (some
+    // schedules hold two, e.g. the build and then the cabinetry). The first is
+    // the main proposal's.
+    const lines = s.costItems.nodes
       .map((i) => ({ i, m: i.name.match(/(\d+(?:\.\d+)?)\s*%/) }))
       .filter((x) => x.m && Number(x.m[1]) < 100)
       .map((x) => ({ name: x.i.name.replace(/\s*\d+(?:\.\d+)?\s*%\s*/, " ").trim() || x.i.name, percent: Number(x.m![1]) }));
-    if (steps.length && Math.abs(steps.reduce((a, b) => a + b.percent, 0) - 100) < 0.5) planFor.set(pid, steps);
+    let run: { name: string; percent: number }[] = [];
+    for (const l of lines) {
+      run.push(l);
+      const sum = run.reduce((a, b) => a + b.percent, 0);
+      if (Math.abs(sum - 100) < 0.5) { planFor.set(pid, run); break; }
+      if (sum > 100) run = [];
+    }
   }
   // The proposal that gets the job's plan: its largest approved proposal.
   const mainProposal = new Map<string, string>();
-  const value = (d: JTDoc) => d.costItems.nodes.reduce((s, i) => s + (i.quantity ?? 1) * (i.unitPrice ?? 0), 0);
+  const value = (d: JTDocHead) => Number(d.price ?? 0);
   for (const d of docs.filter((d) => d.status === "approved" && kindOf(d.name) === "Proposal")) {
     const pid = d.job ? projectOf.get(d.job.id) : undefined;
     if (!pid) continue;
@@ -336,12 +362,13 @@ export async function importDocuments(batch = 15): Promise<{ done: number; remai
 
   const { buildClientCopy } = await import("@/app/(app)/projects/[id]/(office)/estimates/load");
   // Documents whose job isn't in OnSite are reported, not retried forever.
-  const mapped = (d: JTDoc) => !!(d.job && projectOf.get(d.job.id));
+  const mapped = (d: JTDocHead) => !!(d.job && projectOf.get(d.job.id));
   const skipped = docs.filter((d) => !mapped(d)).map((d) => `${d.name} #${d.number}`);
   const todo = docs.filter((d) => !imported.has(d.id) && mapped(d));
   let count = 0;
-  for (const d of todo.slice(0, batch)) {
-    const pid = projectOf.get(d.job!.id)!;
+  for (const head of todo.slice(0, batch)) {
+    const pid = projectOf.get(head.job!.id)!;
+    const d = await fetchDocDetail(head);
     const kind = kindOf(d.name);
     const { data: taken } = await db.from("estimates").select("id").eq("project_id", pid).eq("seq", d.number).maybeSingle();
     const est = check(await db.from("estimates").insert({
