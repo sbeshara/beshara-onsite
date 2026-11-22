@@ -552,3 +552,16 @@ export async function runDocumentImport(): Promise<Result & { remaining?: number
     return { error: (e as Error).message };
   }
 }
+
+export async function runInvoiceImport(): Promise<Result & { remaining?: number; done?: number; skipped?: string[]; linked?: number }> {
+  try {
+    const { me } = await requireOffice();
+    if (me.role !== "owner" && me.role !== "admin") return { error: "Only the Owner or Admin can run the import." };
+    const { importInvoices } = await import("@/lib/jobtread-import");
+    const r = await importInvoices(40);
+    revalidatePath("/", "layout");
+    return { ok: "ok", ...r };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}

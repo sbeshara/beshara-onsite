@@ -425,3 +425,127 @@ export async function importDocuments(batch = 15): Promise<{ done: number; remai
   }
   return { done: count, remaining: Math.max(0, todo.length - batch), skipped };
 }
+
+// ---------------------------------------------------------------------------
+// Invoices and payments
+// ---------------------------------------------------------------------------
+// JobTread's invoices live on the real job (older ones) and on its duplicate
+// "Internal - Invoices" job (newer ones); both land on the one real job here.
+// They keep their QuickBooks invoice and payment IDs, so once QuickBooks is
+// connected, payments keep flowing in without doubling up.
+
+type JTInvoice = {
+  id: string; name: string; number: number; price: number | null; amountPaid: number | null; issueDate: string | null; dueDate: string | null; status: string; qboId: string | null;
+  job: { id: string; number: string } | null;
+  costItems: { nodes: { name: string }[] };
+  documentPayments: { nodes: { amount: number; payment: { id: string; paidAt: string | null; qboId: string | null; source: string | null } | null }[] };
+};
+
+async function fetchInvoices() {
+  const org = await orgId();
+  return all<JTInvoice>(
+    (page) => ({ organization: { $: { id: org }, documents: { $: { size: 10, where: { and: [["type", "customerInvoice"], ["status", "in", ["approved", "pending"]]] }, ...(page ? { page } : {}) },
+      nodes: { id: {}, name: {}, number: {}, price: {}, amountPaid: {}, issueDate: {}, dueDate: {}, status: {}, qboId: {}, job: { id: {}, number: {} },
+        costItems: { $: { size: 5 }, nodes: { name: {} } },
+        documentPayments: { $: { size: 5 }, nodes: { amount: {}, payment: { id: {}, paidAt: {}, qboId: {}, source: {} } } } },
+      nextPage: {} } } }),
+    (r) => (r.organization as Record<string, Page<JTInvoice>>).documents,
+  );
+}
+
+export type InvoicePlan = { invoices: number; paid: number; total: number; imported: number };
+
+export async function planInvoices(): Promise<InvoicePlan> {
+  const invs = await fetchInvoices();
+  const { data } = await createAdminClient().from("invoices").select("jobtread_document_id").not("jobtread_document_id", "is", null);
+  const done = new Set((data ?? []).map((r) => r.jobtread_document_id as string));
+  return {
+    invoices: invs.length,
+    paid: invs.reduce((s, i) => s + Number(i.amountPaid ?? 0), 0),
+    total: invs.reduce((s, i) => s + Number(i.price ?? 0), 0),
+    imported: invs.filter((i) => done.has(i.id)).length,
+  };
+}
+
+// Paid dates in New York time (JobTread stores midnight Eastern as 04:00/05:00 UTC).
+const nyDate = (iso: string) => new Date(iso).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+
+export async function importInvoices(batch = 40): Promise<{ done: number; remaining: number; skipped: string[]; linked: number }> {
+  const db = createAdminClient();
+  const check = <T>(r: { data: T; error: { message: string } | null }, what: string) => {
+    if (r.error) throw new Error(`Couldn't import ${what}: ${r.error.message}`);
+    return r.data;
+  };
+  const invs = await fetchInvoices();
+  const [{ data: done }, { data: projects }, { data: steps }, { data: existing }] = await Promise.all([
+    db.from("invoices").select("jobtread_document_id").not("jobtread_document_id", "is", null),
+    db.from("projects").select("id, jobtread_job_id, jobtread_invoice_job_ids").not("jobtread_job_id", "is", null),
+    db.from("estimate_payment_steps").select("id, name, percent, estimate_id, estimates!inner(project_id, status, kind)").eq("estimates.status", "approved"),
+    db.from("invoices").select("project_id, seq, step_id").neq("status", "void"),
+  ]);
+  const imported = new Set((done ?? []).map((r) => r.jobtread_document_id as string));
+  const realJob = new Map<string, string>(), twinJob = new Map<string, string>();
+  for (const p of projects ?? []) {
+    realJob.set(p.jobtread_job_id as string, p.id as string);
+    for (const t of (p.jobtread_invoice_job_ids as string[]) ?? []) twinJob.set(t, p.id as string);
+  }
+  const projectFor = (jobId: string) => realJob.get(jobId) ?? twinJob.get(jobId);
+  const takenSeq = new Set((existing ?? []).map((r) => `${r.project_id}:${r.seq}`));
+  const usedSteps = new Set((existing ?? []).map((r) => r.step_id as string | null).filter(Boolean) as string[]);
+  type Step = { id: string; name: string; percent: number; estimate_id: string; project_id: string };
+  const stepsByProject = new Map<string, Step[]>();
+  for (const s of (steps ?? []) as unknown as { id: string; name: string; percent: number; estimate_id: string; estimates: { project_id: string } }[]) {
+    const pid = s.estimates.project_id;
+    stepsByProject.set(pid, [...(stepsByProject.get(pid) ?? []), { id: s.id, name: s.name, percent: Number(s.percent), estimate_id: s.estimate_id, project_id: pid }]);
+  }
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+  const mapped = invs.filter((i) => i.job && projectFor(i.job.id) && Number(i.price ?? 0) > 0);
+  const skipped = invs.filter((i) => !mapped.includes(i)).map((i) => `${i.name} ${i.job?.number ?? "?"}-${i.number}`);
+  const todo = mapped.filter((i) => !imported.has(i.id));
+  let count = 0, linked = 0;
+  for (const i of todo.slice(0, batch)) {
+    const pid = projectFor(i.job!.id)!;
+    const onTwin = !realJob.has(i.job!.id);
+    const seq = !onTwin && !takenSeq.has(`${pid}:${i.number}`) ? i.number : null;
+    // Match a percentage line ("Permits 10%") to the signed proposal's step.
+    let step: Step | undefined;
+    for (const line of i.costItems.nodes) {
+      const m = line.name.match(/(\d+(?:\.\d+)?)\s*%/);
+      if (!m) continue;
+      const pct = Number(m[1]), label = norm(line.name.replace(m[0], ""));
+      step = (stepsByProject.get(pid) ?? []).find((s) => !usedSteps.has(s.id) && Math.abs(s.percent - pct) < 0.01 && (norm(s.name) === label || norm(s.name).split(" ")[0] === label.split(" ")[0]));
+      if (step) break;
+    }
+    const lines = i.costItems.nodes.map((n) => n.name).filter(Boolean);
+    const description = `${lines.slice(0, 3).join(", ")}${lines.length > 3 ? ", …" : ""}`.slice(0, 180) + ` (JobTread ${i.job!.number}-${i.number})`;
+    const inv = check(await db.from("invoices").insert({
+      project_id: pid, seq, estimate_id: step?.estimate_id ?? null, step_id: step?.id ?? null,
+      description, amount: Math.round(Number(i.price) * 100) / 100, status: "sent",
+      issued_on: i.issueDate ?? undefined, due_on: i.dueDate, sent_at: i.issueDate ? `${i.issueDate}T12:00:00Z` : null,
+      qbo_invoice_id: i.qboId, qbo_synced_at: i.qboId ? new Date().toISOString() : null, jobtread_document_id: i.id,
+    }).select("id, seq").single(), `invoice ${i.job!.number}-${i.number}`) as { id: string; seq: number };
+    try {
+      takenSeq.add(`${pid}:${inv.seq}`);
+      if (step) {
+        usedSteps.add(step.id);
+        linked++;
+        await db.from("estimate_payment_steps").update({ reached_at: i.issueDate ? `${i.issueDate}T12:00:00Z` : new Date().toISOString() }).eq("id", step.id);
+      }
+      const pays = i.documentPayments.nodes.filter((p) => p.payment && Number(p.amount) !== 0);
+      if (pays.length)
+        check(await db.from("invoice_payments").insert(pays.map((p) => ({
+          invoice_id: inv.id,
+          amount: Math.round(Number(p.amount) * 100) / 100,
+          paid_on: p.payment!.paidAt ? nyDate(p.payment!.paidAt) : i.issueDate ?? new Date().toISOString().slice(0, 10),
+          method: p.payment!.source === "qbo" || p.payment!.qboId ? "QuickBooks" : "Recorded in JobTread",
+          qbo_payment_id: p.payment!.qboId ?? `jobtread:${p.payment!.id}`,
+        }))), `payments on ${i.job!.number}-${i.number}`);
+    } catch (e) {
+      await db.from("invoices").delete().eq("id", inv.id);
+      throw e;
+    }
+    count++;
+  }
+  return { done: count, remaining: Math.max(0, todo.length - batch), skipped, linked };
+}

@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getAccess } from "@/lib/access";
-import { planDocuments, planImport, type DocPlan, type ImportPlan } from "@/lib/jobtread-import";
-import RunImport, { RunDocuments } from "./RunImport";
+import { planDocuments, planImport, planInvoices, type DocPlan, type ImportPlan, type InvoicePlan } from "@/lib/jobtread-import";
+import RunImport, { RunDocuments, RunInvoices } from "./RunImport";
 
 export const metadata = { title: "JobTread Import · Beshara OnSite" };
 export const dynamic = "force-dynamic";
@@ -12,9 +12,10 @@ export default async function ImportPage() {
   if (me.role !== "owner" && me.role !== "admin") redirect("/office");
   let plan: ImportPlan | null = null;
   let docs: DocPlan | null = null;
+  let invs: InvoicePlan | null = null;
   let error = "";
   try {
-    [plan, docs] = await Promise.all([planImport(), planDocuments()]);
+    [plan, docs, invs] = await Promise.all([planImport(), planDocuments(), planInvoices()]);
   } catch (e) {
     error = (e as Error).message;
   }
@@ -89,6 +90,21 @@ export default async function ImportPage() {
                 Documents sent but not signed in JobTread arrive as drafts you can send from OnSite.
               </p>
               <RunDocuments />
+            </section>
+          )}
+          {invs && (
+            <section className="ocard">
+              <h2>3. Invoices and payments</h2>
+              <p>
+                {invs.invoices} invoices totaling {invs.total.toLocaleString("en-US", { style: "currency", currency: "USD" })}, with {invs.paid.toLocaleString("en-US", { style: "currency", currency: "USD" })} paid.
+                {invs.imported ? ` ${invs.imported} already imported.` : ""}
+              </p>
+              <p className="fine">
+                Run this after step 2. Invoices on the duplicate &quot;Internal - Invoices&quot; jobs land on their real job, next to the older invoices made on
+                the real job. Each keeps its payments (date and amount) and its QuickBooks link, so payments keep coming in once QuickBooks is connected.
+                Invoices for a step like &quot;Permits 10%&quot; mark that payment step invoiced; others show under Other invoices on the job.
+              </p>
+              <RunInvoices />
             </section>
           )}
         </>
