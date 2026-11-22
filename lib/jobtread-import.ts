@@ -377,6 +377,7 @@ export async function importDocuments(batch = 15): Promise<{ done: number; remai
       template_id: tplByName.get(d.name) ?? null, jobtread_document_id: d.id,
       imported_note: d.status === "approved" ? "Signed in JobTread" : "Sent from JobTread, not signed there yet",
     }).select("id").single(), `${d.name} #${d.number}`) as { id: string };
+    try {
 
     // Groups: each JobTread group with line items becomes a group here (nested
     // groups are listed in order); items with no group go in a general group.
@@ -414,6 +415,11 @@ export async function importDocuments(batch = 15): Promise<{ done: number; remai
         status: "approved", client_copy: copy, signed_at: d.signedAt ?? (d.issueDate ? `${d.issueDate}T12:00:00Z` : new Date().toISOString()),
         signed_by_name: "Signed in JobTread", sent_at: d.issueDate ? `${d.issueDate}T12:00:00Z` : null,
       }).eq("id", est.id), "signature");
+    }
+    } catch (e) {
+      // Don't leave a half-built estimate behind: the next run tries it again.
+      await db.from("estimates").delete().eq("id", est.id);
+      throw e;
     }
     count++;
   }
