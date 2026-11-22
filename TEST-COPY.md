@@ -9,9 +9,10 @@ It's the `office-foundation` branch, deployed by Vercel as a **preview**, connec
 ## 1. Create the test database (Supabase)
 
 1. In [supabase.com](https://supabase.com) click **New project**. Name it `beshara-onsite-test`, region **East US**, and save the database password.
-2. Open **SQL Editor → New query**. Paste the whole `onsite-test-database.sql` file (all of OnSite's database setup in one script) and click **Run**. It should finish with "Success".
-3. **Authentication → Sign In / Providers**: turn **off** "Allow new users to sign up".
-4. **Project Settings → API Keys**: keep this page open for step 3 (Project URL, anon/publishable key, service_role/secret key).
+2. Open **SQL Editor → New query**. Paste the whole `onsite-test-database.sql` file (all of OnSite's database setup in one script) and click **Run**. It finishes with "Success" or a small table showing a number; either means it worked.
+3. **New query** again: paste `supabase/test-copy/permissions-fix.sql` and **Run**. New Supabase projects no longer give the app access to tables by default (the live project, made earlier, does); this gives the standard access and then puts back every limit OnSite applies, so the test copy behaves exactly like live. Without it, signing in bounces straight back to the sign-in page.
+4. **Authentication → Sign In / Providers**: turn **off** "Allow new users to sign up".
+5. **Project Settings → API Keys**: keep this page open for step 3 (Project URL, anon/publishable key, service_role/secret key).
 
 ## 2. Find the preview address (Vercel)
 
@@ -24,20 +25,19 @@ Vercel already builds a preview of every pushed branch.
 
 Vercel → project → **Settings → Environment Variables**.
 
-1. First check the existing `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY`: they must be ticked for **Production only**. If **Preview** is ticked on any of them, edit it and untick Preview.
-2. Add these for **Preview** only, and under "Preview branch" choose `office-foundation`:
+Add these for **Preview** only, and under "Select a Custom Preview Branch" choose `office-foundation`. Variables set for one branch win over the general ones, so the live keys (which may also be ticked for Preview) never reach the test copy. Don't edit the live keys themselves; they're saved as Secrets and can't be safely re-saved.
 
 | Name | Value |
 |---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | the **test** project's URL |
+| `NEXT_PUBLIC_SUPABASE_URL` | the **test** project's URL, ending in `.supabase.co` (no `/rest/v1/` on the end) |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | the **test** project's anon/publishable key |
 | `SUPABASE_SERVICE_ROLE_KEY` | the **test** project's service_role/secret key |
 | `NEXT_PUBLIC_SITE_URL` | the preview address from step 2 |
-| `JOBTREAD_GRANT_KEY` | the same JobTread key the live app uses (the import only reads) |
+| `RESEND_API_KEY` | `off` (so the test copy never emails anyone) |
 
-Leave `RESEND_API_KEY` empty for the preview so the test copy never emails anyone.
+The JobTread key already applies to previews; the import only reads from JobTread.
 
-3. **Deployments** → the newest office-foundation deployment → **⋯ → Redeploy**.
+Changes take effect on the next build of the branch. A new push to `office-foundation` always works; a Redeploy may not move the branch address.
 
 ## 4. Finish Supabase's settings
 
@@ -49,9 +49,11 @@ Leave `RESEND_API_KEY` empty for the preview so the test copy never emails anyon
 
 ## 5. Sign in
 
-1. **Authentication → Users → Invite user**: your email. The first account becomes the **Owner**.
-2. Open the invite email, set a password, and you're in the test copy.
-3. To try roles, invite teammates from **Team & Access** in the test copy, and a second email of yours as a client on a job.
+The test project can't send OnSite's invite emails (new Supabase projects lock email templates until you connect an email service), so create accounts with a password directly:
+
+1. **Authentication → Users → Add user → Create new user**: your email, a password, and **Auto Confirm User** ticked. The first account becomes the **Owner**.
+2. Sign in to the test copy at `<preview address>/login`.
+3. For teammates or a test client, create their accounts the same way, then set roles in **Team & Access** and add them to jobs.
 
 ## 6. Bring in your JobTread data
 
