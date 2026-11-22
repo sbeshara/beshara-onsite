@@ -52,7 +52,8 @@ async function orgId() {
 type JTGroup = { id: string; name: string; description: string | null; parentCostGroup: { id: string } | null };
 type JTItem = { id: string; name: string; description: string | null; quantity: number | null; unitCost: number | null; unitPrice: number | null; costType: { name: string } | null; unit: { name: string } | null; costGroup: { id: string } | null };
 type JTCF = { nodes: { value: unknown; customField: { name: string } }[] };
-type JTAccount = { id: string; name: string; contacts: { nodes: { id: string; name: string; title: string | null; customFieldValues: JTCF }[] }; locations: { nodes: { id: string; address: string | null }[] } };
+type JTAccount = { id: string; name: string; locations: { nodes: { id: string; address: string | null }[] } };
+type JTContact = { id: string; name: string; title: string | null; account: { id: string } | null; customFieldValues: JTCF };
 type JTJob = { id: string; name: string; number: string; closedOn: string | null; createdAt: string; location: { id: string; name: string; address: string | null; account: { id: string; name: string } | null } | null; customFieldValues: JTCF };
 
 const cf = (v: JTCF | undefined, name: string) => {
@@ -72,13 +73,17 @@ async function fetchAll() {
   const org = await orgId();
   const o = (inner: Record<string, unknown>) => ({ organization: { $: { id: org }, ...inner } });
   const pick = (key: string) => (r: Record<string, unknown>) => (r.organization as Record<string, Page<never>>)[key];
-  const [groups, items, accounts, jobs] = await Promise.all([
+  // JobTread refuses requests whose nested page sizes multiply out too large
+  // ("Request Entity Too Large"), so contacts load on their own rather than
+  // inside each customer.
+  const [groups, items, accounts, contacts, jobs] = await Promise.all([
     all<JTGroup>((page) => o({ costGroups: { $: { size: 100, where: [["job", "id"], null], ...(page ? { page } : {}) }, nodes: { id: {}, name: {}, description: {}, parentCostGroup: { id: {} } }, nextPage: {} } }), pick("costGroups")),
     all<JTItem>((page) => o({ costItems: { $: { size: 100, where: [["job", "id"], null], ...(page ? { page } : {}) }, nodes: { id: {}, name: {}, description: {}, quantity: {}, unitCost: {}, unitPrice: {}, costType: { name: {} }, unit: { name: {} }, costGroup: { id: {} } }, nextPage: {} } }), pick("costItems")),
-    all<JTAccount>((page) => o({ accounts: { $: { size: 50, where: ["type", "customer"], ...(page ? { page } : {}) }, nodes: { id: {}, name: {}, contacts: { $: { size: 10 }, nodes: { id: {}, name: {}, title: {}, customFieldValues: { $: { size: 5 }, nodes: { value: {}, customField: { name: {} } } } } }, locations: { $: { size: 5 }, nodes: { id: {}, address: {} } } }, nextPage: {} } }), pick("accounts")),
+    all<JTAccount>((page) => o({ accounts: { $: { size: 100, where: ["type", "customer"], ...(page ? { page } : {}) }, nodes: { id: {}, name: {}, locations: { $: { size: 1 }, nodes: { id: {}, address: {} } } }, nextPage: {} } }), pick("accounts")),
+    all<JTContact>((page) => o({ contacts: { $: { size: 100, where: [["account", "type"], "customer"], ...(page ? { page } : {}) }, nodes: { id: {}, name: {}, title: {}, account: { id: {} }, customFieldValues: { $: { size: 4 }, nodes: { value: {}, customField: { name: {} } } } }, nextPage: {} } }), pick("contacts")),
     all<JTJob>((page) => o({ jobs: { $: { size: 100, ...(page ? { page } : {}) }, nodes: { id: {}, name: {}, number: {}, closedOn: {}, createdAt: {}, location: { id: {}, name: {}, address: {}, account: { id: {}, name: {} } }, customFieldValues: { $: { size: 5 }, nodes: { value: {}, customField: { name: {} } } } }, nextPage: {} } }), pick("jobs")),
   ]);
-  return { groups, items, accounts, jobs };
+  return { groups, items, accounts, contacts, jobs };
 }
 
 // Pairs each "Internal - Invoices" job with the real job it bills for: same
@@ -123,7 +128,7 @@ export async function planImport(): Promise<ImportPlan> {
   const label = (j: JTJob) => `${j.number} · ${j.location?.account?.name ?? j.name}`;
   return {
     catalog: { groups: data.groups.length, items: data.items.length, newGroups: data.groups.filter((x) => !gs.has(x.id)).length, newItems: data.items.filter((x) => !is.has(x.id)).length },
-    customers: { total: data.accounts.length, new: data.accounts.filter((a) => !cs.has(a.id)).length, contacts: data.accounts.reduce((s, a) => s + a.contacts.nodes.length, 0) },
+    customers: { total: data.accounts.length, new: data.accounts.filter((a) => !cs.has(a.id)).length, contacts: data.contacts.filter((c) => c.account).length },
     jobs: { total: jobs.length, new: jobs.filter((j) => !ps.has(j.id)).length, updated: jobs.filter((j) => ps.has(j.id)).length, byStatus },
     merges: data.jobs
       .filter((j) => matches.has(j.id))
@@ -171,17 +176,23 @@ export async function runImport(byUserId: string): Promise<ImportResult> {
   // Customers and contacts.
   check(await db.from("customers").upsert(data.accounts.map((a) => ({ jobtread_account_id: a.id, name: a.name.slice(0, 160) || "Unnamed customer", address: a.locations.nodes[0]?.address ?? null })), { onConflict: "jobtread_account_id" }), "customers");
   const customerIds = new Map((check(await db.from("customers").select("id, jobtread_account_id").not("jobtread_account_id", "is", null), "customers") ?? []).map((r) => [r.jobtread_account_id as string, r.id as string]));
-  const contacts = data.accounts.flatMap((a) =>
-    a.contacts.nodes.map((c, n) => ({
-      jobtread_contact_id: c.id,
-      customer_id: customerIds.get(a.id)!,
-      name: c.name.slice(0, 160) || "Contact",
-      title: c.title,
-      email: cf(c.customFieldValues, "Email"),
-      phone: cf(c.customFieldValues, "Phone"),
-      is_primary: n === 0,
-    })),
-  );
+  // The first contact listed for each customer is its main contact.
+  const seen = new Set<string>();
+  const contacts = data.contacts
+    .filter((c) => c.account && customerIds.has(c.account.id))
+    .map((c) => {
+      const acct = c.account!.id, first = !seen.has(acct);
+      seen.add(acct);
+      return {
+        jobtread_contact_id: c.id,
+        customer_id: customerIds.get(acct)!,
+        name: c.name.slice(0, 160) || "Contact",
+        title: c.title,
+        email: cf(c.customFieldValues, "Email"),
+        phone: cf(c.customFieldValues, "Phone"),
+        is_primary: first,
+      };
+    });
   if (contacts.length) check(await db.from("customer_contacts").upsert(contacts, { onConflict: "jobtread_contact_id" }), "contacts");
 
   // Jobs. Projects already linked to a JobTread job keep their OnSite name.
