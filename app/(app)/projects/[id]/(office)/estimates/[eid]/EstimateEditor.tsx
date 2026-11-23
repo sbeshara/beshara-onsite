@@ -8,16 +8,16 @@ import { usd } from "@/lib/office";
 import { KIND_UNIT, fmtQty, linkedQuantity, type MeasureKind } from "@/lib/takeoff";
 import { deleteEstimate, recallEstimate, sendEstimate } from "@/app/(app)/office/actions";
 
-type Opt = { id: number; name: string; abbr?: string };
-type CatGroup = { id: string; name: string; parent_id: string | null; description: string };
-type CatItem = { id: string; cost_group_id: string | null; name: string; description: string; cost_type_id: number | null; unit_id: number | null; quantity: number | null; unit_cost: number | null; unit_price: number | null };
-type MeasureOpt = { id: string; name: string; kind: MeasureKind; sheet: string; value: number | null };
+export type Opt = { id: number; name: string; abbr?: string };
+export type CatGroup = { id: string; name: string; parent_id: string | null; description: string };
+export type CatItem = { id: string; cost_group_id: string | null; name: string; description: string; cost_type_id: number | null; unit_id: number | null; quantity: number | null; unit_cost: number | null; unit_price: number | null };
+export type MeasureOpt = { id: string; name: string; kind: MeasureKind; sheet: string; value: number | null };
 
-const money = (v: number | string | null) => (Number(v) || 0).toLocaleString("en-US", { style: "currency", currency: "USD" });
+export const money = (v: number | string | null) => (Number(v) || 0).toLocaleString("en-US", { style: "currency", currency: "USD" });
 // A textarea that grows to show all of its text.
-const grow = (el: HTMLTextAreaElement | null) => { if (el) { el.style.height = "auto"; el.style.height = `${el.scrollHeight}px`; } };
+export const grow = (el: HTMLTextAreaElement | null) => { if (el) { el.style.height = "auto"; el.style.height = `${el.scrollHeight}px`; } };
 
-const num = (v: string) => {
+export const num = (v: string) => {
   const n = Number(v.replace(/[$,\s]/g, ""));
   return Number.isFinite(n) ? n : 0;
 };
@@ -70,11 +70,14 @@ export default function EstimateEditor(props: {
     save("estimate_groups", id, patch);
   };
 
+  // New groups and items on a document also go into the job's budget.
+  const newBudgetGroup = async (name: string, description = "") =>
+    (await supabase.from("budget_groups").insert({ project_id: props.projectId, name, description, position: 9999 }).select("id").single()).data?.id ?? null;
   async function addGroup() {
     const { data, error } = await supabase
       .from("estimate_groups")
-      .insert({ estimate_id: est.id, name: "New group", position: groups.length, client_view: est.kind === "Proposal" ? "total" : "items" })
-      .select("id, name, description, client_view, display_qty, display_unit, position")
+      .insert({ estimate_id: est.id, budget_group_id: await newBudgetGroup("New group"), name: "New group", position: groups.length, client_view: est.kind === "Proposal" ? "total" : "items" })
+      .select("id, name, description, client_view, display_qty, display_unit, position, budget_group_id")
       .single();
     if (error || !data) return setError("Couldn't add a group. Try again.");
     setGroups((g) => [...g, data as EstGroup]);
@@ -82,8 +85,8 @@ export default function EstimateEditor(props: {
   async function addCatalogGroup(cg: CatGroup) {
     const { data: g, error } = await supabase
       .from("estimate_groups")
-      .insert({ estimate_id: est.id, name: cg.name, description: cg.description, position: groups.length, client_view: est.kind === "Proposal" ? "total" : "items" })
-      .select("id, name, description, client_view, display_qty, display_unit, position")
+      .insert({ estimate_id: est.id, budget_group_id: await newBudgetGroup(cg.name, cg.description), name: cg.name, description: cg.description, position: groups.length, client_view: est.kind === "Proposal" ? "total" : "items" })
+      .select("id, name, description, client_view, display_qty, display_unit, position, budget_group_id")
       .single();
     if (error || !g) return setError("Couldn't add that group. Try again.");
     setGroups((all) => [...all, g as EstGroup]);
@@ -98,11 +101,16 @@ export default function EstimateEditor(props: {
   }
   async function addItems(groupId: string, list: (CatItem | null)[]) {
     const base = items.filter((i) => i.group_id === groupId).length;
-    const rows = list.map((c, n) => ({
-      estimate_id: est.id, group_id: groupId, catalog_item_id: c?.id ?? null, name: c?.name ?? "New item", description: c?.description ?? "",
+    const fields = list.map((c, n) => ({
+      catalog_item_id: c?.id ?? null, name: c?.name ?? "New item", description: c?.description ?? "",
       cost_type_id: c?.cost_type_id ?? props.types[0]?.id ?? null, unit_id: c?.unit_id ?? props.units[0]?.id ?? null,
       quantity: c?.quantity ?? (c ? 0 : 1), unit_cost: c?.unit_cost ?? 0, unit_price: c?.unit_price ?? 0, position: base + n,
     }));
+    const bgId = groups.find((g) => g.id === groupId)?.budget_group_id ?? null;
+    const { data: bis } = bgId
+      ? await supabase.from("budget_items").insert(fields.map((f) => ({ ...f, project_id: props.projectId, group_id: bgId, position: 9999 }))).select("id")
+      : { data: null };
+    const rows = fields.map((f, n) => ({ ...f, estimate_id: est.id, group_id: groupId, budget_item_id: bis?.[n]?.id ?? null }));
     const { data, error } = await supabase
       .from("estimate_items")
       .insert(rows)
@@ -384,7 +392,7 @@ function ReadOnlyDoc({ groups, items, qty, unitAbbr, groupSum, total }: {
 }
 
 // A dollar amount shown in full ("$19,601.00"); plain digits while editing.
-function MoneyInput({ value, label, locked, onChange, onCommit }: { value: number; label: string; locked: boolean; onChange: (v: number) => void; onCommit: (v: number) => void }) {
+export function MoneyInput({ value, label, locked, onChange, onCommit }: { value: number; label: string; locked: boolean; onChange: (v: number) => void; onCommit: (v: number) => void }) {
   const [text, setText] = useState(money(value));
   return (
     <input
@@ -401,7 +409,7 @@ function MoneyInput({ value, label, locked, onChange, onCommit }: { value: numbe
   );
 }
 
-function CatalogPicker({ mode, catalog, unitAbbr, onClose, onPickItem, onPickGroup }: {
+export function CatalogPicker({ mode, catalog, unitAbbr, onClose, onPickItem, onPickGroup }: {
   mode: "items" | "groups"; catalog: { groups: CatGroup[]; items: CatItem[] }; unitAbbr: (id: number | null) => string;
   onClose: () => void; onPickItem: (c: CatItem) => void; onPickGroup: (g: CatGroup) => void;
 }) {
@@ -434,7 +442,7 @@ function CatalogPicker({ mode, catalog, unitAbbr, onClose, onPickItem, onPickGro
   );
 }
 
-function LinkDialog({ item, unit, measures, projectId, onClose, onSave }: {
+export function LinkDialog({ item, unit, measures, projectId, onClose, onSave }: {
   item: EstItem; unit: string; measures: MeasureOpt[]; projectId: string; onClose: () => void; onSave: (mid: string | null, factor: number, waste: number) => void;
 }) {
   const [mid, setMid] = useState(item.measurement_id ?? measures[0]?.id ?? "");

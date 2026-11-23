@@ -1,18 +1,17 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useState } from "react";
 import { createEstimate, type Result } from "@/app/(app)/office/actions";
 
-type Template = { id: string; name: string; groups: string[]; items: number };
+export type BudgetPick = { id: string; name: string; items: { id: string; name: string; price: number; docs: { label: string; status: string }[] }[] };
 type DocTemplate = { id: string; name: string; kind: string; intro: string };
 
-// New estimate in three steps: the document template (type, intro and terms),
-// then the budget (a catalog template or blank), then the name.
-export default function NewEstimate({ projectId, templates, docTemplates, hasProposal }: { projectId: string; templates: Template[]; docTemplates: DocTemplate[]; hasProposal: boolean }) {
+// New document in two steps: the document template (type, intro and terms),
+// then the budget lines to include and the name.
+export default function NewEstimate({ projectId, budget, docTemplates, hasProposal }: { projectId: string; budget: BudgetPick[]; docTemplates: DocTemplate[]; hasProposal: boolean }) {
   const [state, action, pending] = useActionState<Result, FormData>(createEstimate, {});
   const [doc, setDoc] = useState<DocTemplate | { id: ""; name: string; kind: string; intro: "" } | null>(null);
-  const [budget, setBudget] = useState<string | null>(null); // "" = blank
-  const chosen = templates.find((t) => t.id === budget);
   const blankKinds = ["Proposal", "Change Order", "Additional Scope"];
   // Change orders and additional scope come first once a proposal exists.
   const docs = [...docTemplates].sort((a, b) => (hasProposal ? Number(a.kind === "Proposal") - Number(b.kind === "Proposal") : Number(b.kind === "Proposal") - Number(a.kind === "Proposal")));
@@ -20,7 +19,7 @@ export default function NewEstimate({ projectId, templates, docTemplates, hasPro
   if (!doc) {
     return (
       <div style={{ display: "grid", gap: 10 }}>
-        <p className="fine">Step 1 of 3: which document? It sets the type, the intro and the terms.</p>
+        <p className="fine">Step 1 of 2: which document? It sets the type, the intro and the terms.</p>
         <div className="tpl-grid">
           {docs.map((t) => (
             <button key={t.id} type="button" className="tpl" onClick={() => setDoc(t)}>
@@ -41,49 +40,68 @@ export default function NewEstimate({ projectId, templates, docTemplates, hasPro
     );
   }
 
-  if (budget === null) {
-    return (
-      <div style={{ display: "grid", gap: 10 }}>
-        <p className="fine">
-          Step 2 of 3 · <b style={{ color: "var(--ink)" }}>{doc.name}</b>{" "}
-          <button type="button" className="textbtn" onClick={() => setDoc(null)}>Change</button>
-          <br />Which budget should it start from? Its cost groups, client descriptions and line items come in, ready for quantities.
-        </p>
-        <div className="tpl-grid">
-          {templates.map((t) => (
-            <button key={t.id} type="button" className="tpl" onClick={() => setBudget(t.id)}>
-              <b>{t.name}</b>
-              <small>{t.groups.length} groups · {t.items} items</small>
-              <span>{t.groups.slice(0, 6).join(" · ")}{t.groups.length > 6 ? " …" : ""}</span>
-            </button>
-          ))}
-          <button type="button" className="tpl blank" onClick={() => setBudget("")}>
-            <b>Blank</b>
-            <small>Start with one empty group</small>
-            <span>Add groups and items from the catalog as you go.</span>
-          </button>
-        </div>
-      </div>
-    );
-  }
+  return <PickLines key={doc.id + doc.kind} projectId={projectId} doc={doc} budget={budget} action={action} pending={pending} error={state.error} onBack={() => setDoc(null)} />;
+}
 
+// Step 2: tick the budget lines to include, then name it. Lines already on a
+// signed or pending document start unticked, so a change order picks up only
+// what's new.
+function PickLines({ projectId, doc, budget, action, pending, error, onBack }: {
+  projectId: string; doc: { id: string; name: string; kind: string }; budget: BudgetPick[];
+  action: (f: FormData) => void; pending: boolean; error?: string; onBack: () => void;
+}) {
+  const fresh = (it: BudgetPick["items"][number]) => !it.docs.some((d) => d.status === "approved" || d.status === "pending");
+  const [on, setOn] = useState<Set<string>>(() => new Set(budget.flatMap((g) => g.items.filter(fresh).map((i) => i.id))));
+  const flip = (ids: string[], v: boolean) => setOn((s) => { const n = new Set(s); ids.forEach((id) => (v ? n.add(id) : n.delete(id))); return n; });
+  const total = budget.flatMap((g) => g.items).filter((i) => on.has(i.id)).reduce((s, i) => s + i.price, 0);
+  const cur = (n: number) => n.toLocaleString("en-US", { style: "currency", currency: "USD" });
   return (
-    <form className="form" action={action} style={{ maxWidth: 620 }}>
+    <form className="form" action={action} style={{ maxWidth: "none" }}>
       <input type="hidden" name="project_id" value={projectId} />
-      <input type="hidden" name="template" value={budget} />
       <input type="hidden" name="doc_template" value={doc.id} />
       <input type="hidden" name="kind" value={doc.kind} />
+      {[...on].map((id) => <input key={id} type="hidden" name="item" value={id} />)}
       <p className="fine">
-        Step 3 of 3 · <b style={{ color: "var(--ink)" }}>{doc.name}</b> with {chosen ? <b style={{ color: "var(--ink)" }}>{chosen.name}</b> : "a blank budget"}.{" "}
-        <button type="button" className="textbtn" onClick={() => setBudget(null)}>Change</button>
+        Step 2 of 2 · <b style={{ color: "var(--ink)" }}>{doc.name}</b>{" "}
+        <button type="button" className="textbtn" onClick={onBack}>Change</button>
+        <br />Tick what to include from the budget. Lines already on a signed or pending document start unticked.
       </p>
-      <label className="field">
-        Name
-        <input name="name" defaultValue={doc.id ? doc.name : chosen ? `${chosen.name} ${doc.kind}` : doc.kind} />
-      </label>
-      {state.error && <p className="err" role="alert">{state.error}</p>}
+      {budget.length ? (
+        <div className="pick">
+          {budget.map((g) => {
+            const ids = g.items.map((i) => i.id);
+            const n = ids.filter((id) => on.has(id)).length;
+            return (
+              <div key={g.id} className="pick-g">
+                <label className="pick-gh">
+                  <input type="checkbox" checked={n > 0 && n === ids.length} ref={(el) => { if (el) el.indeterminate = n > 0 && n < ids.length; }} onChange={(e) => flip(ids, e.target.checked)} disabled={!ids.length} />
+                  <b>{g.name}</b>
+                  <span className="r">{cur(g.items.filter((i) => on.has(i.id)).reduce((s, i) => s + i.price, 0))}</span>
+                </label>
+                {g.items.map((it) => (
+                  <label key={it.id} className="pick-i">
+                    <input type="checkbox" checked={on.has(it.id)} onChange={(e) => flip([it.id], e.target.checked)} />
+                    <span>{it.name}{it.docs.length > 0 && <small>{it.docs.map((d) => d.label).join(" · ")}</small>}</span>
+                    <span className="r">{cur(it.price)}</span>
+                  </label>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="fine">This job&apos;s budget is empty. <Link href={`/projects/${projectId}/budget`}>Build the budget</Link> first, or create it blank and add items as you go (they go into the budget too).</p>
+      )}
+      <div className="row2" style={{ alignItems: "end" }}>
+        <label className="field">
+          Name
+          <input name="name" defaultValue={doc.id ? doc.name : doc.kind} />
+        </label>
+        <p className="fine" style={{ margin: 0 }}>{on.size} {on.size === 1 ? "line" : "lines"} · <b style={{ color: "var(--ink)" }}>{cur(total)}</b></p>
+      </div>
+      {error && <p className="err" role="alert">{error}</p>}
       <div className="actions" style={{ justifyContent: "flex-start" }}>
-        <button className="btn" type="submit" disabled={pending}>{pending ? "Creating…" : `Create ${doc.kind.toLowerCase()}`}</button>
+        <button className="btn" type="submit" disabled={pending}>{pending ? "Creating…" : on.size ? `Create ${doc.kind.toLowerCase()}` : `Create a blank ${doc.kind.toLowerCase()}`}</button>
       </div>
     </form>
   );

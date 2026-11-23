@@ -6,6 +6,7 @@ import { getAccess } from "@/lib/access";
 import { ALL_STATUSES } from "@/lib/constants";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { BUDGET_ITEM_FIELDS, budgetFromCatalog, budgetFromDocuments } from "@/lib/budget";
 
 export type Result = { error?: string; ok?: string };
 
@@ -304,7 +305,6 @@ export async function createEstimate(_prev: Result, form: FormData): Promise<Res
   try {
     const { me } = await requireOffice();
     const projectId = clean(form.get("project_id"));
-    const template = orNull(form.get("template"));
     const supabase = await createClient();
     // The document template sets the type, intro and terms.
     const docTplId = orNull(form.get("doc_template"));
@@ -319,36 +319,35 @@ export async function createEstimate(_prev: Result, form: FormData): Promise<Res
     if (error || !est) return { error: "Couldn't create the estimate. Try again." };
     await supabase.from("estimate_payment_steps").insert(DEFAULT_STEPS[kind].map((s, i) => ({ ...s, estimate_id: est.id, position: i })));
 
-    // Start from a catalog group: its sub-groups become the estimate's groups,
-    // each with its catalog items (quantity 0 until measured or typed in).
-    if (template) {
-      const [{ data: groups }, { data: items }] = await Promise.all([
-        supabase.from("cost_groups").select("id, parent_id, name, description, position").eq("archived", false),
-        supabase.from("cost_items").select("id, cost_group_id, name, description, cost_type_id, unit_id, quantity, unit_cost, unit_price, position").eq("archived", false),
+    // The ticked budget lines become the document's lines, grouped as in the
+    // budget, each linked to its budget line so they stay in sync.
+    const picked = form.getAll("item").map(String).filter(Boolean);
+    if (picked.length) {
+      const [{ data: bgs }, { data: bis }] = await Promise.all([
+        supabase.from("budget_groups").select("id, name, description, position").eq("project_id", projectId).order("position"),
+        supabase.from("budget_items").select(BUDGET_ITEM_FIELDS).eq("project_id", projectId).in("id", picked).order("position"),
       ]);
-      const root = (groups ?? []).find((g) => g.id === template);
-      if (root) {
-        const kids = (groups ?? []).filter((g) => g.parent_id === root.id).sort((a, b) => a.position - b.position);
-        const use = kids.length ? kids : [root];
-        for (const [i, g] of use.entries()) {
-          const { data: eg } = await supabase
-            .from("estimate_groups")
-            .insert({ estimate_id: est.id, name: g.name, description: g.description, position: i, client_view: kind === "Proposal" ? "total" : "items" })
-            .select("id")
-            .single();
-          if (!eg) continue;
-          const its = (items ?? []).filter((x) => x.cost_group_id === g.id).sort((a, b) => a.position - b.position);
-          if (its.length)
-            await supabase.from("estimate_items").insert(
-              its.map((x, n) => ({
-                estimate_id: est.id, group_id: eg.id, catalog_item_id: x.id, name: x.name, description: x.description,
-                cost_type_id: x.cost_type_id, unit_id: x.unit_id, quantity: x.quantity ?? 0, unit_cost: x.unit_cost ?? 0, unit_price: x.unit_price ?? 0, position: n,
-              })),
-            );
-        }
+      let gpos = 0;
+      for (const g of bgs ?? []) {
+        const its = (bis ?? []).filter((x) => x.group_id === g.id);
+        if (!its.length) continue;
+        const { data: eg } = await supabase
+          .from("estimate_groups")
+          .insert({ estimate_id: est.id, budget_group_id: g.id, name: g.name, description: g.description, position: gpos++, client_view: kind === "Proposal" ? "total" : "items" })
+          .select("id")
+          .single();
+        if (!eg) continue;
+        await supabase.from("estimate_items").insert(
+          its.map((x, n) => ({
+            estimate_id: est.id, group_id: eg.id, budget_item_id: x.id, catalog_item_id: x.catalog_item_id, name: x.name, description: x.description,
+            cost_type_id: x.cost_type_id, unit_id: x.unit_id, quantity: x.quantity, unit_cost: x.unit_cost, unit_price: x.unit_price,
+            measurement_id: x.measurement_id, qty_factor: x.qty_factor, waste_pct: x.waste_pct, position: n,
+          })),
+        );
       }
     } else {
-      await supabase.from("estimate_groups").insert({ estimate_id: est.id, name: "New group", position: 0, client_view: kind === "Proposal" ? "total" : "items" });
+      const { data: bg } = await supabase.from("budget_groups").insert({ project_id: projectId, name: "New group", position: 9999 }).select("id").single();
+      await supabase.from("estimate_groups").insert({ estimate_id: est.id, budget_group_id: bg?.id ?? null, name: "New group", position: 0, client_view: kind === "Proposal" ? "total" : "items" });
     }
     // A lead that gets its first estimate is being estimated.
     await supabase.from("projects").update({ status: "Estimating" }).eq("id", projectId).eq("status", "New Lead");
@@ -357,6 +356,33 @@ export async function createEstimate(_prev: Result, form: FormData): Promise<Res
     return { error: (e as Error).message };
   }
   redirect(path);
+}
+
+// ---------------------------------------------------------------------------
+// Job budget
+// ---------------------------------------------------------------------------
+
+export async function addBudgetTemplate(projectId: string, catalogGroupId: string): Promise<Result> {
+  try {
+    await requireOffice();
+    const n = await budgetFromCatalog(await createClient(), projectId, catalogGroupId);
+    await (await createClient()).from("projects").update({ status: "Estimating" }).eq("id", projectId).eq("status", "New Lead");
+    revalidatePath(`/projects/${projectId}/budget`);
+    return { ok: `Added ${n} items to the budget.` };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}
+
+export async function buildBudgetFromDocuments(projectId: string): Promise<Result> {
+  try {
+    await requireOffice();
+    const r = await budgetFromDocuments(await createClient(), projectId);
+    revalidatePath(`/projects/${projectId}/budget`);
+    return { ok: r.linked ? `Built the budget from this job's documents: ${r.items} budget lines in ${r.groups} groups, ${r.linked} document lines linked.` : "Every document line is already in the budget." };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
 }
 
 export async function deleteEstimate(id: string, projectId: string): Promise<Result> {

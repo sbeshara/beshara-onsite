@@ -5,7 +5,7 @@ export type EstItem = {
   id: string; group_id: string; catalog_item_id: string | null; name: string; description: string; cost_type_id: number | null; unit_id: number | null;
   quantity: number; unit_cost: number; unit_price: number; measurement_id: string | null; qty_factor: number; waste_pct: number; position: number;
 };
-export type EstGroup = { id: string; name: string; description: string; client_view: "items" | "qty" | "total"; display_qty: number | null; display_unit: string | null; position: number };
+export type EstGroup = { id: string; name: string; description: string; client_view: "items" | "qty" | "total"; display_qty: number | null; display_unit: string | null; position: number; budget_group_id?: string | null };
 export type EstStep = { id: string; name: string; percent: number; position: number };
 
 export const CLIENT_VIEWS = { items: "Items with prices", qty: "Items, no prices", total: "Group total only" } as const;

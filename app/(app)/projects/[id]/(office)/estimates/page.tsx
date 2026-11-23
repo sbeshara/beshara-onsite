@@ -1,23 +1,23 @@
 import DocumentsTable, { docFilter, type DocRow } from "@/components/DocumentsTable";
 import type { ClientCopy } from "@/lib/client-copy";
-import { itemQty, totals } from "@/lib/estimates";
+import { docNumber, itemQty, STATUS_LABEL, totals } from "@/lib/estimates";
 import { usd } from "@/lib/office";
 import { createClient } from "@/lib/supabase/server";
 import { jobMeasures } from "./load";
 import NewDocumentMenu from "./NewDocumentMenu";
+import type { BudgetPick } from "./NewEstimate";
 
 export const metadata = { title: "Documents · Beshara OnSite" };
 
-export default async function DocumentsPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ show?: string }> }) {
+export default async function DocumentsPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ show?: string; new?: string }> }) {
   const { id } = await params;
-  const filter = docFilter((await searchParams).show);
+  const sp = await searchParams;
+  const filter = docFilter(sp.show);
   const supabase = await createClient();
-  const [{ data: job }, { data: ests }, { data: items }, { data: groups }, { data: catItems }, { data: docTemplates }, measures] = await Promise.all([
+  const [{ data: job }, { data: ests }, { data: items }, { data: docTemplates }, measures] = await Promise.all([
     supabase.from("projects").select("job_number").eq("id", id).maybeSingle(),
     supabase.from("estimates").select("id, seq, kind, name, status, issued_on, signed_at, client_copy").eq("project_id", id).order("seq"),
     supabase.from("estimate_items").select("estimate_id, quantity, unit_cost, unit_price, measurement_id, qty_factor, waste_pct, estimates!inner(project_id)").eq("estimates.project_id", id),
-    supabase.from("cost_groups").select("id, name, parent_id").eq("archived", false).order("position"),
-    supabase.from("cost_items").select("cost_group_id").eq("archived", false),
     supabase.from("document_templates").select("id, name, kind, intro").eq("archived", false).order("position"),
     jobMeasures(supabase, id),
   ]);
@@ -25,14 +25,23 @@ export default async function DocumentsPage({ params, searchParams }: { params: 
     totals(((items ?? []) as { estimate_id: string; quantity: number; unit_cost: number; unit_price: number; measurement_id: string | null; qty_factor: number; waste_pct: number }[])
       .filter((i) => i.estimate_id === eid)
       .map((i) => ({ q: itemQty(i, measures.map), c: Number(i.unit_cost), p: Number(i.unit_price) })));
-  // Budget templates: catalog groups that hold other groups (e.g. "Interior Fit Out").
-  const all = groups ?? [];
-  const templates = all
-    .filter((g) => all.some((c) => c.parent_id === g.id))
-    .map((g) => {
-      const kids = all.filter((c) => c.parent_id === g.id);
-      return { id: g.id, name: g.name, groups: kids.map((k) => k.name), items: (catItems ?? []).filter((i) => kids.some((k) => k.id === i.cost_group_id)).length };
-    });
+  // The job budget, with the documents each line is on, for "New document".
+  const [{ data: bgs }, { data: bis }, { data: links }] = await Promise.all([
+    supabase.from("budget_groups").select("id, name").eq("project_id", id).order("position"),
+    supabase.from("budget_items").select("id, group_id, name, quantity, unit_price, measurement_id, qty_factor, waste_pct").eq("project_id", id).order("position"),
+    supabase.from("estimate_items").select("budget_item_id, estimate_id").not("budget_item_id", "is", null).in("estimate_id", (ests ?? []).map((e) => e.id)),
+  ]);
+  const estById = new Map((ests ?? []).map((e) => [e.id, e]));
+  const budget: BudgetPick[] = (bgs ?? []).map((g) => ({
+    id: g.id,
+    name: g.name,
+    items: (bis ?? []).filter((i) => i.group_id === g.id).map((i) => {
+      const docs = [...new Set((links ?? []).filter((l) => l.budget_item_id === i.id).map((l) => l.estimate_id))]
+        .map((eid) => estById.get(eid)).filter((e): e is NonNullable<typeof e> => !!e && e.status !== "denied")
+        .map((e) => ({ label: `${e.kind} ${docNumber(job?.job_number ?? null, e.seq)} · ${STATUS_LABEL[e.status]}`, status: e.status }));
+      return { id: i.id, name: i.name, price: itemQty(i, measures.map) * Number(i.unit_price), docs };
+    }),
+  }));
   // Signed documents show what the client signed; the rest, the current estimate.
   const rows: DocRow[] = (ests ?? []).map((e) => {
     const t = sum(e.id);
@@ -44,7 +53,7 @@ export default async function DocumentsPage({ params, searchParams }: { params: 
     <div className="page">
       <div className="otools" style={{ justifyContent: "space-between" }}>
         <p className="fine">Contract (signed): <b style={{ color: "var(--ink)" }}>{usd(signed)}</b></p>
-        <NewDocumentMenu projectId={id} templates={templates} docTemplates={(docTemplates ?? []).map((t) => ({ id: t.id, name: t.name, kind: t.kind, intro: t.intro.slice(0, 160) }))} hasProposal={(ests ?? []).some((e) => e.kind === "Proposal")} />
+        <NewDocumentMenu startOpen={sp.new === "1"} projectId={id} budget={budget} docTemplates={(docTemplates ?? []).map((t) => ({ id: t.id, name: t.name, kind: t.kind, intro: t.intro.slice(0, 160) }))} hasProposal={(ests ?? []).some((e) => e.kind === "Proposal")} />
       </div>
       <DocumentsTable rows={rows} filter={filter} href={(f) => `/projects/${id}/estimates${f === "all" ? "" : `?show=${f}`}`} showJob={false} />
     </div>

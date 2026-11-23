@@ -4,8 +4,8 @@ import { useEffect, useRef, useState, type ComponentProps } from "react";
 import NewEstimate from "./NewEstimate";
 
 // "+ New document" opens the three steps in a drop-down under the button.
-export default function NewDocumentMenu(props: ComponentProps<typeof NewEstimate>) {
-  const [open, setOpen] = useState(false);
+export default function NewDocumentMenu({ startOpen = false, ...props }: ComponentProps<typeof NewEstimate> & { startOpen?: boolean }) {
+  const [open, setOpen] = useState(startOpen);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;

@@ -10,7 +10,7 @@ export default async function EstimatePage({ params }: { params: Promise<{ id: s
   const supabase = await createClient();
   const [{ data: est }, { data: groups }, { data: items }, { data: steps }, { data: job }, { data: catGroups }, { data: catItems }, { data: types }, { data: units }, measures] = await Promise.all([
     supabase.from("estimates").select("id, seq, kind, name, status, intro, terms, issued_on, signed_at, signed_by_name, sent_at, signature, declined_at, decline_reason").eq("id", eid).eq("project_id", id).maybeSingle(),
-    supabase.from("estimate_groups").select("id, name, description, client_view, display_qty, display_unit, position").eq("estimate_id", eid).order("position"),
+    supabase.from("estimate_groups").select("id, name, description, client_view, display_qty, display_unit, position, budget_group_id").eq("estimate_id", eid).order("position"),
     supabase.from("estimate_items").select("id, group_id, catalog_item_id, name, description, cost_type_id, unit_id, quantity, unit_cost, unit_price, measurement_id, qty_factor, waste_pct, position").eq("estimate_id", eid).order("position"),
     supabase.from("estimate_payment_steps").select("id, name, percent, position").eq("estimate_id", eid).order("position"),
     supabase.from("projects").select("job_number").eq("id", id).maybeSingle(),
