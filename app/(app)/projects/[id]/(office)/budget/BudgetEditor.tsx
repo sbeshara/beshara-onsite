@@ -150,7 +150,6 @@ export default function BudgetEditor(props: {
                 ...(open ? gItems : []).map((it) => {
                   const q = qty(it), m = measure(it.measurement_id);
                   const ec = q * Number(it.unit_cost), ep = q * Number(it.unit_price);
-                  const docs = props.on[it.id] ?? [];
                   return (
                     <tr key={it.id} className="sheet-i" onFocus={() => setActive(g.id)}>
                       <td className="c-name"><textarea className="sheet-in" rows={1} ref={wrap ? grow : undefined} onInput={(e) => wrap && grow(e.currentTarget)} defaultValue={it.name} aria-label="Item name" onBlur={(e) => e.target.value !== it.name && patchItem(it.id, { name: e.target.value })} /></td>
