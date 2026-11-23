@@ -659,7 +659,9 @@ export async function importBudgets(): Promise<{ jobs: number; items: number; li
   // uses come across (onto the real job); the rest was the payment breakdown.
   const twinOf = new Map<string, string>();
   for (const p of projects ?? []) for (const t of (p.jobtread_invoice_job_ids as string[]) ?? []) if (!projectOf.has(t)) twinOf.set(t, p.id as string);
-  const usedByDocs = new Set(lines.map((l) => l.jobCostItem?.id).filter(Boolean) as string[]);
+  const { data: importedDocs } = await db.from("estimates").select("jobtread_document_id").not("jobtread_document_id", "is", null).neq("status", "denied");
+  const docIds = new Set((importedDocs ?? []).map((d) => d.jobtread_document_id as string));
+  const usedByDocs = new Set(lines.filter((l) => docIds.has(l.document.id)).map((l) => l.jobCostItem?.id).filter(Boolean) as string[]);
   const unitId = new Map((units ?? []).map((u) => [u.name as string, u.id as number]));
   const typeId = new Map((types ?? []).map((t) => [t.name as string, t.id as number]));
   const already = new Set(have.map((r) => r.jobtread_id as string));
