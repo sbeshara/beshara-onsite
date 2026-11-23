@@ -480,7 +480,7 @@ export async function importInvoices(batch = 40): Promise<{ done: number; remain
   const [{ data: done }, { data: projects }, { data: steps }, { data: existing }] = await Promise.all([
     db.from("invoices").select("jobtread_document_id").not("jobtread_document_id", "is", null),
     db.from("projects").select("id, jobtread_job_id, jobtread_invoice_job_ids").not("jobtread_job_id", "is", null),
-    db.from("estimate_payment_steps").select("id, name, percent, estimate_id, estimates!inner(project_id, status, kind)").eq("estimates.status", "approved"),
+    db.from("estimate_payment_steps").select("id, name, percent, estimate_id, estimates!inner(project_id, status, kind, client_copy)").eq("estimates.status", "approved"),
     db.from("invoices").select("project_id, seq, step_id").neq("status", "void"),
   ]);
   const imported = new Set((done ?? []).map((r) => r.jobtread_document_id as string));
@@ -492,11 +492,12 @@ export async function importInvoices(batch = 40): Promise<{ done: number; remain
   const projectFor = (jobId: string) => realJob.get(jobId) ?? twinJob.get(jobId);
   const takenSeq = new Set((existing ?? []).map((r) => `${r.project_id}:${r.seq}`));
   const usedSteps = new Set((existing ?? []).map((r) => r.step_id as string | null).filter(Boolean) as string[]);
-  type Step = { id: string; name: string; percent: number; estimate_id: string; project_id: string };
+  type Step = { id: string; name: string; percent: number; estimate_id: string; project_id: string; kind: string; amount: number };
   const stepsByProject = new Map<string, Step[]>();
-  for (const s of (steps ?? []) as unknown as { id: string; name: string; percent: number; estimate_id: string; estimates: { project_id: string } }[]) {
+  for (const s of (steps ?? []) as unknown as { id: string; name: string; percent: number; estimate_id: string; estimates: { project_id: string; kind: string; client_copy: { total?: number } | null } }[]) {
     const pid = s.estimates.project_id;
-    stepsByProject.set(pid, [...(stepsByProject.get(pid) ?? []), { id: s.id, name: s.name, percent: Number(s.percent), estimate_id: s.estimate_id, project_id: pid }]);
+    const amount = Math.round((s.estimates.client_copy?.total ?? 0) * Number(s.percent)) / 100;
+    stepsByProject.set(pid, [...(stepsByProject.get(pid) ?? []), { id: s.id, name: s.name, percent: Number(s.percent), estimate_id: s.estimate_id, project_id: pid, kind: s.estimates.kind, amount }]);
   }
   const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
@@ -516,6 +517,14 @@ export async function importInvoices(batch = 40): Promise<{ done: number; remain
       const pct = Number(m[1]), label = norm(line.name.replace(m[0], ""));
       step = (stepsByProject.get(pid) ?? []).find((s) => !usedSteps.has(s.id) && Math.abs(s.percent - pct) < 0.01 && (norm(s.name) === label || norm(s.name).split(" ")[0] === label.split(" ")[0]));
       if (step) break;
+    }
+    // Change orders and extras were billed as one line ("HVAC Change Order
+    // 100%", "Glass Partitions"): match the invoice to the signed change order
+    // or additional scope (or any unbilled step) with exactly the same amount.
+    if (!step) {
+      const amt = Math.round(Number(i.price) * 100) / 100;
+      const same = (stepsByProject.get(pid) ?? []).filter((s) => !usedSteps.has(s.id) && Math.abs(s.amount - amt) < 0.02);
+      step = same.find((s) => s.kind !== "Proposal") ?? (same.length === 1 ? same[0] : undefined);
     }
     const lines = i.costItems.nodes.map((n) => n.name).filter(Boolean);
     const description = `${lines.slice(0, 3).join(", ")}${lines.length > 3 ? ", …" : ""}`.slice(0, 180) + ` (JobTread ${i.job!.number}-${i.number})`;
