@@ -89,6 +89,9 @@ export default function Rail({
           <Link className="navi" href="/office/customers" aria-current={path.startsWith("/office/customers") ? "page" : undefined}>
             <PeopleIcon /> Customers
           </Link>
+          <Link className="navi" href="/office/documents" aria-current={path.startsWith("/office/documents") ? "page" : undefined}>
+            <BookIcon /> Documents
+          </Link>
           <Link className="navi" href="/office/invoicing" aria-current={path.startsWith("/office/invoicing") ? "page" : undefined}>
             <DocIcon /> Invoicing
           </Link>

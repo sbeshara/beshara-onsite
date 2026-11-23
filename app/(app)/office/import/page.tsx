@@ -81,13 +81,13 @@ export default async function ImportPage() {
             <section className="ocard">
               <h2>2. Proposals, change orders and templates</h2>
               <p>
-                {docs.templates} document templates (with their intros and terms), {docs.approved} signed documents and {docs.pending} sent but not signed.
+                {docs.templates} document templates (with their intros and terms), {docs.approved} signed documents, {docs.pending} sent but not signed, and {docs.declined} declined.
                 {docs.imported ? ` ${docs.imported} already imported.` : ""}
               </p>
               <p className="fine">
                 Run this after step 1. Signed documents arrive signed and locked, keeping their JobTread number (e.g. 2714-9), groups, items and prices.
                 Each job&apos;s JobTread &quot;Payment Schedule&quot; becomes its main proposal&apos;s payment steps when the percentages add up to 100%.
-                Documents sent but not signed in JobTread arrive as drafts you can send from OnSite.
+                Documents sent but not signed in JobTread arrive as drafts you can send from OnSite; declined ones stay on record as declined.
               </p>
               <RunDocuments />
             </section>

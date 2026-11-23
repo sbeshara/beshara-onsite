@@ -262,7 +262,7 @@ async function fetchDocs() {
   const pick = (key: string) => (r: Record<string, unknown>) => (r.organization as Record<string, Page<never>>)[key];
   const [templates, docs, schedules] = await Promise.all([
     all<JTTemplate>((page) => o({ documentTemplates: { $: { size: 20, ...(page ? { page } : {}) }, nodes: { id: {}, name: {}, type: {}, description: {}, footer: {}, dueDays: {} }, nextPage: {} } }), pick("documentTemplates")),
-    all<JTDocHead>((page) => o({ documents: { $: { size: 50, where: { and: [["type", "customerOrder"], ["status", "in", ["approved", "pending"]], ["name", "!=", "Payment Schedule"]] }, ...(page ? { page } : {}) },
+    all<JTDocHead>((page) => o({ documents: { $: { size: 50, where: { and: [["type", "customerOrder"], ["status", "in", ["approved", "pending", "denied"]], ["name", "!=", "Payment Schedule"]] }, ...(page ? { page } : {}) },
       nodes: { id: {}, name: {}, number: {}, status: {}, issueDate: {}, signedAt: {}, showQuantity: {}, price: {}, job: { id: {} } }, nextPage: {} } }), pick("documents")),
     all<{ job: { id: string } | null; costItems: { nodes: { name: string }[] } }>((page) => o({ documents: { $: { size: 10, where: { and: [["type", "customerOrder"], ["status", "approved"], ["name", "Payment Schedule"]] }, ...(page ? { page } : {}) },
       nodes: { job: { id: {} }, costItems: { $: { size: 30 }, nodes: { name: {} } } }, nextPage: {} } }), pick("documents")),
@@ -289,13 +289,13 @@ async function fetchDocDetail(head: JTDocHead): Promise<JTDoc> {
   return { ...head, description: first.description, footer: first.footer, costGroups: first.costGroups, costItems: { nodes: items } };
 }
 
-export type DocPlan = { templates: number; approved: number; pending: number; imported: number };
+export type DocPlan = { templates: number; approved: number; pending: number; declined: number; imported: number };
 
 export async function planDocuments(): Promise<DocPlan> {
   const { templates, docs } = await fetchDocs();
   const { data } = await createAdminClient().from("estimates").select("jobtread_document_id").not("jobtread_document_id", "is", null);
   const done = new Set((data ?? []).map((r) => r.jobtread_document_id as string));
-  return { templates: templates.length, approved: docs.filter((d) => d.status === "approved").length, pending: docs.filter((d) => d.status === "pending").length, imported: docs.filter((d) => done.has(d.id)).length };
+  return { templates: templates.length, approved: docs.filter((d) => d.status === "approved").length, pending: docs.filter((d) => d.status === "pending").length, declined: docs.filter((d) => d.status === "denied").length, imported: docs.filter((d) => done.has(d.id)).length };
 }
 
 // Imports templates, then up to `batch` documents not imported yet. Call it
@@ -375,7 +375,7 @@ export async function importDocuments(batch = 15): Promise<{ done: number; remai
       project_id: pid, seq: taken ? null : d.number, kind, name: d.name.slice(0, 160), status: "draft",
       intro: jtMarkdown(d.description), terms: jtMarkdown(d.footer), issued_on: d.issueDate ?? undefined,
       template_id: tplByName.get(d.name) ?? null, jobtread_document_id: d.id,
-      imported_note: d.status === "approved" ? "Signed in JobTread" : "Sent from JobTread, not signed there yet",
+      imported_note: d.status === "approved" ? "Signed in JobTread" : d.status === "denied" ? "Declined in JobTread" : "Sent from JobTread, not signed there yet",
     }).select("id").single(), `${d.name} #${d.number}`) as { id: string };
     try {
 
@@ -404,10 +404,14 @@ export async function importDocuments(batch = 15): Promise<{ done: number; remai
 
     const steps = kind !== "Proposal" ? [{ name: "Due on approval", percent: 100 }]
       : mainProposal.get(pid) === d.id && planFor.get(pid) ? planFor.get(pid)!
-      : d.status === "approved" ? [{ name: "Per contract", percent: 100 }]
+      : d.status !== "pending" ? [{ name: "Per contract", percent: 100 }]
       : [{ name: "Deposit on signing", percent: 10 }, { name: "Rough-in complete", percent: 30 }, { name: "Finishes complete", percent: 50 }, { name: "Final walkthrough", percent: 10 }];
     check(await db.from("estimate_payment_steps").insert(steps.map((s, n) => ({ ...s, estimate_id: est.id, position: n }))), "payment steps");
 
+    // Declined ones stay on record as declined.
+    if (d.status === "denied") {
+      check(await db.from("estimates").update({ status: "denied", declined_at: d.issueDate ? `${d.issueDate}T12:00:00Z` : null, decline_reason: "Declined in JobTread" }).eq("id", est.id), "declined status");
+    }
     // Signed ones are frozen as signed, with the client's copy for invoicing.
     if (d.status === "approved") {
       const copy = await buildClientCopy(db, pid, est.id);

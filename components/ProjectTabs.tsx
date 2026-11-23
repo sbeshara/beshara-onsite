@@ -26,7 +26,7 @@ export default function ProjectTabs({ projectId, fileCount, team = false, office
       </Link>
       {tab(`${base}/files`, "files", <>Files <span className="count">{fileCount}</span></>, <DocIcon />)}
       {!team && proposals > 0 && tab(`${base}/proposals`, "proposals", <>Proposals <span className="count">{proposals}</span></>, <BookIcon />)}
-      {office && tab(`${base}/estimates`, "estimates", "Estimates", <BookIcon />)}
+      {office && tab(`${base}/estimates`, "estimates", "Documents", <BookIcon />)}
       {team && !office && tab(`${base}/scope`, "scope", "Scope", <BookIcon />)}
       {team && tab(`${base}/plans`, "plans", "Plans & Takeoff", <HardHatIcon />)}
       {office && tab(`${base}/invoicing`, "invoicing", "Invoicing", <DocIcon />)}

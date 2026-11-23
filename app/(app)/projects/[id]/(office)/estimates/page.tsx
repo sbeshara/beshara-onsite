@@ -1,18 +1,20 @@
-import Link from "next/link";
-import { docNumber, itemQty, STATUS_LABEL, totals } from "@/lib/estimates";
+import DocumentsTable, { docFilter, type DocRow } from "@/components/DocumentsTable";
+import type { ClientCopy } from "@/lib/client-copy";
+import { itemQty, totals } from "@/lib/estimates";
 import { usd } from "@/lib/office";
 import { createClient } from "@/lib/supabase/server";
 import { jobMeasures } from "./load";
 import NewEstimate from "./NewEstimate";
 
-export const metadata = { title: "Estimates · Beshara OnSite" };
+export const metadata = { title: "Documents · Beshara OnSite" };
 
-export default async function EstimatesPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function DocumentsPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ show?: string }> }) {
   const { id } = await params;
+  const filter = docFilter((await searchParams).show);
   const supabase = await createClient();
   const [{ data: job }, { data: ests }, { data: items }, { data: groups }, { data: catItems }, { data: docTemplates }, measures] = await Promise.all([
     supabase.from("projects").select("job_number").eq("id", id).maybeSingle(),
-    supabase.from("estimates").select("id, seq, kind, name, status, issued_on, signed_at").eq("project_id", id).order("seq"),
+    supabase.from("estimates").select("id, seq, kind, name, status, issued_on, signed_at, client_copy").eq("project_id", id).order("seq"),
     supabase.from("estimate_items").select("estimate_id, quantity, unit_cost, unit_price, measurement_id, qty_factor, waste_pct, estimates!inner(project_id)").eq("estimates.project_id", id),
     supabase.from("cost_groups").select("id, name, parent_id").eq("archived", false).order("position"),
     supabase.from("cost_items").select("cost_group_id").eq("archived", false),
@@ -31,38 +33,22 @@ export default async function EstimatesPage({ params }: { params: Promise<{ id: 
       const kids = all.filter((c) => c.parent_id === g.id);
       return { id: g.id, name: g.name, groups: kids.map((k) => k.name), items: (catItems ?? []).filter((i) => kids.some((k) => k.id === i.cost_group_id)).length };
     });
-  const signed = (ests ?? []).filter((e) => e.status === "approved").reduce((s, e) => s + sum(e.id).price, 0);
+  // Signed documents show what the client signed; the rest, the current estimate.
+  const rows: DocRow[] = (ests ?? []).map((e) => {
+    const t = sum(e.id);
+    const price = e.status === "approved" && e.client_copy ? (e.client_copy as ClientCopy).total : t.price;
+    return { id: e.id, seq: e.seq, project_id: id, job_number: job?.job_number ?? null, kind: e.kind, name: e.name, status: e.status, issued_on: e.issued_on, signed_at: e.signed_at, cost: t.cost, price };
+  });
+  const signed = rows.filter((r) => r.status === "approved").reduce((s, r) => s + r.price, 0);
   return (
     <div className="page">
       <div className="otools" style={{ justifyContent: "space-between" }}>
         <p className="fine">Contract (signed): <b style={{ color: "var(--ink)" }}>{usd(signed)}</b></p>
+        <a className="btn" href="#new">+ New document</a>
       </div>
-      <div className="box otable-wrap">
-        {ests?.length ? (
-          <table className="otable">
-            <thead><tr><th>Document</th><th>Status</th><th>Issued</th><th className="r">Cost</th><th className="r">Price</th><th className="r">Margin</th></tr></thead>
-            <tbody>
-              {ests.map((e) => {
-                const t = sum(e.id);
-                return (
-                  <tr key={e.id}>
-                    <td><Link className="rowlink" href={`/projects/${id}/estimates/${e.id}`}>{e.name}</Link><small>{e.kind} {docNumber(job?.job_number, e.seq)}</small></td>
-                    <td><span className="pill">{STATUS_LABEL[e.status]}</span></td>
-                    <td>{new Date(e.issued_on + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</td>
-                    <td className="r">{usd(t.cost)}</td>
-                    <td className="r"><b>{usd(t.price)}</b></td>
-                    <td className={`r ${t.margin < 25 ? "margin-lo" : ""}`}>{t.price ? `${t.margin.toFixed(1)}%` : ""}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        ) : (
-          <p className="empty">No estimates yet. Start a proposal below.</p>
-        )}
-      </div>
+      <DocumentsTable rows={rows} filter={filter} href={(f) => `/projects/${id}/estimates${f === "all" ? "" : `?show=${f}`}`} showJob={false} />
       <section className="ocard" id="new">
-        <h2>New estimate</h2>
+        <h2>New document</h2>
         <NewEstimate projectId={id} templates={templates} docTemplates={(docTemplates ?? []).map((t) => ({ id: t.id, name: t.name, kind: t.kind, intro: t.intro.slice(0, 160) }))} hasProposal={(ests ?? []).some((e) => e.kind === "Proposal")} />
       </section>
     </div>
