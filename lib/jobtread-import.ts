@@ -602,6 +602,17 @@ type JTBudgetGroup = { id: string; name: string; description: string | null; pos
 type JTBudgetItem = { id: string; name: string; description: string | null; quantity: number | null; unitCost: number | null; unitPrice: number | null; position: string | null; costType: { name: string } | null; unit: { name: string } | null; costGroup: { id: string } | null; job: { id: string } };
 type JTDocLine = { name: string; position: string | null; document: { id: string }; jobCostItem: { id: string } | null };
 
+// Every row of a query, 1,000 at a time (the database's page limit).
+async function everyRow<T>(q: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>): Promise<T[]> {
+  const out: T[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await q(from, from + 999);
+    if (error) throw new Error(error.message);
+    out.push(...(data ?? []));
+    if ((data ?? []).length < 1000) return out;
+  }
+}
+
 async function fetchBudgets() {
   const org = await orgId();
   const o = (inner: Record<string, unknown>) => ({ organization: { $: { id: org }, ...inner } });
@@ -637,16 +648,16 @@ export async function importBudgets(): Promise<{ jobs: number; items: number; li
     return r.data;
   };
   const { groups, items, lines } = await fetchBudgets();
-  const [{ data: projects }, { data: units }, { data: types }, { data: have }] = await Promise.all([
+  const [{ data: projects }, { data: units }, { data: types }, have] = await Promise.all([
     db.from("projects").select("id, jobtread_job_id").not("jobtread_job_id", "is", null),
     db.from("units").select("id, name"),
     db.from("cost_types").select("id, name"),
-    db.from("budget_items").select("jobtread_id").not("jobtread_id", "is", null),
+    everyRow((a, b) => db.from("budget_items").select("jobtread_id").not("jobtread_id", "is", null).order("id").range(a, b)),
   ]);
   const projectOf = new Map((projects ?? []).map((p) => [p.jobtread_job_id as string, p.id as string]));
   const unitId = new Map((units ?? []).map((u) => [u.name as string, u.id as number]));
   const typeId = new Map((types ?? []).map((t) => [t.name as string, t.id as number]));
-  const already = new Set((have ?? []).map((r) => r.jobtread_id as string));
+  const already = new Set(have.map((r) => r.jobtread_id as string));
   const byPos = (a: { position: string | null }, b: { position: string | null }) => (a.position ?? "").localeCompare(b.position ?? "");
   const groupById = new Map(groups.map((g) => [g.id, g]));
   // A group's place: its ancestors' positions, then its own.
@@ -688,19 +699,20 @@ export async function importBudgets(): Promise<{ jobs: number; items: number; li
 
   // Link document lines to their budget lines: within each imported document,
   // lines are matched by name, in order.
-  const [{ data: bis }, { data: ests }] = await Promise.all([
-    db.from("budget_items").select("id, jobtread_id, group_id").not("jobtread_id", "is", null),
+  const [bis, { data: ests }] = await Promise.all([
+    everyRow((a, b) => db.from("budget_items").select("id, jobtread_id, group_id").not("jobtread_id", "is", null).order("id").range(a, b)),
     db.from("estimates").select("id, jobtread_document_id").not("jobtread_document_id", "is", null).neq("status", "denied"),
   ]);
-  const budgetOf = new Map((bis ?? []).map((b) => [b.jobtread_id as string, b]));
+  const budgetOf = new Map(bis.map((b) => [b.jobtread_id as string, b]));
   const estOf = new Map((ests ?? []).map((e) => [e.jobtread_document_id as string, e.id as string]));
   const linesByDoc = new Map<string, JTDocLine[]>();
   for (const l of lines) if (l.jobCostItem && estOf.has(l.document.id)) linesByDoc.set(l.document.id, [...(linesByDoc.get(l.document.id) ?? []), l]);
   const links: { item: string; budget: string }[] = [];
   const groupLinks = new Map<string, string>(); // estimate group -> budget group
   const estIds = [...linesByDoc.keys()].map((d) => estOf.get(d)!);
-  for (let i = 0; i < estIds.length; i += 50) {
-    const { data: eis } = await db.from("estimate_items").select("id, estimate_id, group_id, name, position, budget_item_id, estimate_groups(position)").in("estimate_id", estIds.slice(i, i + 50));
+  for (let i = 0; i < estIds.length; i += 20) {
+    const ids = estIds.slice(i, i + 20);
+    const eis = await everyRow((a, b) => db.from("estimate_items").select("id, estimate_id, group_id, name, position, budget_item_id, estimate_groups(position)").in("estimate_id", ids).order("id").range(a, b));
     const byEst = new Map<string, NonNullable<typeof eis>>();
     for (const e of eis ?? []) byEst.set(e.estimate_id, [...(byEst.get(e.estimate_id) ?? []), e]);
     for (const [doc, ls] of linesByDoc) {
