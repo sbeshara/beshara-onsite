@@ -70,21 +70,31 @@ export async function budgetFromDocuments(db: SupabaseClient, projectId: string)
   return made;
 }
 
-// Copy a catalog group into the budget: its sub-groups become budget groups,
-// each with its catalog items (quantity from the catalog, else 0).
+// Copy a catalog group into the budget. A group that holds other groups
+// (e.g. "New Build") brings each sub-group, at any depth, as its own budget
+// group with its catalog items; a plain group comes in as itself.
 export async function budgetFromCatalog(db: SupabaseClient, projectId: string, catalogGroupId: string) {
   const [{ data: cg }, { data: ci }, { count }] = await Promise.all([
     db.from("cost_groups").select("id, parent_id, name, description, position").eq("archived", false),
     db.from("cost_items").select("id, cost_group_id, name, description, cost_type_id, unit_id, quantity, unit_cost, unit_price, position").eq("archived", false),
     db.from("budget_groups").select("id", { count: "exact", head: true }).eq("project_id", projectId),
   ]);
-  const root = (cg ?? []).find((g) => g.id === catalogGroupId);
+  const all = cg ?? [];
+  const root = all.find((g) => g.id === catalogGroupId);
   if (!root) throw new Error("That catalog group is gone. Reload and try again.");
-  const kids = (cg ?? []).filter((g) => g.parent_id === root.id).sort((a, b) => a.position - b.position);
+  const itemsOf = (gid: string) => (ci ?? []).filter((x) => x.cost_group_id === gid).sort((a, b) => a.position - b.position);
+  // Depth-first: the group itself if it has items, then each sub-group.
+  const order: typeof all = [];
+  const walk = (g: (typeof all)[number], top: boolean) => {
+    const kids = all.filter((k) => k.parent_id === g.id).sort((a, b) => a.position - b.position);
+    if (!kids.length || itemsOf(g.id).length || (top && !kids.length)) order.push(g);
+    kids.forEach((k) => walk(k, false));
+  };
+  walk(root, true);
   let pos = count ?? 0, n = 0;
-  for (const g of kids.length ? kids : [root]) {
+  for (const g of order) {
     const bg = check(await db.from("budget_groups").insert({ project_id: projectId, name: g.name, description: g.description, position: pos++ }).select("id").single(), "budget group");
-    const its = (ci ?? []).filter((x) => x.cost_group_id === g.id).sort((a, b) => a.position - b.position);
+    const its = itemsOf(g.id);
     if (its.length)
       check(await db.from("budget_items").insert(its.map((x, i) => ({
         project_id: projectId, group_id: bg!.id, catalog_item_id: x.id, name: x.name, description: x.description,

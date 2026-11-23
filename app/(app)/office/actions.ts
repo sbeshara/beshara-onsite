@@ -368,7 +368,7 @@ export async function addBudgetTemplate(projectId: string, catalogGroupId: strin
     const n = await budgetFromCatalog(await createClient(), projectId, catalogGroupId);
     await (await createClient()).from("projects").update({ status: "Estimating" }).eq("id", projectId).eq("status", "New Lead");
     revalidatePath(`/projects/${projectId}/budget`);
-    return { ok: `Added ${n} items to the budget.` };
+    return { ok: `Added ${n} ${n === 1 ? "item" : "items"} to the budget.` };
   } catch (e) {
     return { error: (e as Error).message };
   }
