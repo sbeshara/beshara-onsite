@@ -649,12 +649,17 @@ export async function importBudgets(): Promise<{ jobs: number; items: number; li
   };
   const { groups, items, lines } = await fetchBudgets();
   const [{ data: projects }, { data: units }, { data: types }, have] = await Promise.all([
-    db.from("projects").select("id, jobtread_job_id").not("jobtread_job_id", "is", null),
+    db.from("projects").select("id, jobtread_job_id, jobtread_invoice_job_ids").not("jobtread_job_id", "is", null),
     db.from("units").select("id, name"),
     db.from("cost_types").select("id, name"),
     everyRow((a, b) => db.from("budget_items").select("jobtread_id").not("jobtread_id", "is", null).order("id").range(a, b)),
   ]);
   const projectOf = new Map((projects ?? []).map((p) => [p.jobtread_job_id as string, p.id as string]));
+  // Duplicate invoice jobs: only the budget lines a signed or pending document
+  // uses come across (onto the real job); the rest was the payment breakdown.
+  const twinOf = new Map<string, string>();
+  for (const p of projects ?? []) for (const t of (p.jobtread_invoice_job_ids as string[]) ?? []) if (!projectOf.has(t)) twinOf.set(t, p.id as string);
+  const usedByDocs = new Set(lines.map((l) => l.jobCostItem?.id).filter(Boolean) as string[]);
   const unitId = new Map((units ?? []).map((u) => [u.name as string, u.id as number]));
   const typeId = new Map((types ?? []).map((t) => [t.name as string, t.id as number]));
   const already = new Set(have.map((r) => r.jobtread_id as string));
@@ -665,10 +670,10 @@ export async function importBudgets(): Promise<{ jobs: number; items: number; li
   const cmpPath = (a: string[], b: string[]) => { for (let i = 0; i < Math.max(a.length, b.length); i++) { const c = (a[i] ?? "").localeCompare(b[i] ?? ""); if (c) return c; } return 0; };
 
   let jobs = 0, count = 0;
-  const jobIds = [...new Set(items.map((i) => i.job.id))].filter((j) => projectOf.has(j));
+  const jobIds = [...new Set(items.map((i) => i.job.id))].filter((j) => projectOf.has(j) || twinOf.has(j));
   for (const jt of jobIds) {
-    const pid = projectOf.get(jt)!;
-    const its = items.filter((i) => i.job.id === jt && !already.has(i.id));
+    const pid = projectOf.get(jt) ?? twinOf.get(jt)!;
+    const its = items.filter((i) => i.job.id === jt && !already.has(i.id) && (projectOf.has(jt) || usedByDocs.has(i.id)));
     if (!its.length) continue;
     // Groups that hold this job's items, in budget order, plus "Other".
     const used = [...new Set(its.map((i) => i.costGroup?.id ?? "none"))];
