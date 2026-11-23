@@ -296,13 +296,13 @@ export default function EstimateEditor(props: {
                     <input inputMode="decimal" defaultValue={price.price_qty ?? ""} placeholder="Qty" aria-label="Quantity" onBlur={(e) => setP({ price_qty: e.target.value.trim() ? num(e.target.value) : null })} />
                     <select value={price.price_unit} aria-label="Unit" onChange={(e) => setP({ price_unit: e.target.value })}>{["SF", "LF", "EA"].map((u) => <option key={u}>{u}</option>)}</select>
                     <span>×</span>
-                    <MoneyInput value={price.price_rate ?? 0} label="Price per unit" locked={false} onChange={() => {}} onCommit={(v) => setP({ price_rate: v })} />
+                    <MoneyInput key={`r${price.price_rate}`} value={price.price_rate ?? 0} label="Price per unit" locked={false} onChange={() => {}} onCommit={(v) => setP({ price_rate: v })} />
                     <span>/{price.price_unit}</span>
                   </div>
                 )}
                 <label className="showopt"><input type="radio" name="pm" checked={price.price_mode === "lump"} onChange={() => setP({ price_mode: "lump" })} />One lump sum</label>
                 {price.price_mode === "lump" && (
-                  <div className="price-unit"><MoneyInput value={price.price_lump ?? 0} label="Lump sum" locked={false} onChange={() => {}} onCommit={(v) => setP({ price_lump: v })} /></div>
+                  <div className="price-unit"><MoneyInput key={`l${price.price_lump}`} value={price.price_lump ?? 0} label="Lump sum" locked={false} onChange={() => {}} onCommit={(v) => setP({ price_lump: v })} /></div>
                 )}
                 {price.price_mode !== "items" && (
                   <>
