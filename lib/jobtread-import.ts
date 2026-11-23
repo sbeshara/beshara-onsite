@@ -50,7 +50,7 @@ async function orgId() {
 }
 
 type JTGroup = { id: string; name: string; description: string | null; parentCostGroup: { id: string } | null };
-type JTItem = { id: string; name: string; description: string | null; quantity: number | null; unitCost: number | null; unitPrice: number | null; costType: { name: string } | null; unit: { name: string } | null; costGroup: { id: string } | null };
+type JTItem = { id: string; name: string; description: string | null; quantity: number | null; unitCost: number | null; unitPrice: number | null; costType: { name: string } | null; unit: { name: string } | null; costGroup: { id: string } | null; organizationCostItem?: { id: string } | null };
 type JTCF = { nodes: { value: unknown; customField: { name: string } }[] };
 type JTAccount = { id: string; name: string; locations: { nodes: { id: string; address: string | null }[] } };
 type JTContact = { id: string; name: string; title: string | null; account: { id: string } | null; customFieldValues: JTCF };
@@ -78,7 +78,7 @@ async function fetchAll() {
   // inside each customer.
   const [groups, items, accounts, contacts, jobs] = await Promise.all([
     all<JTGroup>((page) => o({ costGroups: { $: { size: 100, where: [["job", "id"], null], ...(page ? { page } : {}) }, nodes: { id: {}, name: {}, description: {}, parentCostGroup: { id: {} } }, nextPage: {} } }), pick("costGroups")),
-    all<JTItem>((page) => o({ costItems: { $: { size: 100, where: [["job", "id"], null], ...(page ? { page } : {}) }, nodes: { id: {}, name: {}, description: {}, quantity: {}, unitCost: {}, unitPrice: {}, costType: { name: {} }, unit: { name: {} }, costGroup: { id: {} } }, nextPage: {} } }), pick("costItems")),
+    all<JTItem>((page) => o({ costItems: { $: { size: 100, where: [["job", "id"], null], ...(page ? { page } : {}) }, nodes: { id: {}, name: {}, description: {}, quantity: {}, unitCost: {}, unitPrice: {}, costType: { name: {} }, unit: { name: {} }, costGroup: { id: {} }, organizationCostItem: { id: {} } }, nextPage: {} } }), pick("costItems")),
     all<JTAccount>((page) => o({ accounts: { $: { size: 100, where: ["type", "customer"], ...(page ? { page } : {}) }, nodes: { id: {}, name: {}, locations: { $: { size: 1 }, nodes: { id: {}, address: {} } } }, nextPage: {} } }), pick("accounts")),
     all<JTContact>((page) => o({ contacts: { $: { size: 100, where: [["account", "type"], "customer"], ...(page ? { page } : {}) }, nodes: { id: {}, name: {}, title: {}, account: { id: {} }, customFieldValues: { $: { size: 4 }, nodes: { value: {}, customField: { name: {} } } } }, nextPage: {} } }), pick("contacts")),
     all<JTJob>((page) => o({ jobs: { $: { size: 100, ...(page ? { page } : {}) }, nodes: { id: {}, name: {}, number: {}, closedOn: {}, createdAt: {}, location: { id: {}, name: {}, address: {}, account: { id: {}, name: {} } }, customFieldValues: { $: { size: 5 }, nodes: { value: {}, customField: { name: {} } } } }, nextPage: {} } }), pick("jobs")),
@@ -160,7 +160,15 @@ export async function runImport(byUserId: string): Promise<ImportResult> {
   for (const x of data.groups.filter((x) => x.parentCostGroup)) {
     check(await db.from("cost_groups").update({ parent_id: groupIds.get(x.parentCostGroup!.id) ?? null }).eq("jobtread_id", x.id), "cost groups");
   }
-  check(await db.from("cost_items").upsert(data.items.map((x, n) => ({
+  // An item inside a group usually points to a library item and leaves its
+  // price, cost, unit, type and description blank to use that item's.
+  const byJtId = new Map(data.items.map((x) => [x.id, x]));
+  const src = (x: JTItem) => (x.organizationCostItem && x.organizationCostItem.id !== x.id ? byJtId.get(x.organizationCostItem.id) : undefined);
+  const filled = data.items.map((x) => {
+    const s = src(x);
+    return s ? { ...x, description: x.description ?? s.description, quantity: x.quantity ?? s.quantity, unitCost: x.unitCost ?? s.unitCost, unitPrice: x.unitPrice ?? s.unitPrice, costType: x.costType ?? s.costType, unit: x.unit ?? s.unit } : x;
+  });
+  check(await db.from("cost_items").upsert(filled.map((x, n) => ({
     jobtread_id: x.id,
     name: x.name.slice(0, 200),
     description: x.description ?? "",
@@ -172,6 +180,11 @@ export async function runImport(byUserId: string): Promise<ImportResult> {
     cost_group_id: x.costGroup ? groupIds.get(x.costGroup.id) ?? null : null,
     position: n,
   })), { onConflict: "jobtread_id" }), "cost items");
+  const itemIds = new Map((check(await db.from("cost_items").select("id, jobtread_id").not("jobtread_id", "is", null), "cost items") ?? []).map((r) => [r.jobtread_id as string, r.id as string]));
+  for (const x of data.items) {
+    const s = src(x);
+    if (s && itemIds.has(s.id)) check(await db.from("cost_items").update({ source_item_id: itemIds.get(s.id) }).eq("jobtread_id", x.id), "cost item links");
+  }
 
   // Customers and contacts.
   check(await db.from("customers").upsert(data.accounts.map((a) => ({ jobtread_account_id: a.id, name: a.name.slice(0, 160) || "Unnamed customer", address: a.locations.nodes[0]?.address ?? null })), { onConflict: "jobtread_account_id" }), "customers");
