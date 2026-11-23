@@ -164,6 +164,9 @@ export default function EstimateEditor(props: {
       {error && <p className="err" role="alert">{error}</p>}
 
       <div className="est-grid">
+        {locked ? (
+          <ReadOnlyDoc groups={groups} items={items} qty={qty} unitAbbr={unitAbbr} groupSum={(gid) => groupSum(gid).price} total={sum.price} />
+        ) : (
         <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
           {groups.map((g) => {
             const gs = groupSum(g.id);
@@ -256,6 +259,7 @@ export default function EstimateEditor(props: {
             </div>
           )}
         </div>
+        )}
 
         <aside className="est-side">
           <section className="ocard">
@@ -266,7 +270,7 @@ export default function EstimateEditor(props: {
             <div className="sumrow big"><span>Client price</span><b className="num">{usd(sum.price)}</b></div>
             <p className="fine">Cost, profit and margin never show on the client&apos;s copy.</p>
           </section>
-          <section className="ocard">
+          {!locked && <section className="ocard">
             <h2>Client sees</h2>
             {show ? (
               <div className="showlist">
@@ -284,7 +288,7 @@ export default function EstimateEditor(props: {
             ) : (
               <p className="fine">Run the latest database update to turn these options on.</p>
             )}
-          </section>
+          </section>}
           <section className="ocard">
             <div className="sec-h" style={{ marginBottom: 0 }}><h2>Payment schedule</h2>{!locked && <button className="textbtn" onClick={addStep}>+ Step</button>}</div>
             <p className="fine">Invoices are made from these steps.</p>
@@ -341,6 +345,40 @@ export default function EstimateEditor(props: {
         const it = items.find((i) => i.id === linking)!;
         return <LinkDialog item={it} unit={unitAbbr(it.unit_id)} measures={props.measures} projectId={props.projectId} onClose={() => setLinking(null)} onSave={(mid, f, w) => { link(it, mid, f, w); setLinking(null); }} />;
       })()}
+    </div>
+  );
+}
+
+// A signed document, read-only: each group as a band with its total, then
+// its line items with their descriptions, quantities and prices.
+function ReadOnlyDoc({ groups, items, qty, unitAbbr, groupSum, total }: {
+  groups: EstGroup[]; items: EstItem[]; qty: (it: EstItem) => number; unitAbbr: (id: number | null) => string; groupSum: (gid: string) => number; total: number;
+}) {
+  const cur = (n: number) => n.toLocaleString("en-US", { style: "currency", currency: "USD" });
+  return (
+    <div className="rodoc">
+      <div className="rodoc-head"><span>Item</span><span className="r">Qty</span><span className="r">Unit price</span><span className="r">Total</span></div>
+      {groups.map((g) => {
+        const gItems = items.filter((i) => i.group_id === g.id).sort((a, b) => a.position - b.position);
+        return (
+          <section key={g.id} className="rodoc-group">
+            <div className="rodoc-gh"><b>{g.name}</b><b className="r">{cur(groupSum(g.id))}</b></div>
+            {g.description && <p className="rodoc-gdesc">{g.description}</p>}
+            {gItems.map((it) => {
+              const q = qty(it), u = unitAbbr(it.unit_id);
+              return (
+                <div key={it.id} className="rodoc-item">
+                  <div className="rodoc-name">{it.name}{it.description && <small>{it.description}</small>}</div>
+                  <span className="r">{u === "LS" ? "Lump sum" : `${fmtQty(q)} ${u}`}</span>
+                  <span className="r">{cur(Number(it.unit_price))}</span>
+                  <span className="r">{cur(q * Number(it.unit_price))}</span>
+                </div>
+              );
+            })}
+          </section>
+        );
+      })}
+      <div className="rodoc-total"><span>Total</span><b>{cur(total)}</b></div>
     </div>
   );
 }

@@ -1005,3 +1005,17 @@ body.chat-expanded{overflow:hidden}
 /* Estimate groups alternate light green and white */
 .est-grid .est-group:nth-of-type(odd) .est-gh{background:color-mix(in srgb,var(--brand) 16%,var(--doc-ok))}
 .est-grid .est-group:nth-of-type(even) .est-gh{background:var(--sunk)}
+
+/* Signed document, read-only */
+.rodoc{border:1px solid var(--line);border-radius:12px;background:var(--surface);overflow:hidden;min-width:0;font-size:14px}
+.rodoc-head,.rodoc-item{display:grid;grid-template-columns:minmax(0,1fr) 110px 120px 120px;gap:12px;align-items:start}
+.rodoc-head{padding:9px 16px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)}
+.rodoc .r{text-align:right;font-variant-numeric:tabular-nums}
+.rodoc-gh{display:flex;justify-content:space-between;gap:12px;padding:10px 16px;background:var(--sunk);border-bottom:1px solid var(--line);font-size:14.5px}
+.rodoc-gdesc{padding:8px 16px 0 28px;margin:0;color:var(--muted);font-size:13px;white-space:pre-wrap}
+.rodoc-item{padding:10px 16px 10px 28px;border-bottom:1px solid var(--line);border-left:3px solid var(--line);margin-left:16px;padding-left:12px}
+.rodoc-name{white-space:pre-wrap;overflow-wrap:anywhere}
+.rodoc-name small{display:block;color:var(--muted);font-size:12.5px;margin-top:3px;white-space:pre-wrap}
+.rodoc-total{display:flex;justify-content:space-between;padding:14px 16px;font-size:16px;border-top:2px solid var(--line)}
+.rodoc-total b{font-variant-numeric:tabular-nums}
+@media (max-width:700px){.rodoc-head{display:none}.rodoc-item{grid-template-columns:minmax(0,1fr) auto}.rodoc-item > span:nth-of-type(1),.rodoc-item > span:nth-of-type(2){display:none}}
