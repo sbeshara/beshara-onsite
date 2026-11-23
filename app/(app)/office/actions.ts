@@ -553,7 +553,7 @@ export async function runDocumentImport(): Promise<Result & { remaining?: number
   }
 }
 
-export async function runInvoiceImport(): Promise<Result & { remaining?: number; done?: number; skipped?: string[]; linked?: number }> {
+export async function runInvoiceImport(): Promise<Result & { remaining?: number; done?: number; skipped?: string[]; linked?: number; replaced?: number }> {
   try {
     const { me } = await requireOffice();
     if (me.role !== "owner" && me.role !== "admin") return { error: "Only the Owner or Admin can run the import." };

@@ -52,7 +52,7 @@ export default async function InvoicingPage({ searchParams }: { searchParams: Pr
       <div className="kvrow">
         <div><span>Ready to invoice</span><b>{usd(ready.reduce((s, x) => s + x.amount, 0))}</b><small>{ready.length} steps</small></div>
         <div><span>Open invoices</span><b>{usd(open.reduce((s, i) => s + Number(i.amount) - Number(i.paid_total), 0))}</b><small>{open.length} unpaid</small></div>
-        <div><span>Paid, last 30 days</span><b>{usd(invoices.flatMap((i) => i.invoice_payments).filter((p) => today - new Date(p.paid_on).getTime() < 30 * 864e5).reduce((s, p) => s + Number(p.amount), 0))}</b></div>
+        <div><span>Paid, last 30 days</span><b>{usd(invoices.filter((i) => i.status !== "void").flatMap((i) => i.invoice_payments).filter((p) => today - new Date(p.paid_on).getTime() < 30 * 864e5).reduce((s, p) => s + Number(p.amount), 0))}</b></div>
       </div>
       <section className="ocard">
         <h2>Ready to invoice</h2>

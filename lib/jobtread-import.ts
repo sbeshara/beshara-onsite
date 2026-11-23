@@ -470,7 +470,7 @@ export async function planInvoices(): Promise<InvoicePlan> {
 // Paid dates in New York time (JobTread stores midnight Eastern as 04:00/05:00 UTC).
 const nyDate = (iso: string) => new Date(iso).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 
-export async function importInvoices(batch = 40): Promise<{ done: number; remaining: number; skipped: string[]; linked: number }> {
+export async function importInvoices(batch = 40): Promise<{ done: number; remaining: number; skipped: string[]; linked: number; replaced: number }> {
   const db = createAdminClient();
   const check = <T>(r: { data: T; error: { message: string } | null }, what: string) => {
     if (r.error) throw new Error(`Couldn't import ${what}: ${r.error.message}`);
@@ -556,5 +556,31 @@ export async function importInvoices(batch = 40): Promise<{ done: number; remain
     }
     count++;
   }
-  return { done: count, remaining: Math.max(0, todo.length - batch), skipped, linked };
+  const remaining = Math.max(0, todo.length - batch);
+  const replaced = remaining ? 0 : await reconcileReplacedInvoices();
+  return { done: count, remaining, skipped, linked, replaced };
+}
+
+// On jobs that had a duplicate "Internal - Invoices" job, that job's invoices
+// are the billing record: its payment schedule adds up to the signed
+// documents, and older invoices made on the real job were re-entered or
+// redone there. Those older real-job invoices are kept for reference but
+// marked replaced (void), so nothing is counted twice. Safe to run again.
+export async function reconcileReplacedInvoices() {
+  const db = createAdminClient();
+  const { data: projects } = await db.from("projects").select("id, job_number").not("jobtread_invoice_job_ids", "eq", "{}");
+  let replaced = 0;
+  for (const p of projects ?? []) {
+    const { data: invs } = await db.from("invoices").select("id, issued_on, description, status").eq("project_id", p.id).not("jobtread_document_id", "is", null);
+    const fromJob = (d: string) => d.match(/\(JobTread (\S+)-\d+\)/)?.[1];
+    const twin = (invs ?? []).filter((i) => fromJob(i.description) && fromJob(i.description) !== p.job_number);
+    if (!twin.length) continue;
+    const first = twin.map((i) => i.issued_on).sort()[0];
+    const old = (invs ?? []).filter((i) => fromJob(i.description) === p.job_number && i.issued_on < first && i.status !== "void");
+    for (const i of old) {
+      await db.from("invoices").update({ status: "void", step_id: null, description: `Replaced on the invoice job · ${i.description}`.slice(0, 400) }).eq("id", i.id);
+      replaced++;
+    }
+  }
+  return replaced;
 }

@@ -65,7 +65,7 @@ export function RunInvoices() {
         if (r.error) { setMsg({ error: r.error }); break; }
         total += r.done ?? 0;
         linked += r.linked ?? 0;
-        setMsg({ ok: `Imported ${total} invoices (${linked} matched to a payment step)${r.remaining ? `, ${r.remaining} to go…` : "."}${!r.remaining && r.skipped?.length ? ` Skipped ${r.skipped.length}: ${r.skipped.join(", ")}.` : ""}` });
+        setMsg({ ok: `Imported ${total} invoices (${linked} matched to a payment step)${r.remaining ? `, ${r.remaining} to go…` : "."}${!r.remaining && r.replaced ? ` ${r.replaced} older real-job invoices were marked replaced by the invoice job's billing, so nothing is counted twice.` : ""}${!r.remaining && r.skipped?.length ? ` Skipped ${r.skipped.length}: ${r.skipped.join(", ")}.` : ""}` });
         if (!r.remaining) break;
       }
     } finally {

@@ -21,7 +21,7 @@ export default async function JobInvoicing({ params }: { params: Promise<{ id: s
   const email = c?.customer_contacts.find((x) => x.is_primary)?.email ?? c?.customer_contacts.find((x) => x.email)?.email ?? c?.email ?? "";
   const contract = [...new Map(steps.map((s) => [s.estimate.id, s.estimate.total])).values()].reduce((a, b) => a + b, 0);
   const billed = invoices.filter((i) => i.status !== "void" && i.status !== "draft").reduce((s, i) => s + Number(i.amount), 0);
-  const paid = invoices.reduce((s, i) => s + Number(i.paid_total), 0);
+  const paid = invoices.filter((i) => i.status !== "void").reduce((s, i) => s + Number(i.paid_total), 0);
   const estimates = [...new Map(steps.map((s) => [s.estimate.id, s.estimate])).values()];
   return (
     <div className="page">
