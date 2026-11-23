@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { clientShow, type EstGroup, type EstItem, type EstStep } from "@/lib/estimates";
+import { clientShow, loadDocPrices, type EstGroup, type EstItem, type EstStep } from "@/lib/estimates";
 import { measurementValue } from "@/lib/takeoff";
 import { createClient } from "@/lib/supabase/server";
 import { jobMeasures } from "../load";
@@ -23,6 +23,7 @@ export default async function EstimatePage({ params }: { params: Promise<{ id: s
   const { data: chats } = await supabase.from("chats").select("id, name").eq("project_id", id).eq("is_internal", false).order("position");
   if (!est) notFound();
   // Read on its own so a database without the column still opens the editor.
+  const docPriceRow = (await loadDocPrices(supabase, [eid])).get(eid) ?? null;
   const { data: showRow, error: showErr } = await supabase.from("estimates").select("client_show").eq("id", eid).maybeSingle();
   return (
     <EstimateEditor
@@ -31,6 +32,7 @@ export default async function EstimatePage({ params }: { params: Promise<{ id: s
       chats={chats ?? []}
       estimate={est}
       clientShow={showErr ? null : clientShow(showRow?.client_show)}
+      docPrice={docPriceRow}
       groups={(groups ?? []) as EstGroup[]}
       items={(items ?? []) as EstItem[]}
       steps={(steps ?? []) as EstStep[]}

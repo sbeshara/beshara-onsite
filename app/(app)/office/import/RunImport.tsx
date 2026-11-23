@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { runDocumentImport, runInvoiceImport, runJobTreadImport, type Result } from "../actions";
+import { runBudgetImport, runDocumentImport, runInvoiceImport, runJobTreadImport, type Result } from "../actions";
 
 export default function RunImport() {
   const [pending, start] = useTransition();
@@ -79,6 +79,20 @@ export function RunInvoices() {
       </div>
       {msg.error && <p className="err" role="alert">{msg.error}</p>}
       {msg.ok && <p className="ok" role="status">{msg.ok}</p>}
+    </>
+  );
+}
+
+export function RunBudgets() {
+  const [pending, start] = useTransition();
+  const [r, setR] = useState<Result>({});
+  return (
+    <>
+      <div className="actions" style={{ justifyContent: "flex-start" }}>
+        <button className="btn" disabled={pending} onClick={() => start(async () => setR(await runBudgetImport()))}>{pending ? "Importing… (a minute or two)" : "Import job budgets"}</button>
+      </div>
+      {r.error && <p className="err" role="alert">{r.error}</p>}
+      {r.ok && <p className="ok" role="status">{r.ok}</p>}
     </>
   );
 }

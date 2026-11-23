@@ -51,7 +51,7 @@ export default function ProposalDoc({ copy, children }: { copy: ClientCopy; chil
         </section>
         );
       })}
-      <div className="paper-total"><span>Total</span><b>{usd(copy.total)}</b></div>
+      <div className="paper-total"><span>Total{copy.price_line && <small>{copy.price_line}</small>}</span><b>{usd(copy.total)}</b></div>
       {copy.steps.length > 0 && (
         <>
           <h2>Payment schedule</h2>

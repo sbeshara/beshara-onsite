@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { CLIENT_SHOW, CLIENT_VIEWS, docNumber, type ClientShow, STATUS_LABEL, totals, type EstGroup, type EstItem, type EstStep } from "@/lib/estimates";
+import { withCatalogPrice } from "@/lib/budget";
+import { CLIENT_SHOW, CLIENT_VIEWS, docNumber, docPrice as priceOf, ITEMIZED, priceLine, type ClientShow, type DocPrice, STATUS_LABEL, totals, type EstGroup, type EstItem, type EstStep } from "@/lib/estimates";
 import { usd } from "@/lib/office";
 import { KIND_UNIT, fmtQty, linkedQuantity, type MeasureKind } from "@/lib/takeoff";
 import { deleteEstimate, recallEstimate, sendEstimate } from "@/app/(app)/office/actions";
@@ -26,6 +27,7 @@ export default function EstimateEditor(props: {
   projectId: string; jobNumber: string | null; chats: { id: string; name: string }[];
   estimate: { id: string; seq: number; kind: string; name: string; status: string; intro: string; terms: string; issued_on: string; signed_at: string | null; signed_by_name: string | null; sent_at: string | null; signature: string | null; declined_at: string | null; decline_reason: string | null };
   clientShow: ClientShow | null; // null: the database doesn't have the setting yet
+  docPrice: DocPrice | null; // null: the database doesn't have the setting yet
   groups: EstGroup[]; items: EstItem[]; steps: EstStep[];
   catalog: { groups: CatGroup[]; items: CatItem[] }; types: Opt[]; units: Opt[]; measures: MeasureOpt[];
 }) {
@@ -35,6 +37,8 @@ export default function EstimateEditor(props: {
   const [items, setItems] = useState(props.items);
   const [steps, setSteps] = useState(props.steps);
   const [show, setShow] = useState(props.clientShow);
+  const [price, setPrice] = useState<DocPrice>(props.docPrice ?? ITEMIZED);
+  const setP = (patch: Partial<DocPrice>) => { const next = { ...price, ...patch }; setPrice(next); save("estimates", est.id, patch); };
   const [picker, setPicker] = useState<string | null>(null); // group id when adding from the catalog
   const [linking, setLinking] = useState<string | null>(null); // item id being linked to a takeoff
   const [sending, setSending] = useState(false);
@@ -51,7 +55,9 @@ export default function EstimateEditor(props: {
     const m = measure(it.measurement_id);
     return it.measurement_id && m ? linkedQuantity(m.value, Number(it.qty_factor), Number(it.waste_pct)) : Number(it.quantity) || 0;
   };
-  const sum = totals(items.map((i) => ({ q: qty(i), c: Number(i.unit_cost), p: Number(i.unit_price) })));
+  const lines = totals(items.map((i) => ({ q: qty(i), c: Number(i.unit_cost), p: Number(i.unit_price) })));
+  const clientPrice = priceOf(price, lines.price);
+  const sum = { ...lines, price: clientPrice, profit: clientPrice - lines.cost, margin: clientPrice ? ((clientPrice - lines.cost) / clientPrice) * 100 : 0 };
   const groupSum = (gid: string) => totals(items.filter((i) => i.group_id === gid).map((i) => ({ q: qty(i), c: Number(i.unit_cost), p: Number(i.unit_price) })));
   const stepTotal = steps.reduce((s, x) => s + Number(x.percent), 0);
 
@@ -101,7 +107,7 @@ export default function EstimateEditor(props: {
   }
   async function addItems(groupId: string, list: (CatItem | null)[]) {
     const base = items.filter((i) => i.group_id === groupId).length;
-    const fields = list.map((c, n) => ({
+    const fields = list.map((c) => (c ? withCatalogPrice(c, props.catalog.items) : null)).map((c, n) => ({
       catalog_item_id: c?.id ?? null, name: c?.name ?? "New item", description: c?.description ?? "",
       cost_type_id: c?.cost_type_id ?? props.types[0]?.id ?? null, unit_id: c?.unit_id ?? props.units[0]?.id ?? null,
       quantity: c?.quantity ?? (c ? 0 : 1), unit_cost: c?.unit_cost ?? 0, unit_price: c?.unit_price ?? 0, position: base + n,
@@ -173,7 +179,7 @@ export default function EstimateEditor(props: {
 
       <div className="est-grid">
         {locked ? (
-          <ReadOnlyDoc groups={groups} items={items} qty={qty} unitAbbr={unitAbbr} groupSum={(gid) => groupSum(gid).price} total={sum.price} />
+          <ReadOnlyDoc groups={groups} items={items} qty={qty} unitAbbr={unitAbbr} groupSum={(gid) => groupSum(gid).price} total={sum.price} note={price.price_mode !== "items" ? priceLine(price) ?? "Lump sum" : null} />
         ) : (
         <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
           {groups.map((g) => {
@@ -276,8 +282,37 @@ export default function EstimateEditor(props: {
             <div className="sumrow"><span>Profit</span><b className="num">{usd(sum.profit)}</b></div>
             <div className="sumrow"><span>Margin</span><b className={`num ${sum.margin < 25 && sum.price ? "margin-lo" : ""}`}>{sum.price ? `${sum.margin.toFixed(1)}%` : "—"}</b></div>
             <div className="sumrow big"><span>Client price</span><b className="num">{usd(sum.price)}</b></div>
+            {price.price_mode !== "items" && <div className="sumrow"><span className="fine">Line items add up to</span><span className="num fine">{usd(lines.price)}</span></div>}
             <p className="fine">Cost, profit and margin never show on the client&apos;s copy.</p>
           </section>
+          {!locked && props.docPrice && (
+            <section className="ocard">
+              <h2>Client price</h2>
+              <div className="showlist">
+                <label className="showopt"><input type="radio" name="pm" checked={price.price_mode === "items"} onChange={() => setP({ price_mode: "items" })} />Add up the line items</label>
+                <label className="showopt"><input type="radio" name="pm" checked={price.price_mode === "unit"} onChange={() => setP({ price_mode: "unit" })} />One price per unit (e.g. per SF)</label>
+                {price.price_mode === "unit" && (
+                  <div className="price-unit">
+                    <input inputMode="decimal" defaultValue={price.price_qty ?? ""} placeholder="Qty" aria-label="Quantity" onBlur={(e) => setP({ price_qty: e.target.value.trim() ? num(e.target.value) : null })} />
+                    <select value={price.price_unit} aria-label="Unit" onChange={(e) => setP({ price_unit: e.target.value })}>{["SF", "LF", "EA"].map((u) => <option key={u}>{u}</option>)}</select>
+                    <span>×</span>
+                    <MoneyInput value={price.price_rate ?? 0} label="Price per unit" locked={false} onChange={() => {}} onCommit={(v) => setP({ price_rate: v })} />
+                    <span>/{price.price_unit}</span>
+                  </div>
+                )}
+                <label className="showopt"><input type="radio" name="pm" checked={price.price_mode === "lump"} onChange={() => setP({ price_mode: "lump" })} />One lump sum</label>
+                {price.price_mode === "lump" && (
+                  <div className="price-unit"><MoneyInput value={price.price_lump ?? 0} label="Lump sum" locked={false} onChange={() => {}} onCommit={(v) => setP({ price_lump: v })} /></div>
+                )}
+                {price.price_mode !== "items" && (
+                  <>
+                    {lines.price > 0 && <button className="textbtn" style={{ justifySelf: "start" }} onClick={() => price.price_mode === "unit" ? (Number(price.price_qty) ? setP({ price_rate: Math.round((lines.price / Number(price.price_qty)) * 100) / 100 }) : setError("Enter the quantity first.")) : setP({ price_lump: Math.round(lines.price * 100) / 100 })}>Use the line items&apos; total ({usd(lines.price)})</button>}
+                    <p className="fine">The client sees your groups and items without any prices, then this one price{priceLine(price) ? `: ${priceLine(price)}` : ""}. Profit and margin above use it.</p>
+                  </>
+                )}
+              </div>
+            </section>
+          )}
           {!locked && <section className="ocard">
             <h2>Client sees</h2>
             {show ? (
@@ -359,8 +394,8 @@ export default function EstimateEditor(props: {
 
 // A signed document, read-only: each group as a band with its total, then
 // its line items with their descriptions, quantities and prices.
-function ReadOnlyDoc({ groups, items, qty, unitAbbr, groupSum, total }: {
-  groups: EstGroup[]; items: EstItem[]; qty: (it: EstItem) => number; unitAbbr: (id: number | null) => string; groupSum: (gid: string) => number; total: number;
+function ReadOnlyDoc({ groups, items, qty, unitAbbr, groupSum, total, note }: {
+  groups: EstGroup[]; items: EstItem[]; qty: (it: EstItem) => number; unitAbbr: (id: number | null) => string; groupSum: (gid: string) => number; total: number; note: string | null;
 }) {
   const cur = (n: number) => n.toLocaleString("en-US", { style: "currency", currency: "USD" });
   return (
@@ -386,7 +421,7 @@ function ReadOnlyDoc({ groups, items, qty, unitAbbr, groupSum, total }: {
           </section>
         );
       })}
-      <div className="rodoc-total"><span>Total</span><b>{cur(total)}</b></div>
+      <div className="rodoc-total"><span>Total{note && <small className="fine"> · client price: {note}</small>}</span><b>{cur(total)}</b></div>
     </div>
   );
 }

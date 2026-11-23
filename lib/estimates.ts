@@ -23,6 +23,29 @@ export const clientShow = (v: unknown): ClientShow => {
   const o = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
   return Object.fromEntries(Object.keys(CLIENT_SHOW).map((k) => [k, o[k] !== false])) as ClientShow;
 };
+// A document's client price: its lines added up, a price per unit, or a lump sum.
+export type DocPrice = { price_mode: "items" | "unit" | "lump"; price_qty: number | null; price_unit: string; price_rate: number | null; price_lump: number | null };
+export const DOC_PRICE_FIELDS = "price_mode, price_qty, price_unit, price_rate, price_lump";
+export const ITEMIZED: DocPrice = { price_mode: "items", price_qty: null, price_unit: "SF", price_rate: null, price_lump: null };
+export function docPrice(p: DocPrice | null | undefined, itemsPrice: number) {
+  if (p?.price_mode === "unit") return Math.round(Number(p.price_qty ?? 0) * Number(p.price_rate ?? 0) * 100) / 100;
+  if (p?.price_mode === "lump") return Number(p.price_lump ?? 0);
+  return itemsPrice;
+}
+// "2,436 SF × $11.49/SF", shown with the total when priced per unit.
+export function priceLine(p: DocPrice | null | undefined) {
+  if (p?.price_mode !== "unit") return null;
+  const q = Number(p.price_qty ?? 0).toLocaleString("en-US", { maximumFractionDigits: 2 });
+  const r = Number(p.price_rate ?? 0).toLocaleString("en-US", { style: "currency", currency: "USD" });
+  return `${q} ${p.price_unit} × ${r}/${p.price_unit}`;
+}
+// Read separately so pages still work on a database without these columns.
+export async function loadDocPrices(supabase: { from: (t: string) => any }, ids: string[]): Promise<Map<string, DocPrice>> { // eslint-disable-line @typescript-eslint/no-explicit-any
+  if (!ids.length) return new Map();
+  const { data, error } = await supabase.from("estimates").select(`id, ${DOC_PRICE_FIELDS}`).in("id", ids);
+  if (error || !data) return new Map();
+  return new Map((data as (DocPrice & { id: string })[]).map((r) => [r.id, r]));
+}
 export const STATUS_LABEL: Record<string, string> = { draft: "Draft", pending: "Awaiting signature", approved: "Signed", denied: "Declined" };
 
 // An item's quantity: from its takeoff when linked, otherwise what was typed.

@@ -579,6 +579,19 @@ export async function runDocumentImport(): Promise<Result & { remaining?: number
   }
 }
 
+export async function runBudgetImport(): Promise<Result> {
+  try {
+    const { me } = await requireOffice();
+    if (me.role !== "owner" && me.role !== "admin") return { error: "Only the Owner or Admin can run the import." };
+    const { importBudgets } = await import("@/lib/jobtread-import");
+    const r = await importBudgets();
+    revalidatePath("/", "layout");
+    return { ok: r.items ? `Imported ${r.items.toLocaleString()} budget lines on ${r.jobs} jobs, and linked ${r.linked.toLocaleString()} document lines to them.` : `Budgets were already imported.${r.linked ? ` Linked ${r.linked} more document lines.` : ""}` };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}
+
 export async function runInvoiceImport(): Promise<Result & { remaining?: number; done?: number; skipped?: string[]; linked?: number; replaced?: number }> {
   try {
     const { me } = await requireOffice();

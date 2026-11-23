@@ -20,5 +20,6 @@ export type ClientCopy = {
     items: { name: string; description: string; qty?: string; unit_price?: number; unit?: string; total?: number }[];
   }[];
   total: number;
+  price_line?: string | null; // e.g. "2,436 SF × $11.49/SF" when priced per unit
   steps: { name: string; percent: number; amount: number }[];
 };

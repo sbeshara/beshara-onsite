@@ -1083,3 +1083,8 @@ textarea.sheet-in{height:27px}
 .sheet .c-desc{min-width:200px;max-width:300px}
 .sheet-qty .ei-take{visibility:hidden}
 .sheet-i:hover .sheet-qty .ei-take,.sheet-qty .ei-take:focus{visibility:visible}
+.price-unit{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding-left:24px;font-size:13.5px}
+.price-unit input,.price-unit select{border:1px solid var(--line);border-radius:6px;padding:4px 6px;background:var(--sunk);font:inherit}
+.price-unit input:not(.ei-money){width:80px;text-align:right}
+.price-unit input.ei-money{width:auto;text-align:right}
+.paper-total small{display:block;font-size:13px;color:var(--muted);font-weight:400}

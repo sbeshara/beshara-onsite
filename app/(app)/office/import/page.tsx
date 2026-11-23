@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getAccess } from "@/lib/access";
-import { planDocuments, planImport, planInvoices, type DocPlan, type ImportPlan, type InvoicePlan } from "@/lib/jobtread-import";
-import RunImport, { RunDocuments, RunInvoices } from "./RunImport";
+import { planBudgets, planDocuments, planImport, planInvoices, type BudgetPlan, type DocPlan, type ImportPlan, type InvoicePlan } from "@/lib/jobtread-import";
+import RunImport, { RunBudgets, RunDocuments, RunInvoices } from "./RunImport";
 
 export const metadata = { title: "JobTread Import · Beshara OnSite" };
 export const dynamic = "force-dynamic";
@@ -13,9 +13,10 @@ export default async function ImportPage() {
   let plan: ImportPlan | null = null;
   let docs: DocPlan | null = null;
   let invs: InvoicePlan | null = null;
+  let buds: BudgetPlan | null = null;
   let error = "";
   try {
-    [plan, docs, invs] = await Promise.all([planImport(), planDocuments(), planInvoices()]);
+    [plan, docs, invs, buds] = await Promise.all([planImport(), planDocuments(), planInvoices(), planBudgets().catch(() => null)]);
   } catch (e) {
     error = (e as Error).message;
   }
@@ -105,6 +106,20 @@ export default async function ImportPage() {
                 Invoices for a step like &quot;Permits 10%&quot; mark that payment step invoiced; others show under Other invoices on the job.
               </p>
               <RunInvoices />
+            </section>
+          )}
+          {buds && (
+            <section className="ocard">
+              <h2>4. Job budgets</h2>
+              <p>
+                {buds.items.toLocaleString()} budget lines in {buds.groups.toLocaleString()} groups across your JobTread jobs.
+                {buds.imported ? ` ${buds.imported.toLocaleString()} already imported.` : ""}
+              </p>
+              <p className="fine">
+                Run this after step 2. Each job&apos;s JobTread budget, itemized with costs and prices, becomes its Budget tab, and each signed or pending
+                document line is linked to the budget line it came from. The duplicate invoice jobs are skipped. New jobs start with an empty budget.
+              </p>
+              <RunBudgets />
             </section>
           )}
         </>

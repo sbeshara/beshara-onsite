@@ -588,3 +588,142 @@ export async function reconcileReplacedInvoices() {
   }
   return replaced;
 }
+
+// ---------------------------------------------------------------------------
+// Job budgets
+// ---------------------------------------------------------------------------
+
+// Each job's JobTread budget (its cost groups and cost items, outside any
+// document) becomes the job's OnSite budget, and each signed or pending
+// document line is linked to the budget line it came from. Nested groups are
+// flattened in order; items without a group go into "Other". Repeatable:
+// budget lines keep their JobTread ID. Invoice twin jobs are skipped.
+type JTBudgetGroup = { id: string; name: string; description: string | null; position: string | null; job: { id: string }; parentCostGroup: { id: string } | null };
+type JTBudgetItem = { id: string; name: string; description: string | null; quantity: number | null; unitCost: number | null; unitPrice: number | null; position: string | null; costType: { name: string } | null; unit: { name: string } | null; costGroup: { id: string } | null; job: { id: string } };
+type JTDocLine = { name: string; position: string | null; document: { id: string }; jobCostItem: { id: string } | null };
+
+async function fetchBudgets() {
+  const org = await orgId();
+  const o = (inner: Record<string, unknown>) => ({ organization: { $: { id: org }, ...inner } });
+  const pick = (key: string) => (r: Record<string, unknown>) => (r.organization as Record<string, Page<never>>)[key];
+  const onJob = { and: [[["job", "id"], "!=", null], [["document", "id"], null]] };
+  const [groups, items, lines] = await Promise.all([
+    all<JTBudgetGroup>((page) => o({ costGroups: { $: { size: 100, where: onJob, ...(page ? { page } : {}) }, nodes: { id: {}, name: {}, description: {}, position: {}, job: { id: {} }, parentCostGroup: { id: {} } }, nextPage: {} } }), pick("costGroups")),
+    all<JTBudgetItem>((page) => o({ costItems: { $: { size: 100, where: onJob, ...(page ? { page } : {}) }, nodes: { id: {}, name: {}, description: {}, quantity: {}, unitCost: {}, unitPrice: {}, position: {}, costType: { name: {} }, unit: { name: {} }, costGroup: { id: {} }, job: { id: {} } }, nextPage: {} } }), pick("costItems")),
+    all<JTDocLine>((page) => o({ costItems: { $: { size: 100, where: { and: [[["document", "type"], "customerOrder"], [["document", "status"], "in", ["approved", "pending"]]] }, ...(page ? { page } : {}) }, nodes: { name: {}, position: {}, document: { id: {} }, jobCostItem: { id: {} } }, nextPage: {} } }), pick("costItems")),
+  ]);
+  return { groups, items, lines };
+}
+
+export type BudgetPlan = { jobs: number; groups: number; items: number; imported: number };
+
+// Counts only (all jobs, including invoice twins, which the import skips).
+export async function planBudgets(): Promise<BudgetPlan> {
+  const org = await orgId();
+  const onJob = { and: [[["job", "id"], "!=", null], [["document", "id"], null]] };
+  const [r, { count }] = await Promise.all([
+    pave<{ organization: { costGroups: { count: number }; costItems: { count: number }; jobs: { count: number } } }>({
+      organization: { $: { id: org }, costGroups: { $: { where: onJob }, count: {} }, costItems: { $: { where: onJob }, count: {} }, jobs: { count: {} } },
+    }),
+    createAdminClient().from("budget_items").select("id", { count: "exact", head: true }).not("jobtread_id", "is", null),
+  ]);
+  return { jobs: r.organization.jobs.count, groups: r.organization.costGroups.count, items: r.organization.costItems.count, imported: count ?? 0 };
+}
+
+export async function importBudgets(): Promise<{ jobs: number; items: number; linked: number }> {
+  const db = createAdminClient();
+  const check = <T>(r: { data: T; error: { message: string } | null }, what: string) => {
+    if (r.error) throw new Error(`Couldn't import ${what}: ${r.error.message}`);
+    return r.data;
+  };
+  const { groups, items, lines } = await fetchBudgets();
+  const [{ data: projects }, { data: units }, { data: types }, { data: have }] = await Promise.all([
+    db.from("projects").select("id, jobtread_job_id").not("jobtread_job_id", "is", null),
+    db.from("units").select("id, name"),
+    db.from("cost_types").select("id, name"),
+    db.from("budget_items").select("jobtread_id").not("jobtread_id", "is", null),
+  ]);
+  const projectOf = new Map((projects ?? []).map((p) => [p.jobtread_job_id as string, p.id as string]));
+  const unitId = new Map((units ?? []).map((u) => [u.name as string, u.id as number]));
+  const typeId = new Map((types ?? []).map((t) => [t.name as string, t.id as number]));
+  const already = new Set((have ?? []).map((r) => r.jobtread_id as string));
+  const byPos = (a: { position: string | null }, b: { position: string | null }) => (a.position ?? "").localeCompare(b.position ?? "");
+  const groupById = new Map(groups.map((g) => [g.id, g]));
+  // A group's place: its ancestors' positions, then its own.
+  const path = (g: JTBudgetGroup): string[] => [...(g.parentCostGroup && groupById.get(g.parentCostGroup.id) ? path(groupById.get(g.parentCostGroup.id)!) : []), g.position ?? ""];
+  const cmpPath = (a: string[], b: string[]) => { for (let i = 0; i < Math.max(a.length, b.length); i++) { const c = (a[i] ?? "").localeCompare(b[i] ?? ""); if (c) return c; } return 0; };
+
+  let jobs = 0, count = 0;
+  const jobIds = [...new Set(items.map((i) => i.job.id))].filter((j) => projectOf.has(j));
+  for (const jt of jobIds) {
+    const pid = projectOf.get(jt)!;
+    const its = items.filter((i) => i.job.id === jt && !already.has(i.id));
+    if (!its.length) continue;
+    // Groups that hold this job's items, in budget order, plus "Other".
+    const used = [...new Set(its.map((i) => i.costGroup?.id ?? "none"))];
+    const ordered = used
+      .map((gid) => ({ gid, g: gid === "none" ? null : groupById.get(gid) ?? null }))
+      .sort((a, b) => (a.g ? 0 : 1) - (b.g ? 0 : 1) || (a.g && b.g ? cmpPath(path(a.g), path(b.g)) : 0));
+    const { data: existing } = await db.from("budget_groups").select("id, jobtread_id, position").eq("project_id", pid);
+    const groupIdOf = new Map((existing ?? []).filter((g) => g.jobtread_id).map((g) => [g.jobtread_id as string, g.id as string]));
+    let pos = (existing ?? []).length;
+    const fresh = ordered.filter((x) => !groupIdOf.has(x.g ? x.g.id : `none:${jt}`));
+    if (fresh.length) {
+      const rows = check(await db.from("budget_groups").insert(fresh.map((x) => ({
+        project_id: pid, jobtread_id: x.g ? x.g.id : `none:${jt}`, name: (x.g?.name ?? "Other").slice(0, 120), description: x.g?.description ?? "", position: pos++,
+      }))).select("id, jobtread_id"), `budget groups for job ${jt}`);
+      for (const r of rows ?? []) groupIdOf.set(r.jobtread_id as string, r.id as string);
+    }
+    const rows = ordered.flatMap((x) =>
+      its.filter((i) => (i.costGroup?.id ?? "none") === x.gid).sort(byPos).map((i, n) => ({
+        project_id: pid, group_id: groupIdOf.get(x.g ? x.g.id : `none:${jt}`)!, jobtread_id: i.id,
+        name: i.name.slice(0, 200), description: jtMarkdown(i.description), quantity: i.quantity ?? 0, unit_cost: i.unitCost ?? 0, unit_price: i.unitPrice ?? 0,
+        unit_id: i.unit ? unitId.get(i.unit.name) ?? null : null, cost_type_id: i.costType ? typeId.get(i.costType.name) ?? null : null, position: n,
+      })),
+    );
+    check(await db.from("budget_items").insert(rows), `budget items for job ${jt}`);
+    count += rows.length;
+    jobs++;
+  }
+
+  // Link document lines to their budget lines: within each imported document,
+  // lines are matched by name, in order.
+  const [{ data: bis }, { data: ests }] = await Promise.all([
+    db.from("budget_items").select("id, jobtread_id, group_id").not("jobtread_id", "is", null),
+    db.from("estimates").select("id, jobtread_document_id").not("jobtread_document_id", "is", null).neq("status", "denied"),
+  ]);
+  const budgetOf = new Map((bis ?? []).map((b) => [b.jobtread_id as string, b]));
+  const estOf = new Map((ests ?? []).map((e) => [e.jobtread_document_id as string, e.id as string]));
+  const linesByDoc = new Map<string, JTDocLine[]>();
+  for (const l of lines) if (l.jobCostItem && estOf.has(l.document.id)) linesByDoc.set(l.document.id, [...(linesByDoc.get(l.document.id) ?? []), l]);
+  const links: { item: string; budget: string }[] = [];
+  const groupLinks = new Map<string, string>(); // estimate group -> budget group
+  const estIds = [...linesByDoc.keys()].map((d) => estOf.get(d)!);
+  for (let i = 0; i < estIds.length; i += 50) {
+    const { data: eis } = await db.from("estimate_items").select("id, estimate_id, group_id, name, position, budget_item_id, estimate_groups(position)").in("estimate_id", estIds.slice(i, i + 50));
+    const byEst = new Map<string, NonNullable<typeof eis>>();
+    for (const e of eis ?? []) byEst.set(e.estimate_id, [...(byEst.get(e.estimate_id) ?? []), e]);
+    for (const [doc, ls] of linesByDoc) {
+      const mine = byEst.get(estOf.get(doc)!);
+      if (!mine) continue;
+      const gp = (e: (typeof mine)[number]) => (e.estimate_groups as unknown as { position: number } | null)?.position ?? 0;
+      const queue = new Map<string, (typeof mine)[number][]>();
+      for (const e of [...mine].sort((a, b) => gp(a) - gp(b) || a.position - b.position)) queue.set(e.name.trim().toLowerCase(), [...(queue.get(e.name.trim().toLowerCase()) ?? []), e]);
+      for (const l of [...ls].sort(byPos)) {
+        const e = queue.get(l.name.trim().toLowerCase())?.shift();
+        const b = budgetOf.get(l.jobCostItem!.id);
+        if (!e || !b || e.budget_item_id) continue;
+        links.push({ item: e.id, budget: b.id as string });
+        if (!groupLinks.has(e.group_id)) groupLinks.set(e.group_id, b.group_id as string);
+      }
+    }
+  }
+  let linked = 0;
+  for (let i = 0; i < links.length; i += 500) {
+    const { data, error } = await db.rpc("link_budget_items", { links: links.slice(i, i + 500) });
+    if (error) throw new Error(`Couldn't link document lines to the budget: ${error.message}`);
+    linked += Number(data) || 0;
+  }
+  for (const [eg, bg] of groupLinks) await db.from("estimate_groups").update({ budget_group_id: bg }).eq("id", eg).is("budget_group_id", null);
+  return { jobs, items: count, linked };
+}

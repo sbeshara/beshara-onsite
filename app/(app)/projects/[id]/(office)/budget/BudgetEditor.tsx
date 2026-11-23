@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { totals } from "@/lib/estimates";
-import type { BudgetGroup, BudgetItem } from "@/lib/budget";
+import { withCatalogPrice, type BudgetGroup, type BudgetItem } from "@/lib/budget";
 import { KIND_UNIT, fmtQty, linkedQuantity } from "@/lib/takeoff";
 import { addBudgetTemplate } from "@/app/(app)/office/actions";
 import { CatalogPicker, LinkDialog, MoneyInput, grow, num, type CatGroup, type CatItem, type MeasureOpt, type Opt } from "../estimates/[eid]/EstimateEditor";
@@ -71,7 +71,7 @@ export default function BudgetEditor(props: {
       if (!gid) return;
     }
     const base = items.filter((i) => i.group_id === gid).length;
-    const rows = list.map((c, n) => ({
+    const rows = list.map((c) => (c ? withCatalogPrice(c, props.catalog.items) : null)).map((c, n) => ({
       project_id: props.projectId, group_id: gid, catalog_item_id: c?.id ?? null, name: c?.name ?? "New item", description: c?.description ?? "",
       cost_type_id: c?.cost_type_id ?? props.types[0]?.id ?? null, unit_id: c?.unit_id ?? props.units[0]?.id ?? null,
       quantity: c?.quantity ?? (c ? 0 : 1), unit_cost: c?.unit_cost ?? 0, unit_price: c?.unit_price ?? 0, position: base + n,

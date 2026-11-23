@@ -15,7 +15,7 @@ export async function jobMeasures(supabase: SupabaseClient, projectId: string) {
 
 // Builds the client's copy of an estimate from its current contents.
 export async function buildClientCopy(supabase: SupabaseClient, projectId: string, estimateId: string): Promise<import("@/lib/client-copy").ClientCopy | null> {
-  const { docNumber, itemQty, clientShow } = await import("@/lib/estimates");
+  const { docNumber, itemQty, clientShow, docPrice, priceLine, loadDocPrices } = await import("@/lib/estimates");
   const { fmtQty } = await import("@/lib/takeoff");
   const [{ data: est }, { data: groups }, { data: items }, { data: steps }, { data: job }, { data: units }, measures] = await Promise.all([
     supabase.from("estimates").select("seq, kind, name, intro, terms, issued_on").eq("id", estimateId).eq("project_id", projectId).maybeSingle(),
@@ -30,6 +30,8 @@ export async function buildClientCopy(supabase: SupabaseClient, projectId: strin
   // Read on its own so a database without the column still works.
   const { data: showRow } = await supabase.from("estimates").select("client_show").eq("id", estimateId).maybeSingle();
   const show = clientShow(showRow?.client_show);
+  const priced = (await loadDocPrices(supabase, [estimateId])).get(estimateId);
+  const oneprice = !!priced && priced.price_mode !== "items"; // per unit or lump sum: no prices on lines or groups
   const abbr = (id: number | null) => units?.find((u) => u.id === id)?.abbr ?? "";
   const money = (n: number) => n.toLocaleString("en-US", { style: "currency", currency: "USD" });
   type Row = { group_id: string; name: string; description: string; unit_id: number | null; quantity: number; unit_price: number; measurement_id: string | null; qty_factor: number; waste_pct: number };
@@ -43,14 +45,14 @@ export async function buildClientCopy(supabase: SupabaseClient, projectId: strin
       description: g.description,
       view,
       total,
-      hide_total: !show.group_total || undefined,
-      display: !show.group_total ? null : view === "total" ? (g.display_unit && g.display_qty ? `${fmtQty(Number(g.display_qty))} ${g.display_unit} × ${money(total / Number(g.display_qty))}/${g.display_unit}` : "Lump sum") : null,
+      hide_total: oneprice || !show.group_total || undefined,
+      display: oneprice || !show.group_total ? null : view === "total" ? (g.display_unit && g.display_qty ? `${fmtQty(Number(g.display_qty))} ${g.display_unit} × ${money(total / Number(g.display_qty))}/${g.display_unit}` : "Lump sum") : null,
       items:
         view === "total" || !show.items
           ? []
           : gi.map((r) => {
               const u = abbr(r.unit_id);
-              const prices = view === "items";
+              const prices = view === "items" && !oneprice;
               return {
                 name: r.name,
                 description: show.descriptions ? r.description : "",
@@ -61,7 +63,7 @@ export async function buildClientCopy(supabase: SupabaseClient, projectId: strin
             }),
     };
   });
-  const total = Math.round(out.reduce((s, g) => s + g.total, 0) * 100) / 100;
+  const total = docPrice(priced, Math.round(out.reduce((s, g) => s + g.total, 0) * 100) / 100);
   const customer = job.customers as unknown as { name: string; customer_contacts: { name: string; is_primary: boolean }[] } | null;
   const contact = customer?.customer_contacts.find((c) => c.is_primary) ?? customer?.customer_contacts[0];
   return {
@@ -73,8 +75,9 @@ export async function buildClientCopy(supabase: SupabaseClient, projectId: strin
     project: [job.name, job.address || job.town].filter(Boolean) as string[],
     intro: est.intro,
     terms: est.terms,
-    groups: out,
+    groups: oneprice ? out.map((g) => ({ ...g, total: 0 })) : out,
     total,
+    price_line: priceLine(priced),
     steps: (steps ?? []).map((s) => ({ name: s.name, percent: Number(s.percent), amount: Math.round(total * Number(s.percent)) / 100 })),
   };
 }

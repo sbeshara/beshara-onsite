@@ -70,6 +70,16 @@ export async function budgetFromDocuments(db: SupabaseClient, projectId: string)
   return made;
 }
 
+// In the catalog, items inside groups are often copies without prices; the
+// priced item with the same name (usually ungrouped) fills them in.
+type Priced = { name: string; cost_group_id: string | null; quantity: number | null; unit_cost: number | null; unit_price: number | null };
+export function withCatalogPrice<T extends Priced>(item: T, catalog: Priced[]): T {
+  if (item.unit_cost != null || item.unit_price != null) return item;
+  const k = key(item.name);
+  const src = catalog.filter((c) => key(c.name) === k && (c.unit_cost != null || c.unit_price != null)).sort((a, b) => Number(a.cost_group_id != null) - Number(b.cost_group_id != null))[0];
+  return src ? { ...item, unit_cost: src.unit_cost, unit_price: src.unit_price } : item;
+}
+
 // Copy a catalog group into the budget. A group that holds other groups
 // (e.g. "New Build") brings each sub-group, at any depth, as its own budget
 // group with its catalog items; a plain group comes in as itself.
@@ -94,7 +104,7 @@ export async function budgetFromCatalog(db: SupabaseClient, projectId: string, c
   let pos = count ?? 0, n = 0;
   for (const g of order) {
     const bg = check(await db.from("budget_groups").insert({ project_id: projectId, name: g.name, description: g.description, position: pos++ }).select("id").single(), "budget group");
-    const its = itemsOf(g.id);
+    const its = itemsOf(g.id).map((x) => withCatalogPrice(x, ci ?? []));
     if (its.length)
       check(await db.from("budget_items").insert(its.map((x, i) => ({
         project_id: projectId, group_id: bg!.id, catalog_item_id: x.id, name: x.name, description: x.description,

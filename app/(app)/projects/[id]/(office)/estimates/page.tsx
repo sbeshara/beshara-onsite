@@ -1,6 +1,6 @@
 import DocumentsTable, { docFilter, type DocRow } from "@/components/DocumentsTable";
 import type { ClientCopy } from "@/lib/client-copy";
-import { docNumber, itemQty, STATUS_LABEL, totals } from "@/lib/estimates";
+import { docNumber, docPrice, itemQty, loadDocPrices, STATUS_LABEL, totals } from "@/lib/estimates";
 import { usd } from "@/lib/office";
 import { createClient } from "@/lib/supabase/server";
 import { jobMeasures } from "./load";
@@ -42,10 +42,11 @@ export default async function DocumentsPage({ params, searchParams }: { params: 
       return { id: i.id, name: i.name, price: itemQty(i, measures.map) * Number(i.unit_price), docs };
     }),
   }));
+  const prices = await loadDocPrices(supabase, (ests ?? []).map((e) => e.id));
   // Signed documents show what the client signed; the rest, the current estimate.
   const rows: DocRow[] = (ests ?? []).map((e) => {
     const t = sum(e.id);
-    const price = e.status === "approved" && e.client_copy ? (e.client_copy as ClientCopy).total : t.price;
+    const price = e.status === "approved" && e.client_copy ? (e.client_copy as ClientCopy).total : docPrice(prices.get(e.id), t.price);
     return { id: e.id, seq: e.seq, project_id: id, job_number: job?.job_number ?? null, kind: e.kind, name: e.name, status: e.status, issued_on: e.issued_on, signed_at: e.signed_at, cost: t.cost, price };
   });
   const signed = rows.filter((r) => r.status === "approved").reduce((s, r) => s + r.price, 0);
