@@ -13,6 +13,10 @@ type CatGroup = { id: string; name: string; parent_id: string | null; descriptio
 type CatItem = { id: string; cost_group_id: string | null; name: string; description: string; cost_type_id: number | null; unit_id: number | null; quantity: number | null; unit_cost: number | null; unit_price: number | null };
 type MeasureOpt = { id: string; name: string; kind: MeasureKind; sheet: string; value: number | null };
 
+const money = (v: number | string | null) => (Number(v) || 0).toFixed(2);
+// A textarea that grows to show all of its text.
+const grow = (el: HTMLTextAreaElement | null) => { if (el) { el.style.height = "auto"; el.style.height = `${el.scrollHeight}px`; } };
+
 const num = (v: string) => {
   const n = Number(v.replace(/[$,\s]/g, ""));
   return Number.isFinite(n) ? n : 0;
@@ -127,7 +131,7 @@ export default function EstimateEditor(props: {
   return (
     <div className="page est">
       <div className="est-bar">
-        <Link className="textbtn" href={`/projects/${props.projectId}/estimates`}>← Estimates</Link>
+        <Link className="textbtn" href={`/projects/${props.projectId}/estimates`}>← Documents</Link>
         <input
           className="est-title"
           defaultValue={est.name}
@@ -184,20 +188,19 @@ export default function EstimateEditor(props: {
                 )}
                 <label className="est-desc">
                   <span>Description the client reads</span>
-                  <textarea defaultValue={g.description} rows={3} readOnly={locked} onBlur={(e) => e.target.value !== g.description && patchGroup(g.id, { description: e.target.value })} />
+                  <textarea ref={grow} onInput={(e) => grow(e.currentTarget)} defaultValue={g.description} rows={2} readOnly={locked} onBlur={(e) => e.target.value !== g.description && patchGroup(g.id, { description: e.target.value })} />
                 </label>
                 <div className="otable-wrap">
                   <table className="otable est-items">
-                    <thead><tr><th>Item</th><th>Type</th><th className="r">Qty</th><th>Unit</th><th className="r">Unit cost</th><th className="r">Unit price</th><th className="r">Total</th><th className="r">Margin</th>{!locked && <th />}</tr></thead>
+                    <thead><tr><th>Item</th><th>Type</th><th className="r">Qty</th><th>Unit</th><th className="r">Unit cost</th><th className="r">Unit price</th><th className="r">Total</th>{!locked && <th />}</tr></thead>
                     <tbody>
                       {gItems.map((it) => {
                         const q = qty(it), m = measure(it.measurement_id);
-                        const margin = Number(it.unit_price) ? ((Number(it.unit_price) - Number(it.unit_cost)) / Number(it.unit_price)) * 100 : 0;
                         return (
                           <tr key={it.id}>
-                            <td style={{ minWidth: 220 }}>
-                              <input className="ei-name" defaultValue={it.name} aria-label="Item name" readOnly={locked} onBlur={(e) => e.target.value !== it.name && patchItem(it.id, { name: e.target.value })} />
-                              <input className="ei-desc" defaultValue={it.description} placeholder={locked ? "" : "Description (optional)"} aria-label="Item description" readOnly={locked} onBlur={(e) => e.target.value !== it.description && patchItem(it.id, { description: e.target.value })} />
+                            <td>
+                              <textarea className="ei-name" ref={grow} onInput={(e) => grow(e.currentTarget)} rows={1} defaultValue={it.name} aria-label="Item name" readOnly={locked} onBlur={(e) => e.target.value !== it.name && patchItem(it.id, { name: e.target.value })} />
+                              <textarea className="ei-desc" ref={grow} onInput={(e) => grow(e.currentTarget)} rows={1} defaultValue={it.description} placeholder={locked ? "" : "Description (optional)"} aria-label="Item description" readOnly={locked} onBlur={(e) => e.target.value !== it.description && patchItem(it.id, { description: e.target.value })} />
                               {it.measurement_id && (
                                 <small className="ei-link">
                                   {m ? `📐 ${m.name} ${m.value == null ? "(sheet not scaled)" : fmtQty(m.value, KIND_UNIT[m.kind])} × ${it.qty_factor}${Number(it.waste_pct) ? ` + ${it.waste_pct}% waste` : ""}` : "📐 Takeoff was deleted; using the last quantity"}
@@ -222,15 +225,14 @@ export default function EstimateEditor(props: {
                                 {props.units.map((u) => <option key={u.id} value={u.id}>{u.abbr}</option>)}
                               </select>
                             </td>
-                            <td className="r"><input className="ei-num" defaultValue={it.unit_cost} inputMode="decimal" aria-label="Unit cost" readOnly={locked} onChange={(e) => patchItem(it.id, { unit_cost: num(e.target.value) }, false)} onBlur={(e) => save("estimate_items", it.id, { unit_cost: num(e.target.value) })} /></td>
-                            <td className="r"><input className="ei-num" defaultValue={it.unit_price} inputMode="decimal" aria-label="Unit price" readOnly={locked} onChange={(e) => patchItem(it.id, { unit_price: num(e.target.value) }, false)} onBlur={(e) => save("estimate_items", it.id, { unit_price: num(e.target.value) })} /></td>
+                            <td className="r"><span className="ei-money">$<input className="ei-num" defaultValue={money(it.unit_cost)} inputMode="decimal" aria-label="Unit cost" readOnly={locked} onChange={(e) => patchItem(it.id, { unit_cost: num(e.target.value) }, false)} onBlur={(e) => { e.target.value = money(num(e.target.value)); save("estimate_items", it.id, { unit_cost: num(e.target.value) }); }} /></span></td>
+                            <td className="r"><span className="ei-money">$<input className="ei-num" defaultValue={money(it.unit_price)} inputMode="decimal" aria-label="Unit price" readOnly={locked} onChange={(e) => patchItem(it.id, { unit_price: num(e.target.value) }, false)} onBlur={(e) => { e.target.value = money(num(e.target.value)); save("estimate_items", it.id, { unit_price: num(e.target.value) }); }} /></span></td>
                             <td className="r"><b>{usd(q * Number(it.unit_price))}</b></td>
-                            <td className={`r ${margin < 25 ? "margin-lo" : ""}`}>{Number(it.unit_price) ? `${margin.toFixed(1)}%` : ""}</td>
                             {!locked && <td><button className="ei-x" onClick={() => deleteItem(it.id)} aria-label={`Remove ${it.name}`}>×</button></td>}
                           </tr>
                         );
                       })}
-                      {!gItems.length && <tr><td colSpan={9} className="fine">No items yet.</td></tr>}
+                      {!gItems.length && <tr><td colSpan={8} className="fine">No items yet.</td></tr>}
                     </tbody>
                   </table>
                 </div>

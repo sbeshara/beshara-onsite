@@ -4,7 +4,7 @@ import { itemQty, totals } from "@/lib/estimates";
 import { usd } from "@/lib/office";
 import { createClient } from "@/lib/supabase/server";
 import { jobMeasures } from "./load";
-import NewEstimate from "./NewEstimate";
+import NewDocumentMenu from "./NewDocumentMenu";
 
 export const metadata = { title: "Documents · Beshara OnSite" };
 
@@ -44,13 +44,9 @@ export default async function DocumentsPage({ params, searchParams }: { params: 
     <div className="page">
       <div className="otools" style={{ justifyContent: "space-between" }}>
         <p className="fine">Contract (signed): <b style={{ color: "var(--ink)" }}>{usd(signed)}</b></p>
-        <a className="btn" href="#new">+ New document</a>
+        <NewDocumentMenu projectId={id} templates={templates} docTemplates={(docTemplates ?? []).map((t) => ({ id: t.id, name: t.name, kind: t.kind, intro: t.intro.slice(0, 160) }))} hasProposal={(ests ?? []).some((e) => e.kind === "Proposal")} />
       </div>
       <DocumentsTable rows={rows} filter={filter} href={(f) => `/projects/${id}/estimates${f === "all" ? "" : `?show=${f}`}`} showJob={false} />
-      <section className="ocard" id="new">
-        <h2>New document</h2>
-        <NewEstimate projectId={id} templates={templates} docTemplates={(docTemplates ?? []).map((t) => ({ id: t.id, name: t.name, kind: t.kind, intro: t.intro.slice(0, 160) }))} hasProposal={(ests ?? []).some((e) => e.kind === "Proposal")} />
-      </section>
     </div>
   );
 }

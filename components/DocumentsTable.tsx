@@ -43,7 +43,7 @@ export default function DocumentsTable({ rows, filter, href, showJob }: { rows: 
               {list.map((r) => {
                 const margin = r.price ? ((r.price - r.cost) / r.price) * 100 : 0;
                 return (
-                  <tr key={r.id}>
+                  <tr key={r.id} className={`doc-${r.status}`}>
                     <td><Link className="rowlink" href={`/projects/${r.project_id}/estimates/${r.id}`}>{r.name}</Link><small>{r.kind} {docNumber(r.job_number, r.seq)}</small></td>
                     {showJob && <td><Link className="rowlink" style={{ fontWeight: 500 }} href={`/projects/${r.project_id}/estimates`}>{r.job_number ? `${r.job_number} · ` : ""}{r.job_name}</Link></td>}
                     <td><span className={`pill ${PILL[r.status] ?? ""}`}>{STATUS_LABEL[r.status]}</span>{r.signed_at && r.status === "approved" && <small>{day(r.signed_at)}</small>}</td>
