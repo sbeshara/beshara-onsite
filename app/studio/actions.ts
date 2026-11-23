@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getMe } from "@/lib/auth";
 import type { ReportLine } from "@/lib/report-pdf";
 import { LINKABLE_STATUSES, listJobs } from "@/lib/jobtread";
-import { generateAll, nextReportFriday, OPENS, postReport, reportWeek, shortDate, type ReportPhoto, type WeeklyReport } from "@/lib/reports";
+import { generateAll, latestWeek, postReport, type ReportPhoto, type WeeklyReport } from "@/lib/reports";
 import { allowed } from "@/lib/permissions";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -31,12 +31,6 @@ async function requireAdmin() {
   return me;
 }
 
-// Everyone can work on a week's reports from Friday 10 AM until Monday at noon.
-const closedMessage = () => `Progress reports are closed. They open ${OPENS.replace("Friday", `Friday ${shortDate(nextReportFriday())}`)}.`;
-function checkWindow(role: Parameters<typeof isAdminRole>[0], weekStart: string) {
-  if (reportWeek(undefined, { admin: isAdminRole(role) }) !== weekStart) throw new Error(closedMessage());
-}
-
 // PMs, Admins and the Principal Contractor can review, edit and approve the
 // reports for the jobs they're on. Row-level security decides which those are.
 async function requireReviewer(reportId: string) {
@@ -45,7 +39,6 @@ async function requireReviewer(reportId: string) {
   const supabase = await createClient();
   const { data } = await supabase.from("weekly_reports").select("id, project_id, status, week_start").eq("id", reportId).maybeSingle();
   if (!data) throw new Error("You don't have access to this report.");
-  checkWindow(me.role, data.week_start);
   return { me, report: data };
 }
 
@@ -173,10 +166,9 @@ export async function setReportStatus(id: string, status: "skipped" | "draft"): 
 export async function generateNow(opts: { projectId?: string; force?: boolean; weekStart?: string } = {}): Promise<Result> {
   try {
     const me = opts.projectId ? await requireProject(opts.projectId) : await requireAdmin();
-    // Reports are only drafted while they're open, for that week.
-    const week = reportWeek(undefined, { admin: isAdminRole(me.role) });
-    if (!week) return { error: closedMessage() };
-    if (opts.weekStart && opts.weekStart !== week) return { error: "That week is closed. Only this week's reports can be drafted." };
+    // Drafts (or redrafts) the newest week's reports, any time.
+    const week = latestWeek();
+    if (opts.weekStart && opts.weekStart !== week) return { error: "Only the newest week's reports can be drafted." };
     const results = await generateAll(createAdminClient(), week, { force: opts.force, projectId: opts.projectId });
     revalidatePath("/studio", "layout");
     const drafted = results.filter((r) => r.result === "drafted").length;

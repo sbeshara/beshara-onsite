@@ -9,7 +9,7 @@ import { isSeniorPm } from "@/lib/senior";
 import ViewAsPicker from "@/components/ViewAsPicker";
 import { viewAsPeople } from "@/lib/viewas-people";
 import ReadyToSend from "@/components/ReadyToSend";
-import { readyToSend, reportWeek } from "@/lib/reports";
+import { readyToSend, latestWeek } from "@/lib/reports";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { myUnread } from "@/lib/unread";
@@ -51,7 +51,7 @@ export default async function HQ() {
   }
 
   const supabase = await createClient();
-  let reviewQ = supabase.from("weekly_reports").select("id", { count: "exact", head: true }).eq("week_start", reportWeek(undefined, { admin: isAdminRole(me.role) }) ?? "1900-01-01").eq("status", "draft");
+  let reviewQ = supabase.from("weekly_reports").select("id", { count: "exact", head: true }).eq("week_start", latestWeek()).eq("status", "draft");
   let projectsQ = supabase.from("projects").select("id", { count: "exact", head: true });
   if (only) {
     reviewQ = reviewQ.in("project_id", only);

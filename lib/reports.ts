@@ -64,11 +64,11 @@ export function lastFullWeek(now = clock()) {
 // "Now" for the report schedule. REPORTS_NOW pins it for testing only.
 export const clock = () => (process.env.REPORTS_NOW ? new Date(process.env.REPORTS_NOW) : new Date());
 
-// Progress reports are open from Friday at 10 AM until Monday at noon, for
-// everyone (PMs, Admins and the Principal Contractor). They're drafted Friday
-// from 10 AM from whatever daily logs are in, and untouched drafts are
-// redrafted as Friday's logs come in.
-// Returns the Monday of the week being reported, or null while closed.
+// Automatic drafting runs from Friday at 10 AM until Monday at noon: each job
+// is drafted Friday from whatever daily logs are in, and untouched drafts are
+// redrafted as the week's logs come in. (Editing and approving aren't limited
+// to these hours.)
+// Returns the Monday of the week being drafted, or null outside those hours.
 export const OPENS = "Friday at 10 AM";
 export const OPEN_HOUR = 10; // Friday: open, and drafting starts
 export const CLOSE_HOUR = 12; // Monday
@@ -79,6 +79,13 @@ export function reportWeek(now = clock(), _opts: { admin?: boolean } = {}) {
   if (t.weekday === "Mon" && t.hour < CLOSE_HOUR) return addDays(monday, -7);
   return null;
 }
+// The newest week with reports: this week's once drafting starts Friday at
+// 10 AM, otherwise last week's. Reports can be edited, approved and sent at
+// any time; only the automatic drafting follows the Friday-Monday schedule.
+export function latestWeek(now = clock()) {
+  return reportWeek(now) ?? addDays(mondayOf(nj(now).date), -7);
+}
+
 // The Friday the next reports open (for "opens Friday 10/31" messages).
 export const nextReportFriday = (now = clock()) => {
   const t = nj(now);

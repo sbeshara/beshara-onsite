@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
   const forced = request.nextUrl.searchParams.get("slot");
   const slot = forced === "saturday" ? "saturday" : forced === "friday" || forced === "refresh" ? "refresh" : scheduleSlot();
   const week = reportWeek();
-  if (!slot || !week) return NextResponse.json({ ok: true, skipped: "reports are closed (open Friday 10 AM to Monday noon)" });
+  if (!slot || !week) return NextResponse.json({ ok: true, skipped: "automatic drafting runs Friday 10 AM to Monday noon" });
   const results = await generateAll(admin, week, { refreshUntouched: true, notify: slot === "saturday" });
   return NextResponse.json({ ok: true, slot, week, results });
 }

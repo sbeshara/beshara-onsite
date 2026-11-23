@@ -4,7 +4,7 @@ import { fileUrls } from "@/lib/jobtread";
 import ReadyToSend from "@/components/ReadyToSend";
 import { constructionCheck } from "@/lib/construction";
 import { allowed } from "@/lib/permissions";
-import { nextReportFriday, readyToSend, reportWeek, shortDate, weekLabel, type WeeklyReport } from "@/lib/reports";
+import { latestWeek, readyToSend, shortDate, weekLabel, type WeeklyReport } from "@/lib/reports";
 import { reportFileName } from "@/lib/report-pdf";
 import { createClient } from "@/lib/supabase/server";
 import { isAdminRole } from "@/lib/types";
@@ -42,9 +42,9 @@ export default async function ReportsHome({ searchParams }: { searchParams: Prom
     supabase.from("projects").select("id, name, town, phase, jobtread_job_id, jobtread_label").order("name"),
     readyToSend(supabase),
   ]);
-  // Reports are open from Friday 10 AM until Monday noon, for everyone;
-  // otherwise only past weeks can be looked at.
-  const open = reportWeek(undefined, { admin });
+  // The newest week (drafted Friday at 10 AM) opens by default. Any week's
+  // drafts can be edited and approved at any time.
+  const open = latestWeek();
   const weeks = [...new Set([...(open ? [open] : []), ...(weeksData ?? []).map((w) => w.week_start as string)])].sort().reverse().slice(0, 8);
   const week = wanted && /^\d{4}-\d{2}-\d{2}$/.test(wanted) ? wanted : open;
   const pastWeek = !!week && week !== open;
@@ -112,14 +112,14 @@ export default async function ReportsHome({ searchParams }: { searchParams: Prom
         <div className="st-side-h">
           <h1>Progress Reports</h1>
           <p>
-            {week ? `Week of ${weekLabel(week)}${pastWeek ? " · Past Week" : ""}` : `Closed until Friday ${shortDate(nextReportFriday())} at 10 AM`}
+            {week ? `Week of ${weekLabel(week)}${pastWeek ? " · Past Week" : ""}` : ""}
           </p>
         </div>
         {weeks.length > 0 && (
         <div className="st-weeks" aria-label="Week">
           {weeks.map((w) => (
             <Link key={w} href={`/studio?week=${w}`} className="chip" aria-pressed={w === week}>
-              {w === open ? "This Week" : shortDate(w).replace(/\/\d+$/, "")}
+              {w === open ? "Latest Week" : shortDate(w).replace(/\/\d+$/, "")}
             </Link>
           ))}
         </div>
@@ -162,24 +162,15 @@ export default async function ReportsHome({ searchParams }: { searchParams: Prom
         </nav>
         {admin && week && week === open && count("missing") > 0 && <GenerateButton weekStart={week} />}
         <p className="fine">
-          Only jobs in construction are listed. Open Friday at 10 AM until Monday at 12 PM. Each job is drafted Friday at 10 AM from the daily logs so far, and updates by itself as
-          new logs for the week come in (through Sunday) until someone edits it. After editing, press Redraft to pull in newer logs. Reports are sent on Monday.
+          Only jobs in construction are listed. Each job is drafted Friday at 10 AM from the daily logs so far, and updates by itself as new logs for the week come in
+          (through Sunday) until someone edits it. After editing, press Redraft to pull in newer logs. Reports can be reviewed and approved any time.
         </p>
       </aside>
       <section className="st-detail">
         {posted && <div className="st-banner ok">Sent the {posted} report to the client&apos;s Progress Reports chat.</div>}
         {approved && <div className="st-banner ok">Approved the {approved} report. It&apos;s in Ready to Send; nothing goes to the client until it&apos;s sent.</div>}
         {!editor && <ReadyToSend reports={ready} canSend={canSend} />}
-        {pastWeek && <div className="st-banner note">This is a past week, kept for reference. This week&apos;s reports open Friday at 10 AM.</div>}
-        {!week && (
-          <div className="st-empty">
-            <h2>Progress Reports Open Friday</h2>
-            <p>
-              The next reports open Friday {shortDate(nextReportFriday())} at 10 AM. They&apos;re reviewed, approved and sent by Monday at 12 PM.
-              {weeks.length > 0 && " Past weeks are listed on the left for reference."}
-            </p>
-          </div>
-        )}
+        {pastWeek && <div className="st-banner note">This is an older week. Its drafts can still be edited and approved.</div>}
         {week && (editor ?? (
           <div className="st-empty">
             <h2>{waiting ? "Pick a Job to Review" : "All Caught Up"}</h2>
