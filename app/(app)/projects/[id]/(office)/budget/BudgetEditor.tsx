@@ -3,13 +3,12 @@
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { docNumber, STATUS_LABEL, totals } from "@/lib/estimates";
-import type { BudgetGroup, BudgetItem, DocRef } from "@/lib/budget";
+import { totals } from "@/lib/estimates";
+import type { BudgetGroup, BudgetItem } from "@/lib/budget";
 import { KIND_UNIT, fmtQty, linkedQuantity } from "@/lib/takeoff";
 import { addBudgetTemplate } from "@/app/(app)/office/actions";
 import { CatalogPicker, LinkDialog, MoneyInput, grow, num, type CatGroup, type CatItem, type MeasureOpt, type Opt } from "../estimates/[eid]/EstimateEditor";
 
-const PILL: Record<string, string> = { approved: "bc-done", pending: "warn" };
 const cur = (n: number) => n.toLocaleString("en-US", { style: "currency", currency: "USD" });
 const pct = (profit: number, price: number) => (price ? `${((profit / price) * 100).toFixed(2)}%` : "—");
 
@@ -18,7 +17,7 @@ const pct = (profit: number, price: number) => (price ? `${((profit / price) * 1
 // all its sub-groups). Documents are made from it by ticking lines.
 export default function BudgetEditor(props: {
   projectId: string; jobNumber: string | null;
-  groups: BudgetGroup[]; items: BudgetItem[]; on: Record<string, DocRef[]>; unlinkedDocs: boolean;
+  groups: BudgetGroup[]; items: BudgetItem[];
   templates: { id: string; name: string }[];
   catalog: { groups: CatGroup[]; items: CatItem[] }; types: Opt[]; units: Opt[]; measures: MeasureOpt[];
 }) {
@@ -42,7 +41,6 @@ export default function BudgetEditor(props: {
   };
   const sumOf = (list: BudgetItem[]) => totals(list.map((i) => ({ q: qty(i), c: Number(i.unit_cost), p: Number(i.unit_price) })));
   const sum = sumOf(items);
-  const signed = sumOf(items.filter((i) => props.on[i.id]?.some((d) => d.status === "approved")));
 
   async function save(table: string, id: string, patch: Record<string, unknown>) {
     setError("");
@@ -84,7 +82,6 @@ export default function BudgetEditor(props: {
     setClosed((c) => { const n = new Set(c); n.delete(gid!); return n; });
   }
   async function deleteItem(it: BudgetItem) {
-    if (props.on[it.id]?.length && !confirm(`"${it.name}" is on a document. Remove it from the budget? Signed documents keep it.`)) return;
     setItems((all) => all.filter((i) => i.id !== it.id));
     const { error } = await supabase.from("budget_items").delete().eq("id", it.id);
     if (error) setError("Couldn't remove the item. Reload and try again.");
@@ -105,10 +102,7 @@ export default function BudgetEditor(props: {
   return (
     <div className="page est">
       <div className="budget-bar">
-        <p className="fine" style={{ margin: 0, flex: 1 }}>
-          On signed documents: <b style={{ color: "var(--ink)" }}>{cur(signed.price)}</b> of {cur(sum.price)}
-          <span aria-live="polite" style={{ marginLeft: 10 }}>{saved}</span>
-        </p>
+        <p className="fine" aria-live="polite" style={{ margin: 0, flex: 1 }}>{saved}</p>
         {items.length > 0 && <Link className="btn" href={`/projects/${props.projectId}/estimates?new=1`}>+ New document from budget</Link>}
       </div>
       {error && <p className="err" role="alert">{error}</p>}
@@ -126,12 +120,12 @@ export default function BudgetEditor(props: {
               <th className="r">Unit Cost</th><th className="r">Extended Cost</th>
               <th className="r">Unit Price</th><th className="r">Extended Price</th>
               <th className="r">Profit</th><th className="r">Margin</th>
-              <th>Cost Type</th><th>On</th><th />
+              <th>Cost Type</th><th />
             </tr>
           </thead>
           <tbody>
             {!groups.length && (
-              <tr><td colSpan={13} className="sheet-empty">The budget is empty. Add a cost group (a group like New Build brings all of its sub-groups) or catalog items below.</td></tr>
+              <tr><td colSpan={12} className="sheet-empty">The budget is empty. Add a cost group (a group like New Build brings all of its sub-groups) or catalog items below.</td></tr>
             )}
             {groups.map((g) => {
               const gItems = items.filter((i) => i.group_id === g.id).sort((a, b) => a.position - b.position);
@@ -151,7 +145,6 @@ export default function BudgetEditor(props: {
                   <td className="r">{cur(gs.profit)}</td>
                   <td className="r">{pct(gs.profit, gs.price)}</td>
                   <td className="fine">{gItems.length} {gItems.length === 1 ? "item" : "items"}</td>
-                  <td />
                   <td><button className="ei-x" onClick={() => deleteGroup(g)} aria-label={`Remove ${g.name}`}>×</button></td>
                 </tr>,
                 ...(open ? gItems : []).map((it) => {
@@ -189,15 +182,6 @@ export default function BudgetEditor(props: {
                         <select className="sheet-in" value={it.cost_type_id ?? ""} aria-label="Cost type" onChange={(e) => patchItem(it.id, { cost_type_id: Number(e.target.value) || null })}>
                           {props.types.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                         </select>
-                      </td>
-                      <td>
-                        <div className="sheet-on">
-                          {docs.map((d) => (
-                            <Link key={d.estimate_id} href={`/projects/${props.projectId}/estimates/${d.estimate_id}`} className={`pill ${PILL[d.status] ?? ""}`} title={`${d.name} · ${STATUS_LABEL[d.status]}`}>
-                              {docNumber(props.jobNumber, d.seq)}
-                            </Link>
-                          ))}
-                        </div>
                       </td>
                       <td><button className="ei-x" onClick={() => deleteItem(it)} aria-label={`Remove ${it.name}`}>×</button></td>
                     </tr>
@@ -237,7 +221,7 @@ export default function BudgetEditor(props: {
               <td className="r"><b>{cur(sum.price)}</b></td>
               <td className="r"><b>{cur(sum.profit)}</b></td>
               <td className={`r ${sum.price && sum.margin < 25 ? "margin-lo" : ""}`}><b>{pct(sum.profit, sum.price)}</b></td>
-              <td colSpan={3} />
+              <td colSpan={2} />
             </tr>
           </tfoot>
         </table>
