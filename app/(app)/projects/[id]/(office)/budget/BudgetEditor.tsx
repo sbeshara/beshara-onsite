@@ -144,7 +144,7 @@ export default function BudgetEditor(props: {
                             {it.measurement_id && <small className="ei-link">{m ? `📐 ${m.name} ${m.value == null ? "(sheet not scaled)" : fmtQty(m.value, KIND_UNIT[m.kind])} × ${it.qty_factor}${Number(it.waste_pct) ? ` + ${it.waste_pct}% waste` : ""}` : "📐 Takeoff was deleted; using the last quantity"}</small>}
                           </td>
                           <td>
-                            <select className="ei-unit" value={it.cost_type_id ?? ""} aria-label="Type" onChange={(e) => patchItem(it.id, { cost_type_id: Number(e.target.value) || null })}>
+                            <select className="ei-unit ei-type" value={it.cost_type_id ?? ""} aria-label="Type" onChange={(e) => patchItem(it.id, { cost_type_id: Number(e.target.value) || null })}>
                               {props.types.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                             </select>
                           </td>
@@ -169,13 +169,13 @@ export default function BudgetEditor(props: {
                           <td className="r"><MoneyInput value={it.unit_price} label="Unit price" locked={false} onChange={(v) => patchItem(it.id, { unit_price: v }, false)} onCommit={(v) => save("budget_items", it.id, { unit_price: v })} /></td>
                           <td className="r"><b>{usd(q * Number(it.unit_price))}</b></td>
                           <td className={`r ${Number(it.unit_price) && margin < 25 ? "margin-lo" : ""}`}>{Number(it.unit_price) ? `${margin.toFixed(1)}%` : ""}</td>
-                          <td className="bud-on">
+                          <td className="bud-on"><div>
                             {docs.length ? docs.map((d) => (
                               <Link key={d.estimate_id} href={`/projects/${props.projectId}/estimates/${d.estimate_id}`} className={`pill ${PILL[d.status] ?? ""}`} title={`${d.name} · ${STATUS_LABEL[d.status]}`}>
                                 {d.kind === "Change Order" ? "CO" : d.kind === "Additional Scope" ? "AS" : "P"} {docNumber(props.jobNumber, d.seq)}
                               </Link>
                             )) : <small className="fine">—</small>}
-                          </td>
+                          </div></td>
                           <td><button className="ei-x" onClick={() => deleteItem(it)} aria-label={`Remove ${it.name}`}>×</button></td>
                         </tr>
                       );
