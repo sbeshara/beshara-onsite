@@ -9,6 +9,20 @@ export type EstGroup = { id: string; name: string; description: string; client_v
 export type EstStep = { id: string; name: string; percent: number; position: number };
 
 export const CLIENT_VIEWS = { items: "Items with prices", qty: "Items, no prices", total: "Group total only" } as const;
+// What the client's copy shows, set per document. Unit costs never show.
+export const CLIENT_SHOW = {
+  items: "Line items",
+  descriptions: "Item descriptions",
+  qty: "Quantities and units",
+  unit_price: "Unit prices",
+  line_total: "Line totals",
+  group_total: "Group totals",
+} as const;
+export type ClientShow = Record<keyof typeof CLIENT_SHOW, boolean>;
+export const clientShow = (v: unknown): ClientShow => {
+  const o = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
+  return Object.fromEntries(Object.keys(CLIENT_SHOW).map((k) => [k, o[k] !== false])) as ClientShow;
+};
 export const STATUS_LABEL: Record<string, string> = { draft: "Draft", pending: "Awaiting signature", approved: "Signed", denied: "Declined" };
 
 // An item's quantity: from its takeoff when linked, otherwise what was typed.

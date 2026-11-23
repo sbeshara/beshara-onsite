@@ -15,7 +15,7 @@ export async function jobMeasures(supabase: SupabaseClient, projectId: string) {
 
 // Builds the client's copy of an estimate from its current contents.
 export async function buildClientCopy(supabase: SupabaseClient, projectId: string, estimateId: string): Promise<import("@/lib/client-copy").ClientCopy | null> {
-  const { docNumber, itemQty } = await import("@/lib/estimates");
+  const { docNumber, itemQty, clientShow } = await import("@/lib/estimates");
   const { fmtQty } = await import("@/lib/takeoff");
   const [{ data: est }, { data: groups }, { data: items }, { data: steps }, { data: job }, { data: units }, measures] = await Promise.all([
     supabase.from("estimates").select("seq, kind, name, intro, terms, issued_on").eq("id", estimateId).eq("project_id", projectId).maybeSingle(),
@@ -27,6 +27,9 @@ export async function buildClientCopy(supabase: SupabaseClient, projectId: strin
     jobMeasures(supabase, projectId),
   ]);
   if (!est || !job) return null;
+  // Read on its own so a database without the column still works.
+  const { data: showRow } = await supabase.from("estimates").select("client_show").eq("id", estimateId).maybeSingle();
+  const show = clientShow(showRow?.client_show);
   const abbr = (id: number | null) => units?.find((u) => u.id === id)?.abbr ?? "";
   const money = (n: number) => n.toLocaleString("en-US", { style: "currency", currency: "USD" });
   type Row = { group_id: string; name: string; description: string; unit_id: number | null; quantity: number; unit_price: number; measurement_id: string | null; qty_factor: number; waste_pct: number };
@@ -40,14 +43,21 @@ export async function buildClientCopy(supabase: SupabaseClient, projectId: strin
       description: g.description,
       view,
       total,
-      display: view === "total" ? (g.display_unit && g.display_qty ? `${fmtQty(Number(g.display_qty))} ${g.display_unit} × ${money(total / Number(g.display_qty))}/${g.display_unit}` : "Lump sum") : null,
+      hide_total: !show.group_total || undefined,
+      display: !show.group_total ? null : view === "total" ? (g.display_unit && g.display_qty ? `${fmtQty(Number(g.display_qty))} ${g.display_unit} × ${money(total / Number(g.display_qty))}/${g.display_unit}` : "Lump sum") : null,
       items:
-        view === "total"
+        view === "total" || !show.items
           ? []
           : gi.map((r) => {
               const u = abbr(r.unit_id);
-              const qty = u === "LS" ? "Lump sum" : `${fmtQty(r.q)} ${u}`.trim();
-              return view === "items" ? { name: r.name, description: r.description, qty, unit: u, unit_price: r.p, total: Math.round(r.q * r.p * 100) / 100 } : { name: r.name, description: r.description, qty };
+              const prices = view === "items";
+              return {
+                name: r.name,
+                description: show.descriptions ? r.description : "",
+                ...(show.qty ? { qty: u === "LS" ? "Lump sum" : `${fmtQty(r.q)} ${u}`.trim() } : {}),
+                ...(prices && show.unit_price ? { unit: u, unit_price: r.p } : {}),
+                ...(prices && show.line_total ? { total: Math.round(r.q * r.p * 100) / 100 } : {}),
+              };
             }),
     };
   });

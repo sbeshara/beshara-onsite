@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { CLIENT_VIEWS, docNumber, STATUS_LABEL, totals, type EstGroup, type EstItem, type EstStep } from "@/lib/estimates";
+import { CLIENT_SHOW, CLIENT_VIEWS, docNumber, type ClientShow, STATUS_LABEL, totals, type EstGroup, type EstItem, type EstStep } from "@/lib/estimates";
 import { usd } from "@/lib/office";
 import { KIND_UNIT, fmtQty, linkedQuantity, type MeasureKind } from "@/lib/takeoff";
 import { deleteEstimate, recallEstimate, sendEstimate } from "@/app/(app)/office/actions";
@@ -13,7 +13,7 @@ type CatGroup = { id: string; name: string; parent_id: string | null; descriptio
 type CatItem = { id: string; cost_group_id: string | null; name: string; description: string; cost_type_id: number | null; unit_id: number | null; quantity: number | null; unit_cost: number | null; unit_price: number | null };
 type MeasureOpt = { id: string; name: string; kind: MeasureKind; sheet: string; value: number | null };
 
-const money = (v: number | string | null) => (Number(v) || 0).toFixed(2);
+const money = (v: number | string | null) => (Number(v) || 0).toLocaleString("en-US", { style: "currency", currency: "USD" });
 // A textarea that grows to show all of its text.
 const grow = (el: HTMLTextAreaElement | null) => { if (el) { el.style.height = "auto"; el.style.height = `${el.scrollHeight}px`; } };
 
@@ -25,6 +25,7 @@ const num = (v: string) => {
 export default function EstimateEditor(props: {
   projectId: string; jobNumber: string | null; chats: { id: string; name: string }[];
   estimate: { id: string; seq: number; kind: string; name: string; status: string; intro: string; terms: string; issued_on: string; signed_at: string | null; signed_by_name: string | null; sent_at: string | null; signature: string | null; declined_at: string | null; decline_reason: string | null };
+  clientShow: ClientShow | null; // null: the database doesn't have the setting yet
   groups: EstGroup[]; items: EstItem[]; steps: EstStep[];
   catalog: { groups: CatGroup[]; items: CatItem[] }; types: Opt[]; units: Opt[]; measures: MeasureOpt[];
 }) {
@@ -33,6 +34,7 @@ export default function EstimateEditor(props: {
   const [groups, setGroups] = useState(props.groups);
   const [items, setItems] = useState(props.items);
   const [steps, setSteps] = useState(props.steps);
+  const [show, setShow] = useState(props.clientShow);
   const [picker, setPicker] = useState<string | null>(null); // group id when adding from the catalog
   const [linking, setLinking] = useState<string | null>(null); // item id being linked to a takeoff
   const [sending, setSending] = useState(false);
@@ -225,8 +227,8 @@ export default function EstimateEditor(props: {
                                 {props.units.map((u) => <option key={u.id} value={u.id}>{u.abbr}</option>)}
                               </select>
                             </td>
-                            <td className="r"><span className="ei-money">$<input className="ei-num" defaultValue={money(it.unit_cost)} inputMode="decimal" aria-label="Unit cost" readOnly={locked} onChange={(e) => patchItem(it.id, { unit_cost: num(e.target.value) }, false)} onBlur={(e) => { e.target.value = money(num(e.target.value)); save("estimate_items", it.id, { unit_cost: num(e.target.value) }); }} /></span></td>
-                            <td className="r"><span className="ei-money">$<input className="ei-num" defaultValue={money(it.unit_price)} inputMode="decimal" aria-label="Unit price" readOnly={locked} onChange={(e) => patchItem(it.id, { unit_price: num(e.target.value) }, false)} onBlur={(e) => { e.target.value = money(num(e.target.value)); save("estimate_items", it.id, { unit_price: num(e.target.value) }); }} /></span></td>
+                            <td className="r"><MoneyInput value={it.unit_cost} label="Unit cost" locked={locked} onChange={(v) => patchItem(it.id, { unit_cost: v }, false)} onCommit={(v) => save("estimate_items", it.id, { unit_cost: v })} /></td>
+                            <td className="r"><MoneyInput value={it.unit_price} label="Unit price" locked={locked} onChange={(v) => patchItem(it.id, { unit_price: v }, false)} onCommit={(v) => save("estimate_items", it.id, { unit_price: v })} /></td>
                             <td className="r"><b>{usd(q * Number(it.unit_price))}</b></td>
                             {!locked && <td><button className="ei-x" onClick={() => deleteItem(it.id)} aria-label={`Remove ${it.name}`}>×</button></td>}
                           </tr>
@@ -263,6 +265,25 @@ export default function EstimateEditor(props: {
             <div className="sumrow"><span>Margin</span><b className={`num ${sum.margin < 25 && sum.price ? "margin-lo" : ""}`}>{sum.price ? `${sum.margin.toFixed(1)}%` : "—"}</b></div>
             <div className="sumrow big"><span>Client price</span><b className="num">{usd(sum.price)}</b></div>
             <p className="fine">Cost, profit and margin never show on the client&apos;s copy.</p>
+          </section>
+          <section className="ocard">
+            <h2>Client sees</h2>
+            {show ? (
+              <div className="showlist">
+                {(Object.keys(CLIENT_SHOW) as (keyof ClientShow)[]).map((k) => {
+                  const off = (k !== "items" && k !== "group_total" && !show.items);
+                  return (
+                    <label key={k} className={`showopt ${off ? "dim" : ""}`}>
+                      <input type="checkbox" checked={show[k]} disabled={locked} onChange={(e) => { const next = { ...show, [k]: e.target.checked }; setShow(next); save("estimates", est.id, { client_show: next }); }} />
+                      {CLIENT_SHOW[k]}
+                    </label>
+                  );
+                })}
+                <p className="fine">Applies to the whole document, on top of each group&apos;s setting. Unit costs, profit and margin never show. If it&apos;s already sent, press Resend after changing this.</p>
+              </div>
+            ) : (
+              <p className="fine">Run the latest database update to turn these options on.</p>
+            )}
           </section>
           <section className="ocard">
             <div className="sec-h" style={{ marginBottom: 0 }}><h2>Payment schedule</h2>{!locked && <button className="textbtn" onClick={addStep}>+ Step</button>}</div>
@@ -321,6 +342,24 @@ export default function EstimateEditor(props: {
         return <LinkDialog item={it} unit={unitAbbr(it.unit_id)} measures={props.measures} projectId={props.projectId} onClose={() => setLinking(null)} onSave={(mid, f, w) => { link(it, mid, f, w); setLinking(null); }} />;
       })()}
     </div>
+  );
+}
+
+// A dollar amount shown in full ("$19,601.00"); plain digits while editing.
+function MoneyInput({ value, label, locked, onChange, onCommit }: { value: number; label: string; locked: boolean; onChange: (v: number) => void; onCommit: (v: number) => void }) {
+  const [text, setText] = useState(money(value));
+  return (
+    <input
+      className="ei-money"
+      value={text}
+      size={Math.max(7, text.length)}
+      inputMode="decimal"
+      aria-label={label}
+      readOnly={locked}
+      onFocus={(e) => { if (!locked) { setText(String(num(text))); requestAnimationFrame(() => e.target.select()); } }}
+      onChange={(e) => { setText(e.target.value); onChange(num(e.target.value)); }}
+      onBlur={() => { const v = num(text); setText(money(v)); onCommit(v); }}
+    />
   );
 }
 

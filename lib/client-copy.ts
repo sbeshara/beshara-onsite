@@ -15,8 +15,9 @@ export type ClientCopy = {
     description: string;
     view: "items" | "qty" | "total";
     total: number;
+    hide_total?: boolean; // the client sees no price for this group
     display: string | null; // e.g. "2,280 SF × $4.38/SF" or "Lump sum" (group-total view)
-    items: { name: string; description: string; qty: string; unit_price?: number; unit?: string; total?: number }[];
+    items: { name: string; description: string; qty?: string; unit_price?: number; unit?: string; total?: number }[];
   }[];
   total: number;
   steps: { name: string; percent: number; amount: number }[];

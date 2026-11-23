@@ -20,28 +20,28 @@ export default function ProposalDoc({ copy, children }: { copy: ClientCopy; chil
         <div><span>Project</span>{copy.project.map((l, i) => <div key={i}>{l}</div>)}</div>
       </div>
       {copy.intro && <div className="paper-intro md"><ReactMarkdown remarkPlugins={[remarkBreaks]}>{copy.intro}</ReactMarkdown></div>}
-      {copy.groups.map((g, gi) => (
+      {copy.groups.map((g, gi) => {
+        const hasQty = g.items.some((it) => it.qty !== undefined);
+        const hasUnit = g.items.some((it) => it.unit_price !== undefined);
+        const hasTotal = g.items.some((it) => it.total !== undefined);
+        return (
         <section key={gi} className="pblock">
           <div className="pblock-h">
             <h3>{g.name}</h3>
-            <div className="gp"><b>{usd(g.total)}</b>{g.display && <small>{g.display}</small>}</div>
+            {!g.hide_total && <div className="gp"><b>{usd(g.total)}</b>{g.display && <small>{g.display}</small>}</div>}
           </div>
           {g.description && <p className="pdesc">{g.description}</p>}
           {g.items.length > 0 && (
             <div className="otable-wrap">
               <table className="pitems">
-                <thead><tr><th>Item</th><th className="r">Quantity</th>{g.view === "items" && <><th className="r">Unit price</th><th className="r">Total</th></>}</tr></thead>
+                <thead><tr><th>Item</th>{hasQty && <th className="r">Quantity</th>}{hasUnit && <th className="r">Unit price</th>}{hasTotal && <th className="r">Total</th>}</tr></thead>
                 <tbody>
                   {g.items.map((it, i) => (
                     <tr key={i}>
                       <td><b>{it.name}</b>{it.description && <small>{it.description}</small>}</td>
-                      <td className="r">{it.qty}</td>
-                      {g.view === "items" && (
-                        <>
-                          <td className="r">{usd(it.unit_price ?? 0)}{it.unit && it.unit !== "LS" && <small>/ {it.unit}</small>}</td>
-                          <td className="r"><b>{usd(it.total ?? 0)}</b></td>
-                        </>
-                      )}
+                      {hasQty && <td className="r">{it.qty}</td>}
+                      {hasUnit && <td className="r">{usd(it.unit_price ?? 0)}{it.unit && it.unit !== "LS" && <small>/ {it.unit}</small>}</td>}
+                      {hasTotal && <td className="r"><b>{usd(it.total ?? 0)}</b></td>}
                     </tr>
                   ))}
                 </tbody>
@@ -49,7 +49,8 @@ export default function ProposalDoc({ copy, children }: { copy: ClientCopy; chil
             </div>
           )}
         </section>
-      ))}
+        );
+      })}
       <div className="paper-total"><span>Total</span><b>{usd(copy.total)}</b></div>
       {copy.steps.length > 0 && (
         <>
